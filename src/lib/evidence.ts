@@ -1,34 +1,27 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import {
-  S3Client,
-  PutObjectCommand,
-  GetObjectCommand,
-  DeleteObjectCommand,
-} from "@aws-sdk/client-s3";
 import { DomainError } from "./domain";
 import { encrypt, decrypt } from "./crypto";
 import { privateTx, audit, type Actor } from "./db";
-function s3() {
-  return new S3Client({
-    region: process.env.S3_REGION,
-    endpoint: process.env.S3_ENDPOINT || undefined,
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",
-      secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",
-    },
-  });
-}
+import { evidenceSizeError, MAX_EVIDENCE_BYTES } from "./evidence-policy";
+import {
+  putStoredEvidence,
+  getStoredEvidence,
+  deleteStoredEvidence,
+} from "./evidence-storage";
 function storagePath(key: string) {
   if (!/^[a-f0-9-]{36}$/.test(key))
     throw new DomainError("Invalid evidence key.");
   return path.resolve(process.env.EVIDENCE_LOCAL_DIR ?? ".local/evidence", key);
 }
 export async function putEvidence(actor: Actor, resultId: string, file: File) {
-  if (file.size > 5 * 1024 * 1024 || file.size === 0)
-    throw new DomainError("Evidence must be between 1 byte and 5 MB.");
+  const sizeError = evidenceSizeError(file.size);
+  if (sizeError)
+    throw new DomainError(
+      sizeError,
+      file.size > MAX_EVIDENCE_BYTES ? 413 : 400,
+    );
   const bytes = Buffer.from(await file.arrayBuffer());
   let mime: string;
   if (
@@ -57,14 +50,7 @@ export async function putEvidence(actor: Actor, resultId: string, file: File) {
       );
   });
   if (process.env.EVIDENCE_STORAGE === "s3")
-    await s3().send(
-      new PutObjectCommand({
-        Bucket: process.env.S3_BUCKET,
-        Key: key,
-        Body: sealed,
-        ContentType: "application/octet-stream",
-      }),
-    );
+    await putStoredEvidence(key, sealed);
   else {
     if (process.env.VERCEL || process.env.APP_ENV === "production")
       throw new DomainError(
@@ -110,10 +96,7 @@ export async function putEvidence(actor: Actor, resultId: string, file: File) {
       return { id: e.id };
     });
   } catch (e) {
-    if (process.env.EVIDENCE_STORAGE === "s3")
-      await s3().send(
-        new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }),
-      );
+    if (process.env.EVIDENCE_STORAGE === "s3") await deleteStoredEvidence(key);
     else await unlink(storagePath(key));
     throw e;
   }
@@ -128,14 +111,7 @@ export async function getEvidence(actor: Actor, id: string) {
   });
   const encrypted =
     process.env.EVIDENCE_STORAGE === "s3"
-      ? await (
-          await s3().send(
-            new GetObjectCommand({
-              Bucket: process.env.S3_BUCKET,
-              Key: meta.storageKey,
-            }),
-          )
-        ).Body!.transformToString()
+      ? await getStoredEvidence(meta.storageKey)
       : await readFile(storagePath(meta.storageKey), "utf8");
   return {
     bytes: Buffer.from(

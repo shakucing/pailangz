@@ -131,6 +131,8 @@ The landing page uses adapted React Bits SpotlightCard and FadeContent for subtl
 
 ## PostgreSQL and deployment
 
+To seed Neon with the **current saved local database**, including approvals and the revised P65 roster, use the snapshot transfer described in [neon-deployment.md](docs/neon-deployment.md). `pnpm db:neon:export` prepares private ignored transfer files; `pnpm db:neon:import` copies them to an empty Neon database and compares every row before committing. The original `db:seed` creates the original draft and does not reproduce all subsequent local edits.
+
 For native local PostgreSQL, use the included Docker Compose file (PostgreSQL 17) or an existing **dedicated** instance. Supply an owner password privately and configure separate owner and runtime URLs. Do not reuse unrelated local databases.
 
 Run `pnpm db:migrate` with `MIGRATION_DATABASE_URL`, then provision the runtime role as the owner using a SQL console:
@@ -148,7 +150,7 @@ For Vercel + managed PostgreSQL (including Supabase), configure server-only **Se
 
 Previews must have their **own** database, environment label `preview`, credentials, keyring and storage, with synthetic members only. The app rejects a preview/development database label mismatch and a non-production environment configured as production. Protect preview URLs using Vercel Deployment Protection. Cloud credentials and deployment protection must be configured and verified by the operator; no cloud deployment is included.
 
-Evidence is restricted to validated PNG/JPEG/WebP signatures, up to 5 MB, with opaque keys and AES-GCM encryption. Local files are 0600 under an ignored private directory. Set `EVIDENCE_STORAGE=s3`, the `S3_*` variables, a private bucket with public access blocked and lifecycle retention for production. Downloads require current staff authorization and are audited. Public evidence publication is not enabled in this scaffold. Signature validation is not malware scanning or full image decoding; production may add a scanner and stricter decoding.
+Evidence is restricted to validated PNG/JPEG/WebP signatures, up to 4 MiB (shown as 4 MB), with opaque keys and AES-GCM encryption. This fits Vercel's 4.5 MB request/response limit. Local files are 0600 under an ignored private directory. Set `EVIDENCE_STORAGE=s3`, the `S3_*` variables and a private bucket with public access blocked for production. Follow [the evidence upload setup](docs/evidence-uploads.md) to use Neon Object Storage and run `pnpm evidence:check` before importing credentials into Vercel. Downloads require current staff authorization and are audited. Public evidence publication is not enabled in this scaffold. Signature validation is not malware scanning or full image decoding; production may add a scanner and stricter decoding.
 
 Private APIs explicitly send `Cache-Control: private, no-store`; staff pages are dynamic, with CDN no-store headers. Next.js development pages may normalize Cache-Control to `no-store`, which also forbids shared storage. No private records enter static pages, public data projections, metadata, analytics or session replay. Script CSP uses a per-request nonce. Server mutations validate Origin; Auth.js handles its login/sign-out CSRF flow. Persistent database rate limits cover login, mutations, details/reveals and exports.
 

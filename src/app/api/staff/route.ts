@@ -7,6 +7,7 @@ import { csvRows, ingest, decideRegistration } from "@/lib/imports";
 import * as competition from "@/lib/competition";
 import * as operations from "@/lib/operations";
 import { putEvidence, getEvidence } from "@/lib/evidence";
+import { MAX_UPLOAD_REQUEST_BYTES } from "@/lib/evidence-policy";
 import { decrypt } from "@/lib/crypto";
 import { friendlyError } from "@/lib/staff-presentation";
 const headers = {
@@ -58,12 +59,16 @@ export async function POST(request: Request) {
     requestActor = actor;
     await rateLimit(`mutations:${actor.id}`, 100, 60);
     if (request.headers.get("content-type")?.includes("multipart/form-data")) {
-      if (Number(request.headers.get("content-length") ?? 0) > 5_500_000)
+      if (
+        Number(request.headers.get("content-length") ?? 0) >
+        MAX_UPLOAD_REQUEST_BYTES
+      )
         throw new DomainError("Upload is too large.", 413);
       const form = await request.formData();
       const file = form.get("file");
       if (!(file instanceof File)) throw new DomainError("Select a file.");
       const action = form.get("action");
+      operation = action === "evidence" ? "EVIDENCE_UPLOAD" : "IMPORT";
       if (action === "import") {
         if (!file.name.toLowerCase().endsWith(".csv"))
           throw new DomainError("Select a CSV file.");

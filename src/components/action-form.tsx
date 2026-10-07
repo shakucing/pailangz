@@ -18,6 +18,7 @@ import {
   type Choice,
 } from "@/lib/staff-presentation";
 import { staffFormData } from "@/lib/staff-form";
+import { evidenceSizeError } from "@/lib/evidence-policy";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
 export type Field = {
   name: string;
@@ -279,13 +280,26 @@ export function UploadForm({
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
+        setFeedback("");
         const form = new FormData(e.currentTarget);
         form.set("action", action);
         if (resultId) form.set("resultId", resultId);
         try {
+          const file = form.get("file");
+          if (action === "evidence" && file instanceof File) {
+            const sizeError = evidenceSizeError(file.size);
+            if (sizeError) throw new Error(sizeError);
+          }
           const r = await fetch("/api/staff", { method: "POST", body: form });
-          const body = await r.json();
-          if (!r.ok) throw new Error(body.error);
+          if (r.status === 413)
+            throw new Error(
+              action === "evidence"
+                ? "The screenshot is too large. Choose a PNG, JPEG or WebP up to 4 MB."
+                : "The spreadsheet is too large. Choose a CSV up to 2 MB.",
+            );
+          const body = await r.json().catch(() => null);
+          if (!r.ok || !body)
+            throw new Error(body?.error ?? "Upload failed. Please try again.");
           setFeedback(
             action === "import"
               ? `Added ${body.created} registrations. ${body.skipped} already uploaded; ${body.conflicts} need a duplicate check.`
@@ -304,7 +318,7 @@ export function UploadForm({
       <label>
         {action === "import"
           ? "Registration spreadsheet (.csv)"
-          : "Match screenshot (up to 5 MB)"}
+          : "Match screenshot (up to 4 MB)"}
         <input
           name="file"
           type="file"
