@@ -75,3 +75,17 @@ This local snapshot has no evidence objects. Export intentionally stops if evide
 Check `/login`, an administrator's registration inbox/member registry, settings and the public event centre. The original tournament should have 64 assigned participants, six league rounds and 192 matches, with P65 present and P15 absent. Authorized staff should see the current roster and be able to reveal an encrypted registration. Confirm fixture order and approvals against the local app.
 
 The importer tests exercise cyclic result references, archived history, copied private rows and staff hashes, permanent team codes, restored immutable audit triggers, rollback after a foreign-key failure, refusal to overwrite data and snapshot corruption checks. A live Neon import still requires the operator's connection string.
+
+## Updating the existing deployment
+
+The snapshot import above is only for an empty database. Once it has succeeded, upgrade the saved production schema from the repository root:
+
+```sh
+pnpm db:neon:migrate
+```
+
+This reads the existing private `target.env` owner URL, requires the production database label and checks the completed Prisma migration history against this checkout. It refuses unfinished, altered, unknown or skipped migrations, applies only pending migrations and verifies completion. TLS uses `verify-full`. Credentials and row contents are not printed. Existing records, staff passwords and encryption keys are retained; neither snapshot import nor seeding runs.
+
+For this staff operations update, migration `202610070010_staff_management_performance` adds admin-only account functions and performance indexes and makes row-policy identity checks run once per statement. After the command succeeds, push the code and redeploy Vercel Production. The repository's function region is Singapore (`sin1`), matching the Neon database.
+
+The Vercel environment variables already imported for the database and evidence storage remain usable. Keep `NEXTAUTH_URL=https://pailangz.vercel.app`. Owner credentials remain local; do not add the migration URL to Vercel's runtime variables. Verify member editing, registration approval, staff account management and evidence-backed result confirmation after deploying.

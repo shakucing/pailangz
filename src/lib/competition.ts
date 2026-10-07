@@ -13,6 +13,8 @@ import {
   DomainError,
   readiness,
   requireReason,
+  optionalNote,
+  noteSchema,
   resultSchema,
   validateSeries,
   type Rules,
@@ -174,6 +176,8 @@ export async function submitResult(actor: Actor, raw: unknown) {
     )
       throw new DomainError("Resolve stale bracket dependencies first.");
     const stage = match.round.stage;
+    if (input.outcome.includes("FORFEIT") || match.currentResultId)
+      requireReason(input.reason);
     validateSeries(
       match.bestOf,
       input.games,
@@ -214,7 +218,7 @@ export async function reviewResult(
   actor: Actor,
   input: { id: string; action: string; reason: string },
 ) {
-  const reason = requireReason(input.reason);
+  const note = optionalNote(input.reason);
   return privateTx(actor, async (tx) => {
     const result = await tx.resultVersion.findUniqueOrThrow({
       where: { id: input.id },
@@ -230,6 +234,11 @@ export async function reviewResult(
       throw new DomainError(
         "Archived results are retained for history and cannot be changed.",
       );
+    const reason =
+      input.action !== "ACCEPT" ||
+      (m.currentResultId && m.currentResultId !== result.id)
+        ? requireReason(note)
+        : note;
     if (input.action === "ACCEPT") {
       if (m.currentResultId === result.id && result.status === "ACCEPTED")
         return { id: result.id };
@@ -265,7 +274,12 @@ export async function reviewResult(
         m.currentResultId ? "RESULT_CORRECT" : "RESULT_ACCEPT",
         "MATCH",
         m.id,
-        { beforeResultId: m.currentResultId, afterResultId: result.id },
+        {
+          beforeResultId: m.currentResultId,
+          afterResultId: result.id,
+          outcome: result.outcome,
+          games: result.games.map((g) => `${g.scoreA}–${g.scoreB}`),
+        },
         reason,
         { stageId: stage.id },
       );
@@ -363,7 +377,7 @@ export async function saveTournament(
           "COMPLETED",
           "ARCHIVED",
         ]),
-        reason: z.string().min(3),
+        reason: noteSchema,
       })
       .parse(input);
     const createConfig = !data.id
@@ -496,7 +510,7 @@ export async function confirmRules(
         confirmedRules: input.confirmedRules,
         version: stage.ruleVersion + 1,
       },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: stage.id };
   });
@@ -631,7 +645,7 @@ export async function publishTournament(
       "TOURNAMENT",
       t.id,
       { published: input.published },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: t.id };
   });
@@ -755,7 +769,9 @@ export async function freezeRankings(
       "SNAPSHOT",
       snapshot.id,
       { version: snapshot.version, participantIds: input.rankedIds },
-      requireReason(input.reason),
+      rows.some((r) => r.tied)
+        ? requireReason(input.reason)
+        : optionalNote(input.reason),
       { stageId: stage.id },
     );
     return { id: snapshot.id };
@@ -850,7 +866,7 @@ export async function createQualification(
       "STAGE",
       stage.id,
       { matches: expectedMatches },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: stage.id };
   });
@@ -946,7 +962,7 @@ export async function createSoloBracket(
       "STAGE",
       knockout.id,
       { ...stats, pairing: (knockout.rules as Rules).knockoutPairing },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: knockout.id };
   });
@@ -1020,7 +1036,7 @@ export async function advanceWinner(
       "MATCH",
       target.id,
       { sourceMatchId: m.id, winner },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: target.id };
   });

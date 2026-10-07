@@ -74,8 +74,9 @@ export function TournamentConfigForm({
           private draft and its rules need confirmation again.
         </label>
         <label>
-          Reason for this change
-          <input name="reason" required minLength={3} maxLength={1000} />
+          Note (required when restarting a published competition or existing
+          results)
+          <input name="reason" maxLength={1000} />
         </label>
       </fieldset>
       <button disabled={busy} className="button secondary">

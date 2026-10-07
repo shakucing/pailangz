@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavigationLink as Link } from "@/components/navigation-link";
 import { notFound } from "next/navigation";
 import { getLocale, translate } from "@/lib/i18n";
 import { publicTournament, dateText } from "@/lib/public-data";

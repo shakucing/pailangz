@@ -1,5 +1,5 @@
 "use client";
-import { useState, useId } from "react";
+import { useState, useId, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   SelectionField,
@@ -64,6 +64,11 @@ export function ActionForm({
   label?: string;
   compact?: boolean;
 }) {
+  const [decision, setDecision] = useState(
+    String(
+      fixed.action ?? fields.find((f) => f.name === "action")?.value ?? "",
+    ),
+  );
   const router = useRouter(),
     uid = useId();
   const [busy, setBusy] = useState(false),
@@ -91,7 +96,7 @@ export function ActionForm({
           const body = await response.json();
           if (!response.ok) throw new Error(body.error);
           setFeedback({
-            text: "Saved. Your change is recorded in activity history.",
+            text: "Saved.",
             error: false,
           });
           router.refresh();
@@ -110,12 +115,17 @@ export function ActionForm({
     >
       <fieldset className="form-fields" disabled={busy}>
         {fields.map((f) => {
+          const required =
+            f.required ||
+            (action === "resultReview" &&
+              f.name === "reason" &&
+              ["REJECT", "DISPUTE"].includes(decision));
           if (f.type === "members")
             return (
               <SelectionField
                 key={f.name}
                 name={f.name}
-                label={f.label}
+                label={f.name === "reason" && required ? "Reason" : f.label}
                 options={f.options ?? []}
                 value={f.value as string[] | undefined}
                 max={f.max}
@@ -127,7 +137,7 @@ export function ActionForm({
               <OrderField
                 key={f.name}
                 name={f.name}
-                label={f.label}
+                label={f.name === "reason" && required ? "Reason" : f.label}
                 options={f.options ?? []}
                 value={f.value as string[] | undefined}
                 complete={f.complete}
@@ -139,7 +149,7 @@ export function ActionForm({
               <PairsField
                 key={f.name}
                 name={f.name}
-                label={f.label}
+                label={f.name === "reason" && required ? "Reason" : f.label}
                 options={f.options ?? []}
                 count={f.pairCount ?? 0}
                 matchesPerPlayer={f.matchesPerPlayer}
@@ -176,8 +186,8 @@ export function ActionForm({
               className={f.type === "checkbox" ? "choice-row" : undefined}
             >
               <span>
-                {f.label}
-                {!f.required &&
+                {f.name === "reason" && required ? "Reason" : f.label}
+                {!required &&
                   !["checkbox", "select"].includes(f.type ?? "") && (
                     <span className="muted"> (optional)</span>
                   )}
@@ -187,17 +197,24 @@ export function ActionForm({
                   id={`${uid}-${f.name}`}
                   name={f.name}
                   defaultValue={String(f.value ?? "")}
-                  required={f.required}
+                  required={required}
+                  minLength={f.name === "reason" && required ? 3 : undefined}
+                  maxLength={f.name === "reason" ? 1000 : undefined}
                 />
               ) : f.type === "select" ? (
                 <select
                   id={`${uid}-${f.name}`}
                   name={f.name}
                   defaultValue={String(f.value ?? "")}
-                  required={f.required}
+                  required={required}
+                  onChange={
+                    f.name === "action"
+                      ? (e) => setDecision(e.target.value)
+                      : undefined
+                  }
                 >
                   <option value="">
-                    {f.required
+                    {required
                       ? "Choose an option…"
                       : "Keep current / no selection"}
                   </option>
@@ -213,7 +230,7 @@ export function ActionForm({
                   name={f.name}
                   type="checkbox"
                   defaultChecked={Boolean(f.value)}
-                  required={f.required}
+                  required={required}
                 />
               ) : (
                 <input
@@ -225,9 +242,9 @@ export function ActionForm({
                       ? malaysiaDateInput(f.value as string)
                       : String(f.value ?? "")
                   }
-                  required={f.required}
+                  required={required}
                   placeholder={f.placeholder}
-                  minLength={f.name === "reason" ? 3 : undefined}
+                  minLength={f.name === "reason" && required ? 3 : undefined}
                   maxLength={f.name === "reason" ? 1000 : undefined}
                   aria-describedby={
                     f.help ? `${uid}-${f.name}-help` : undefined
@@ -346,90 +363,75 @@ export function UploadForm({
 export function PrivateDetails({
   kind,
   id,
+  autoLoad = false,
 }: {
   kind: "member" | "submission";
   id: string;
+  autoLoad?: boolean;
 }) {
-  const [value, setValue] = useState<Record<string, unknown> | null>(null),
-    [phone, setPhone] = useState<string | null>(null),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [reason, setReason] = useState("");
-  async function load(reveal: boolean) {
+  const [value, setValue] = useState<Record<string, unknown> | null>(null);
+  const [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  async function load() {
     setBusy(true);
     setError("");
     try {
       const r = await fetch("/api/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: reveal ? "reveal" : "privateDetails",
-          data: { kind, id, reason },
-        }),
+        body: JSON.stringify({ action: "privateDetails", data: { kind, id } }),
       });
       const body = await r.json();
       if (!r.ok) throw new Error(body.error);
-      if (reveal) setPhone(body.phone ?? "No phone supplied.");
-      else setValue(body.fields);
+      setValue(body.fields);
     } catch (e) {
       setError(
-        e instanceof Error
-          ? friendlyError(e.message)
-          : "Unable to load details.",
+        friendlyError(
+          e instanceof Error ? e.message : "Unable to load details.",
+        ),
       );
     } finally {
       setBusy(false);
     }
   }
+  useEffect(() => {
+    if (autoLoad) void load();
+  }, [kind, id, autoLoad]);
   return (
     <div className="stack">
-      <button
-        className="button secondary small"
-        disabled={busy}
-        onClick={() => load(false)}
-      >
-        View registration details
-      </button>
+      {!autoLoad && !value && (
+        <button
+          type="button"
+          className="button secondary small"
+          disabled={busy}
+          onClick={load}
+        >
+          {busy ? "Loading…" : "View registration details and phone"}
+        </button>
+      )}
+      {autoLoad && busy && (
+        <p role="status" className="muted text-sm">
+          Loading details…
+        </p>
+      )}
       {value && (
-        <dl className="text-sm space-y-3">
+        <dl className="readable-details">
           {Object.entries(value)
             .filter(([k]) => !/response[_ ]?id/i.test(k))
             .map(([k, v]) => (
               <div key={k}>
-                <dt className="muted text-xs">{privateFieldLabel(k)}</dt>
-                <dd className="break-all m-0">{privateFieldValue(v)}</dd>
+                <dt>{privateFieldLabel(k)}</dt>
+                <dd className="break-all">{privateFieldValue(v)}</dd>
               </div>
             ))}
         </dl>
       )}
-      <div className="form">
-        <label>
-          Why do you need the phone number?
-          <input
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            placeholder="Registration verification"
-          />
-        </label>
-        <button
-          className="button secondary small"
-          disabled={busy || reason.trim().length < 3}
-          onClick={() => load(true)}
-        >
-          Show phone number
-        </button>
-      </div>
-      {phone && (
-        <p className="feedback" role="status">
-          {phone}{" "}
-          <button className="ml-3 underline" onClick={() => setPhone(null)}>
-            Hide
-          </button>
-        </p>
-      )}
       {error && (
         <p className="feedback error" role="alert">
-          {error}
+          {error}{" "}
+          <button type="button" onClick={load}>
+            Retry
+          </button>
         </p>
       )}
     </div>
@@ -478,10 +480,8 @@ export function AuditExport() {
       }}
     >
       <label>
-        Reason for downloading activity history
+        Note (optional)
         <input
-          required
-          minLength={3}
           maxLength={1000}
           value={reason}
           onChange={(e) => setReason(e.target.value)}

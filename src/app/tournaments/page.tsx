@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavigationLink as Link } from "@/components/navigation-link";
 import { publishedTournaments, dateText } from "@/lib/public-data";
 import { getLocale, translate } from "@/lib/i18n";
 export const dynamic = "force-dynamic";

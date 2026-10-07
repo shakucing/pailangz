@@ -2,7 +2,12 @@ import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
 import { privateTx, audit, type Actor, type Tx } from "./db";
 import { encrypt } from "./crypto";
-import { DomainError, requireReason, type Standing } from "./domain";
+import {
+  DomainError,
+  requireReason,
+  optionalNote,
+  type Standing,
+} from "./domain";
 import {
   configuration,
   generateLeague,
@@ -200,7 +205,9 @@ async function apply(
         ? "restart_stages_with_retained_history"
         : "draft_regeneration",
     },
-    requireReason(resolution),
+    revision.requiresAdmin
+      ? requireReason(resolution)
+      : optionalNote(resolution),
   );
   return { id: revision.id, status: "APPLIED" };
 }
@@ -251,7 +258,7 @@ async function generateFixtures(
       matches: (ids.length * config.leagueMatchesPerPlayer) / 2,
       byes: config.soloCapacity % 2 ? config.soloCapacity : 0,
     },
-    requireReason(reason),
+    optionalNote(reason),
     { tournamentId, stageId: stage.id },
   );
 }
@@ -315,7 +322,9 @@ export async function configureTournament(
         configuration: config,
         requiresAdmin,
         reasonEncrypted: encrypt(
-          requireReason(input.reason),
+          requiresAdmin
+            ? requireReason(input.reason)
+            : optionalNote(input.reason),
           `tournament:${tournament.id}`,
         ),
         createdBy: actor.id,
@@ -335,7 +344,7 @@ export async function configureTournament(
         before: tournament.configuration,
         after: config,
       },
-      requireReason(input.reason),
+      requiresAdmin ? requireReason(input.reason) : optionalNote(input.reason),
     );
     if (requiresAdmin) return { id: revision.id, status: "PENDING" };
     return apply(tx, actor, revision.id, input.reason);
@@ -439,7 +448,7 @@ export async function assignParticipants(
       "TOURNAMENT",
       t.id,
       { memberIds: newIds, eligible: input.eligible },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { created: newIds.length };
   });

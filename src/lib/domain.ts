@@ -25,11 +25,15 @@ export const gameSchema = z.object({
   scoreA: z.number().int().min(0).max(100000),
   scoreB: z.number().int().min(0).max(100000),
 });
+export const noteSchema = z.string().trim().max(1000).optional().default("");
+export function optionalNote(value: unknown) {
+  return noteSchema.parse(value);
+}
 export const resultSchema = z.object({
   matchId: z.string().uuid(),
   outcome: z.enum(["A_WIN", "B_WIN", "DRAW", "A_FORFEIT", "B_FORFEIT"]),
   games: z.array(gameSchema).max(5),
-  reason: z.string().trim().min(3).max(1000),
+  reason: noteSchema,
   idempotencyKey: z.string().uuid(),
 });
 export type Outcome = z.infer<typeof resultSchema>["outcome"];

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { NavigationLink as Link } from "@/components/navigation-link";
 import { ArrowUpRight, Swords, Users, Trophy } from "lucide-react";
 import { FadeContent } from "@/components/react-bits/fade-content";
 import { SpotlightCard } from "@/components/react-bits/spotlight-card";

@@ -3,6 +3,8 @@ import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { validateSeries, type Rules } from "@/lib/domain";
 import { friendlyError } from "@/lib/staff-presentation";
+import { staffRequest } from "@/lib/staff-request";
+import { evidenceSizeError } from "@/lib/evidence-policy";
 import { readScoreEntry, type ScoreDraft } from "@/lib/score-entry";
 
 type ResultType = "played" | "DRAW" | "A_FORFEIT" | "B_FORFEIT";
@@ -15,6 +17,7 @@ export function MatchResultForm({
   confirmedRules,
   initialResult,
   blockedReason,
+  knockout = false,
 }: {
   matchId: string;
   bestOf: number;
@@ -24,9 +27,11 @@ export function MatchResultForm({
   confirmedRules: string[];
   initialResult?: {
     outcome: string;
+    status?: string;
     games: { scoreA: number; scoreB: number }[];
   };
   blockedReason?: string;
+  knockout?: boolean;
 }) {
   const uid = useId(),
     router = useRouter();
@@ -48,13 +53,23 @@ export function MatchResultForm({
         }))
       : Array.from({ length: needed }, () => ({ scoreA: "", scoreB: "" })),
   );
+  const [file, setFile] = useState<File | null>(null);
+  const [advance, setAdvance] = useState(knockout);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{
     text: string;
     error: boolean;
   } | null>(null);
-  const submission = useRef<{ signature: string; key: string } | null>(null);
+  const submission = useRef<{
+    signature: string;
+    key: string;
+    resultId?: string;
+    uploadedFile?: File;
+    accepted?: boolean;
+  } | null>(null);
+  const needsReason =
+    resultType.includes("FORFEIT") || initialResult?.status === "ACCEPTED";
   const showGames = resultType === "played" || includeGames;
   let scores: ReturnType<typeof readScoreEntry> | null = null,
     scoreError = "";
@@ -117,30 +132,65 @@ export function MatchResultForm({
             );
           validateSeries(bestOf, entry.games, outcome, rules, confirmedRules);
           const note = reason.trim();
-          if (note.length < 3)
+          if (needsReason && note.length < 3)
             throw new Error(
-              "Add a result note with at least three characters.",
+              "Explain the forfeit or correction with at least three characters.",
             );
           const data = { matchId, outcome, games: entry.games, reason: note };
           const signature = JSON.stringify(data);
           if (submission.current?.signature !== signature)
             submission.current = { signature, key: crypto.randomUUID() };
+          const confirm =
+            (event.nativeEvent as SubmitEvent).submitter instanceof
+              HTMLButtonElement &&
+            ((event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement)
+              .value === "confirm";
+          if (file) {
+            const problem = evidenceSizeError(file.size);
+            if (problem) throw new Error(problem);
+          }
+          if (confirm && !file && !submission.current?.uploadedFile)
+            throw new Error("Select a match screenshot before confirming.");
           setBusy(true);
-          const response = await fetch("/api/staff", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "result",
-              data: { ...data, idempotencyKey: submission.current!.key },
-            }),
-          });
-          const body = await response.json();
-          if (!response.ok)
-            throw new Error(
-              body.error ?? "Unable to submit the result. Please try again.",
-            );
+          const attempt = submission.current!;
+          if (!attempt.resultId) {
+            const body = await staffRequest<{ id: string }>("result", {
+              ...data,
+              idempotencyKey: attempt.key,
+            });
+            attempt.resultId = body.id;
+          }
+          if (file && attempt.uploadedFile !== file) {
+            const form = new FormData();
+            form.set("action", "evidence");
+            form.set("resultId", attempt.resultId);
+            form.set("file", file);
+            const upload = await fetch("/api/staff", {
+              method: "POST",
+              body: form,
+            });
+            const body = await upload.json();
+            if (!upload.ok)
+              throw new Error(
+                body.error ??
+                  "Screenshot upload failed. Retry to finish this saved result.",
+              );
+            attempt.uploadedFile = file;
+          }
+          if (confirm && !attempt.accepted) {
+            await staffRequest("resultReview", {
+              id: attempt.resultId,
+              action: "ACCEPT",
+              reason: note,
+            });
+            attempt.accepted = true;
+          }
+          if (confirm && knockout && advance)
+            await staffRequest("advance", { matchId, reason: note });
           setFeedback({
-            text: "Result submitted for review. Open the saved result below to upload a screenshot and review it.",
+            text: confirm
+              ? "Result and screenshot saved and confirmed."
+              : "Result saved for review.",
             error: false,
           });
           router.refresh();
@@ -285,21 +335,43 @@ export function MatchResultForm({
           )}
         </div>
         <label htmlFor={`${uid}-reason`}>
-          {initialResult ? "Correction / result note" : "Result note"}
+          {needsReason ? "Reason for forfeit / correction" : "Note (optional)"}
           <textarea
             id={`${uid}-reason`}
             value={reason}
             onChange={(event) => setReason(event.target.value)}
-            minLength={3}
+            minLength={needsReason ? 3 : undefined}
             maxLength={1000}
-            required
+            required={needsReason}
             placeholder={
-              initialResult
+              needsReason
                 ? "Explain what you are correcting."
                 : "For example: Scores checked against the match screenshot."
             }
           />
         </label>
+        <label htmlFor={`${uid}-screenshot`}>
+          Match screenshot (PNG, JPEG or WebP, up to 4 MB)
+          <input
+            id={`${uid}-screenshot`}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setFeedback(null);
+            }}
+          />
+        </label>
+        {knockout && (
+          <label>
+            <input
+              type="checkbox"
+              checked={advance}
+              onChange={(e) => setAdvance(e.target.checked)}
+            />
+            Advance the confirmed winner
+          </label>
+        )}
       </fieldset>
       {feedback && (
         <div
@@ -309,20 +381,27 @@ export function MatchResultForm({
           {feedback.text}
         </div>
       )}
-      <button
-        type="submit"
-        className="button"
-        disabled={busy || Boolean(unavailable)}
-      >
-        {busy
-          ? "Submitting…"
-          : initialResult
-            ? "Submit updated result for review"
-            : "Submit result for review"}
-      </button>
+      <div className="row">
+        <button
+          type="submit"
+          value="confirm"
+          className="button"
+          disabled={busy || Boolean(unavailable) || !file}
+        >
+          {busy ? "Saving…" : "Save & confirm"}
+        </button>
+        <button
+          type="submit"
+          value="review"
+          className="button secondary"
+          disabled={busy || Boolean(unavailable)}
+        >
+          {busy ? "Saving…" : "Save for review"}
+        </button>
+      </div>
       <p className="muted text-xs">
-        A moderator must review the result and screenshot before it becomes
-        official.
+        Scores, evidence and staff decisions are recorded automatically. A saved
+        result remains available if an upload needs retrying.
       </p>
     </form>
   );

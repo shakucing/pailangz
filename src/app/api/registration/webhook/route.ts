@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { boundedBody } from "@/lib/request-body";
+import { DomainError } from "@/lib/domain";
 // Adapter boundary only: no background service-role ingestion is enabled until an operator
 // provisions an integration actor and its explicitly scoped permissions.
 export async function POST(request: Request) {
@@ -18,12 +20,15 @@ export async function POST(request: Request) {
       { error: "Invalid signature." },
       { status: 401, headers },
     );
-  const body = await request.text();
-  if (Buffer.byteLength(body) > 2_000_000)
+  let body: string;
+  try {
+    body = new TextDecoder().decode(await boundedBody(request, 2_000_000));
+  } catch (e) {
     return Response.json(
       { error: "Payload too large." },
-      { status: 413, headers },
+      { status: e instanceof DomainError ? e.status : 400, headers },
     );
+  }
   const expected = createHmac("sha256", secret)
     .update(`${timestamp}.${body}`)
     .digest();

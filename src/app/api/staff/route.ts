@@ -1,9 +1,16 @@
+import { boundedJson, boundedFormData } from "@/lib/request-body";
+import { staffCreate, staffEdit, staffRemove } from "@/lib/staff-accounts";
 import * as configurationActions from "@/lib/configuration";
 import { z } from "zod";
 import { assertCsrf, getActor, freshAdmin } from "@/lib/auth";
-import { DomainError } from "@/lib/domain";
+import { DomainError, noteSchema, requireReason } from "@/lib/domain";
 import { privateTx, audit, rateLimit, type Actor } from "@/lib/db";
-import { csvRows, ingest, decideRegistration } from "@/lib/imports";
+import {
+  csvRows,
+  ingest,
+  decideRegistration,
+  approveRegistrations,
+} from "@/lib/imports";
 import * as competition from "@/lib/competition";
 import * as operations from "@/lib/operations";
 import { putEvidence, getEvidence } from "@/lib/evidence";
@@ -15,7 +22,7 @@ const headers = {
   Vary: "Cookie",
 };
 const id = z.string().uuid(),
-  reason = z.string().trim().min(3).max(1000);
+  reason = noteSchema;
 function json(value: unknown, status = 200) {
   return Response.json(value, { status, headers });
 }
@@ -64,7 +71,7 @@ export async function POST(request: Request) {
         MAX_UPLOAD_REQUEST_BYTES
       )
         throw new DomainError("Upload is too large.", 413);
-      const form = await request.formData();
+      const form = await boundedFormData(request, MAX_UPLOAD_REQUEST_BYTES);
       const file = form.get("file");
       if (!(file instanceof File)) throw new DomainError("Select a file.");
       const action = form.get("action");
@@ -86,7 +93,7 @@ export async function POST(request: Request) {
       throw new DomainError("Request is too large.", 413);
     const { action, data } = z
       .object({ action: z.string(), data: z.record(z.string(), z.unknown()) })
-      .parse(await request.json());
+      .parse(await boundedJson(request, 2_000_000));
     operation = [
       "configure",
       "revisionApply",
@@ -94,6 +101,7 @@ export async function POST(request: Request) {
       "assignParticipants",
       "generateLeague",
       "review",
+      "approveRegistrations",
       "tournament",
       "publish",
       "rules",
@@ -102,6 +110,9 @@ export async function POST(request: Request) {
       "member",
       "team",
       "staff",
+      "staffCreate",
+      "staffEdit",
+      "staffRemove",
       "announcement",
       "setting",
       "result",
@@ -167,6 +178,12 @@ export async function POST(request: Request) {
           z.object({ id, reason }).parse(data),
         );
         break;
+      case "approveRegistrations":
+        value = await approveRegistrations(
+          actor,
+          z.array(id).min(1).max(50).parse(data.ids),
+        );
+        break;
       case "review":
         value = await decideRegistration(
           actor,
@@ -224,6 +241,8 @@ export async function POST(request: Request) {
               id,
               ign: z.string().optional(),
               archived: z.boolean().optional(),
+              phone: z.string().max(80).optional(),
+              registrationFields: z.record(z.string(), z.string()).optional(),
               reason,
             })
             .parse(data),
@@ -244,18 +263,15 @@ export async function POST(request: Request) {
             .parse(data),
         );
         break;
+      case "staffCreate":
+        value = await staffCreate(actor, data);
+        break;
       case "staff":
-        value = await operations.staffUpdate(
-          actor,
-          z
-            .object({
-              id,
-              role: z.enum(["ADMIN", "MODERATOR"]),
-              suspended: z.boolean(),
-              reason,
-            })
-            .parse(data),
-        );
+      case "staffEdit":
+        value = await staffEdit(actor, data);
+        break;
+      case "staffRemove":
+        value = await staffRemove(actor, data);
         break;
       case "announcement":
         value = await operations.announcementUpdate(
@@ -388,7 +404,16 @@ export async function POST(request: Request) {
             { recordCount: records.length },
             data.reason as string,
           );
-          return { records };
+          const staff = await tx.staffUser.findMany({
+            select: { id: true, name: true },
+          });
+          const names = new Map(staff.map((u) => [u.id, u.name]));
+          return {
+            records: records.map((r) => ({
+              ...r,
+              actorName: names.get(r.actorId ?? "") ?? r.actorRole,
+            })),
+          };
         });
         break;
       }
@@ -400,7 +425,6 @@ export async function POST(request: Request) {
         );
         break;
       case "reveal":
-        requireReasonForReveal(data.reason);
         value = await operations.privateDetails(
           actor,
           z.enum(["member", "submission"]).parse(data.kind),
@@ -413,7 +437,7 @@ export async function POST(request: Request) {
         const admin = await freshAdmin();
         if (process.env.PRIVATE_EXPORT_ENABLED !== "true")
           throw new DomainError("Bulk private exports are disabled.", 403);
-        reason.parse(data.reason);
+        requireReason(data.reason);
         await rateLimit(`export:${admin.id}`, 2, 600);
         const records = await privateTx(admin, async (tx) => {
           const records = await tx.memberPrivate.findMany({ take: 1000 });
@@ -470,9 +494,6 @@ export async function POST(request: Request) {
     }
     return error(e);
   }
-}
-function requireReasonForReveal(value: unknown) {
-  reason.parse(value);
 }
 export async function GET(request: Request) {
   try {

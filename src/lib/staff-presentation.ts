@@ -44,6 +44,11 @@ const labels: Record<string, string> = {
   formMapping: "Registration columns",
   responderUrl: "Registration link",
   registrationFields: "Registration details",
+  playerName: "Player name",
+  beforeIgn: "Previous player name",
+  afterIgn: "New player name",
+  memberName: "Member",
+  beforeArchived: "Previously archived",
   changedFields: "What changed",
   confirmedRules: "Confirmed rules",
   seriesPoints: "Match points",
@@ -291,6 +296,11 @@ const auditLabels: Record<string, string> = {
   PLAYER_MAPPING_CONFIRM: "Player list confirmed",
   PARTICIPANT_ELIGIBILITY: "Player eligibility updated",
   MEMBER_UPDATE: "Member updated",
+  STAFF_CREATE: "Staff account created",
+  STAFF_DELETE: "Staff account removed",
+  STAFF_PERMISSION_CHANGE: "Staff account updated",
+  PRIVATE_PHONE_REVEAL: "Phone viewed",
+  PRIVATE_DETAILS_READ: "Registration details viewed",
   INTEGRATION_SETTING: "Registration settings updated",
   QUALIFICATION_CREATE: "Playoff matches created",
   BRACKET_CREATE: "SOLO knockout created",
@@ -317,6 +327,7 @@ export function activityCsv(
     createdAt: string;
     action: string;
     actorRole: string;
+    actorName?: string;
     outcome: string;
     reason?: string | null;
   }[],
@@ -326,12 +337,20 @@ export function activityCsv(
   return (
     "\ufeff" +
     [
-      ["Date (Malaysia time)", "Activity", "Staff role", "Outcome", "Note"],
+      [
+        "Date (Malaysia time)",
+        "Activity",
+        "Staff name",
+        "Staff role",
+        "Outcome",
+        "Note",
+      ],
       ...records.map((r) => [
         new Date(r.createdAt).toLocaleString("en-MY", {
           timeZone: "Asia/Kuala_Lumpur",
         }),
         activityLabel(r.action),
+        r.actorName ?? friendlyLabel(r.actorRole),
         friendlyLabel(r.actorRole),
         friendlyLabel(r.outcome),
         r.reason ?? "",

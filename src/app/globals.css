@@ -308,12 +308,12 @@ h3 {
 }
 .grid2 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
 }
 .grid3 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
 .panel {
@@ -832,7 +832,7 @@ tr:hover td {
 }
 .staff-layout {
   display: grid;
-  grid-template-columns: 210px 1fr;
+  grid-template-columns: 210px minmax(0, 1fr);
   gap: 32px;
   padding: 35px 0 65px;
 }
@@ -1261,5 +1261,321 @@ ul {
   }
   .sidebar .staff-meta button {
     margin-left: auto;
+  }
+}
+
+/* Keep workspace controls visible and responsive throughout route transitions. */
+.staff-meta {
+  margin-bottom: 24px;
+}
+.sidebar nav a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+}
+.sidebar a:hover {
+  background: #ffffff08;
+  color: #f5f6f9;
+}
+.staff-menu-toggle {
+  display: none;
+}
+.navigation-hint {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  margin-left: 8px;
+  border-radius: 50%;
+  opacity: 0;
+}
+.navigation-hint.is-pending {
+  opacity: 1;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  animation: loading-spin 0.7s linear infinite;
+}
+a:has(> .navigation-hint.is-pending) {
+  color: #d1fa57;
+}
+.loading-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid #d1fa5740;
+  border-top-color: #d1fa57;
+  border-radius: 50%;
+  animation: loading-spin 0.7s linear infinite;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+@keyframes loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.staff-loading {
+  min-height: 320px;
+  color: #b3bbcb;
+  padding-top: 12px;
+}
+.staff-loading > p {
+  display: inline;
+}
+.loading-skeleton {
+  height: 90px;
+  margin-top: 18px;
+  background: #151922;
+  border: 1px solid #252a34;
+  border-radius: 8px;
+}
+.account-heading {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.account-heading h3 {
+  margin: 0;
+}
+.account-email {
+  overflow-wrap: anywhere;
+  margin: 4px 0 0;
+}
+.account-create summary {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  cursor: pointer;
+  color: #d1fa57;
+  min-height: 44px;
+  font-weight: 600;
+}
+.account-create[open] > p {
+  margin: 12px 0 18px;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.account-actions .button {
+  min-height: 44px;
+  flex: 1 1 160px;
+}
+.button.danger {
+  background: #ff686817;
+  border: 1px solid #ff686850;
+  color: #ffb5b5;
+}
+.account-dialog {
+  background: #12151c;
+  color: #f5f6f9;
+  border: 1px solid #3a4353;
+  border-radius: 12px;
+  padding: 24px;
+  width: min(460px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
+.account-dialog::backdrop {
+  background: #000b;
+}
+.account-edit .form,
+.fixture-filters {
+  margin-top: 12px;
+}
+.staff-account-filter {
+  margin: 0;
+}
+.staff-main h3,
+.staff-main p,
+.check {
+  overflow-wrap: anywhere;
+}
+.staff-main details summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.staff-main details summary::before {
+  content: "+";
+  flex-shrink: 0;
+  color: #d1fa57;
+}
+.staff-main details[open] > summary::before {
+  content: "−";
+}
+.staff-main .account-create > summary::before {
+  content: none;
+}
+.details:not([open]) {
+  margin-bottom: 0;
+  padding-top: 4px;
+}
+.table-wrap {
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.pagination {
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pagination a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid #303846;
+  border-radius: 6px;
+}
+.filter input {
+  min-width: 130px;
+}
+@media (max-width: 800px) {
+  .wrap.staff-layout {
+    padding-top: 16px;
+    padding-bottom: 36px;
+  }
+  .staff-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #0b0d11;
+    padding: 10px 0;
+    border-bottom: 1px solid #252a34;
+  }
+  .sidebar .staff-meta {
+    flex-wrap: wrap;
+    margin: 0 0 8px;
+  }
+  .sidebar .staff-meta .wordmark {
+    margin: 0;
+  }
+  .staff-menu-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    background: #12151c;
+    color: #f5f6f9;
+    border: 1px solid #343d4e;
+    border-radius: 6px;
+    text-align: left;
+  }
+  .staff-menu-toggle > .muted {
+    margin-left: auto;
+    font-size: 12px;
+  }
+  .sidebar #staff-navigation {
+    display: none;
+  }
+  .sidebar #staff-navigation.is-open {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 65vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-top: 10px;
+  }
+  .sidebar nav a {
+    white-space: normal;
+    font-size: 13px;
+    padding: 10px;
+  }
+  .sidebar .staff-meta button {
+    min-height: 44px;
+    padding: 8px;
+  }
+  .staff-main h1 {
+    font-size: 30px;
+    margin-bottom: 18px;
+  }
+  .staff-main .panel {
+    padding: 16px;
+  }
+  .staff-main .grid2,
+  .staff-main .grid3 {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .form input,
+  .form textarea,
+  .form select,
+  .filter input,
+  .filter select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .button,
+  .button.small,
+  .selection-chips button,
+  .order-buttons button {
+    min-height: 44px;
+  }
+  .language-select select {
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 13px;
+  }
+  .nav > a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .filter input {
+    flex-basis: 100%;
+  }
+  .filter .button {
+    flex-grow: 1;
+  }
+  .filter select {
+    flex: 1 1 180px;
+    width: auto;
+  }
+  .account-heading > div {
+    min-width: 0;
+  }
+  .account-heading h3 {
+    font-size: 18px;
+  }
+  .page-heading h1 {
+    font-size: 34px;
+    letter-spacing: -1.5px;
+    overflow-wrap: anywhere;
+  }
+  .tabs a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}
+@media (max-width: 360px) {
+  .wrap {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .topbar .wordmark {
+    width: 95px;
+  }
+  .nav {
+    gap: 6px;
+  }
+  .staff-main .panel {
+    padding: 12px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .navigation-hint.is-pending,
+  .loading-spinner {
+    animation: none;
   }
 }

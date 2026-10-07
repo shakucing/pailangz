@@ -47,7 +47,14 @@ const password = await new Promise<string>((resolve, reject) => {
 stdin.setRawMode(false);
 stdin.pause();
 stdout.write("\n");
-z.string().min(14).max(200).parse(password);
+z.string()
+  .min(14)
+  .max(200)
+  .refine(
+    (value) => Buffer.byteLength(value, "utf8") <= 72,
+    "Password must fit within bcrypt's 72-byte limit.",
+  )
+  .parse(password);
 process.env.DATABASE_URL =
   process.env.MIGRATION_DATABASE_URL ?? process.env.DATABASE_URL;
 const { db, audit } = await import("../src/lib/db");

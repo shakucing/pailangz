@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { NavigationLink as Link } from "@/components/navigation-link";
 import { Wordmark } from "@/components/wordmark";
 import { HeaderBrand } from "@/components/header-brand";
 import { LanguageSwitch } from "@/components/language-switch";

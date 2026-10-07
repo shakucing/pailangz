@@ -4,35 +4,149 @@ import { persistBracket } from "./brackets";
 import { invalidateDependencies } from "./competition";
 import { z } from "zod";
 import { privateTx, audit, type Actor, rateLimit } from "./db";
-import { canonicalIgn, DomainError, ignSchema, requireReason } from "./domain";
+import {
+  canonicalIgn,
+  DomainError,
+  ignSchema,
+  requireReason,
+  optionalNote,
+} from "./domain";
 import { decrypt, encrypt } from "./crypto";
-import { DEFAULT_MAPPING } from "./imports";
+import { DEFAULT_MAPPING, phoneInfo } from "./imports";
 export async function memberUpdate(
   actor: Actor,
-  input: { id: string; ign?: string; archived?: boolean; reason: string },
+  input: {
+    id: string;
+    ign?: string;
+    archived?: boolean;
+    phone?: string;
+    registrationFields?: Record<string, string>;
+    reason?: string;
+  },
 ) {
+  const note = optionalNote(input.reason);
+  const ign = input.ign === undefined ? undefined : ignSchema.parse(input.ign);
+  const fields = z
+    .record(z.string().min(1).max(120), z.string().max(3000))
+    .refine((v) => Object.keys(v).length <= 80, "Too many registration fields.")
+    .parse(input.registrationFields ?? {});
+  if (
+    Object.keys(fields).some(
+      (k) =>
+        /^(timestamp|ign|response[_ ]?id|__proto__|constructor|prototype)$/i.test(
+          k,
+        ) || /phone|whatsapp/i.test(k),
+    )
+  )
+    throw new DomainError(
+      "Use the player name and phone fields for those changes.",
+    );
+  if (input.phone !== undefined) z.string().max(80).parse(input.phone);
   return privateTx(actor, async (tx) => {
     const old = await tx.member.findUniqueOrThrow({ where: { id: input.id } });
-    const data = input.ign
-      ? {
-          displayIgn: ignSchema.parse(input.ign),
-          canonicalIgn: canonicalIgn(input.ign),
-        }
-      : { archived: input.archived ?? old.archived };
-    await tx.member.update({ where: { id: old.id }, data });
-    await audit(
-      tx,
-      actor,
-      "MEMBER_UPDATE",
-      "MEMBER",
-      old.id,
-      {
-        beforeIgn: old.displayIgn,
-        afterIgn: input.ign,
-        archived: input.archived,
+    const changedFields: string[] = [];
+    if (ign !== undefined && ign !== old.displayIgn)
+      changedFields.push("playerName");
+    if (input.archived !== undefined && input.archived !== old.archived)
+      changedFields.push("archived");
+    await tx.member.update({
+      where: { id: old.id },
+      data: {
+        ...(ign === undefined
+          ? {}
+          : { displayIgn: ign, canonicalIgn: canonicalIgn(ign) }),
+        ...(input.archived === undefined ? {} : { archived: input.archived }),
       },
-      requireReason(input.reason),
-    );
+    });
+    if (
+      input.phone !== undefined ||
+      Object.keys(fields).length ||
+      ign !== undefined
+    ) {
+      const stored = await tx.memberPrivate.findUnique({
+        where: { memberId: old.id },
+      });
+      const setting = await tx.integrationSetting.findUnique({
+        where: { key: "formMapping" },
+      });
+      const mapping = (setting?.value ??
+        DEFAULT_MAPPING) as typeof DEFAULT_MAPPING;
+      if (
+        Object.keys(fields).some((key) =>
+          [mapping.ign, mapping.phone].includes(key),
+        )
+      )
+        throw new DomainError(
+          "Use the player name and phone fields for those changes.",
+        );
+      const payload = stored
+        ? (JSON.parse(
+            decrypt(stored.registrationEncrypted, `member:${old.id}`),
+          ) as Record<string, string>)
+        : {};
+      for (const [key, value] of Object.entries(fields)) {
+        if (payload[key] !== value) changedFields.push(key);
+        payload[key] = value;
+      }
+      if (ign !== undefined) payload[mapping.ign] = ign;
+      const previousPhone = stored?.phoneEncrypted
+        ? decrypt(stored.phoneEncrypted, `member-phone:${old.id}`)
+        : "";
+      const phone = input.phone ?? previousPhone;
+      if (input.phone !== undefined) {
+        if (phone !== previousPhone) changedFields.push("phone");
+        payload[mapping.phone] = phone;
+        for (const key of Object.keys(payload))
+          if (/phone|whatsapp/i.test(key)) payload[key] = phone;
+      }
+      const normalized = phoneInfo(phone, payload[mapping.country] ?? "");
+      await tx.memberPrivate.upsert({
+        where: { memberId: old.id },
+        create: {
+          memberId: old.id,
+          originalIgn: old.displayIgn,
+          registrationEncrypted: encrypt(
+            JSON.stringify(payload),
+            `member:${old.id}`,
+          ),
+          phoneEncrypted: phone
+            ? encrypt(phone, `member-phone:${old.id}`)
+            : null,
+          phoneLastFour: normalized.lastFour,
+          phoneIssue: normalized.issue,
+        },
+        update: {
+          registrationEncrypted: encrypt(
+            JSON.stringify(payload),
+            `member:${old.id}`,
+          ),
+          phoneEncrypted: phone
+            ? encrypt(phone, `member-phone:${old.id}`)
+            : null,
+          phoneLastFour: normalized.lastFour,
+          phoneIssue: normalized.issue,
+        },
+      });
+    }
+    if (changedFields.length)
+      await audit(
+        tx,
+        actor,
+        "MEMBER_UPDATE",
+        "MEMBER",
+        old.id,
+        {
+          memberName: ign ?? old.displayIgn,
+          changedFields,
+          ...(ign !== undefined && ign !== old.displayIgn
+            ? { beforeIgn: old.displayIgn, afterIgn: ign }
+            : {}),
+          ...(input.archived !== undefined
+            ? { beforeArchived: old.archived, archived: input.archived }
+            : {}),
+        },
+        note,
+      );
     return { id: old.id };
   });
 }
@@ -67,7 +181,7 @@ export async function participantUpdate(
       "PARTICIPANT",
       p.id,
       { eligible: input.eligible },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: p.id };
   });
@@ -94,7 +208,7 @@ export async function confirmMapping(
       "TOURNAMENT",
       input.id,
       { mappingConfirmed: true },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: input.id };
   });
@@ -169,7 +283,7 @@ export async function teamUpdate(
       "TEAM",
       team.id,
       { memberIds: input.memberIds, archived: input.archived ?? false },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: team.id };
   });
@@ -256,7 +370,7 @@ export async function announcementUpdate(
       "ANNOUNCEMENT",
       row.id,
       { changedFields: Object.keys(data), published: input.published },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: row.id };
   });
@@ -302,7 +416,7 @@ export async function settingUpdate(
       "SETTING",
       input.key,
       { changedFields: [input.key] },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { key: input.key };
   });
@@ -327,7 +441,7 @@ export async function privateDetails(
   reveal = false,
   reason?: string,
 ) {
-  await rateLimit(`private:${actor.id}`, 30, 60);
+  await rateLimit(`private:${actor.id}`, 120, 60);
   return privateTx(actor, async (tx) => {
     let encrypted: string,
       context: string,
@@ -359,7 +473,8 @@ export async function privateDetails(
       { changedFields: reveal ? ["phone"] : ["registrationFields"] },
       reason,
     );
-    if (reveal) return { phone: phone ? decrypt(phone, phoneContext) : null };
+    const plainPhone = phone ? decrypt(phone, phoneContext) : null;
+    if (reveal) return { phone: plainPhone };
     const mapping = await tx.integrationSetting.findUnique({
       where: { key: "formMapping" },
     });
@@ -372,8 +487,19 @@ export async function privateDetails(
     >;
     for (const key of Object.keys(raw))
       if (key === phoneHeader || /phone|whatsapp/i.test(key))
-        raw[key] = "•••• (use audited reveal)";
-    return { fields: raw };
+        raw[key] = plainPhone ?? "";
+    const editableFields = Object.keys(raw).filter(
+      (key) =>
+        key !== phoneHeader &&
+        key !==
+          ((mapping?.value as typeof DEFAULT_MAPPING | undefined)?.ign ??
+            DEFAULT_MAPPING.ign) &&
+        !/^(timestamp|response[_ ]?id|__proto__|constructor|prototype)$/i.test(
+          key,
+        ) &&
+        !/phone|whatsapp/i.test(key),
+    );
+    return { fields: raw, phone: plainPhone, editableFields };
   });
 }
 export async function resolveDependency(
@@ -478,7 +604,9 @@ export async function matchUpdate(
       "MATCH",
       m.id,
       { status: input.status, scheduledAt: input.scheduledAt },
-      requireReason(input.reason),
+      input.status === "VOIDED"
+        ? requireReason(input.reason)
+        : optionalNote(input.reason),
     );
     return { id: m.id };
   });
@@ -543,7 +671,7 @@ export async function createTeamBracket(
       "STAGE",
       stage.id,
       { teamIds: input.teamIds, ...stats },
-      requireReason(input.reason),
+      optionalNote(input.reason),
     );
     return { id: stage.id };
   });

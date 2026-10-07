@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { db, securityEvent, rateLimit, ensureRuntime, type Actor } from "./db";
 import { canAccess, DomainError } from "./domain";
 import { headers } from "next/headers";
+import { cache } from "react";
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
@@ -118,40 +119,51 @@ export const authOptions: NextAuthOptions = {
       }
     },
   },
-  logger: { error() {}, warn() {}, debug() {} },
+  // Record only a known code, never authentication metadata or credentials.
+  logger: {
+    error(code) {
+      console.error(
+        "Staff authentication error",
+        /^[A-Z_]+$/.test(code) ? code : "AUTH_ERROR",
+      );
+    },
+    warn(code) {
+      console.warn(
+        "Staff authentication warning",
+        /^[A-Z_]+$/.test(code) ? code : "AUTH_WARNING",
+      );
+    },
+    debug() {},
+  },
 };
-export async function getActor(
+export const getActor = cache(async function getActor(
   required: "STAFF" | "ADMIN" = "STAFF",
 ): Promise<Actor> {
   await ensureRuntime();
   const session = await getServerSession(authOptions);
-  if (!session?.staffId || !session.staffSessionId) {
+  if (
+    !session?.staffId ||
+    !session.staffSessionId ||
+    !Number.isInteger(session.staffVersion)
+  ) {
     await securityEvent("ACCESS_DENIED", "anonymous");
     throw new DomainError("Please sign in with a staff account.", 401);
   }
-  const [user, record] = await Promise.all([
-    db.staffUser.findUnique({ where: { id: session.staffId } }),
-    db.staffSession.findUnique({ where: { id: session.staffSessionId } }),
-  ]);
-  if (
-    !user ||
-    !record ||
-    record.userId !== user.id ||
-    record.revoked ||
-    record.expiresAt < new Date() ||
-    user.sessionVersion !== session.staffVersion ||
-    !canAccess(user.role, user.suspended, true, required)
-  ) {
+  // One round trip; never load a password hash for an authenticated page.
+  // React cache only deduplicates within this server render, not across requests.
+  const [actor] = await db.$queryRaw<Actor[]>`
+    SELECT u.id,u.role,s.id AS "sessionId",s."authenticatedAt"
+    FROM "StaffUser" u JOIN "StaffSession" s ON s."userId"=u.id
+    WHERE u.id=${session.staffId} AND s.id=${session.staffSessionId}
+      AND NOT u.suspended AND NOT s.revoked AND s."expiresAt">now()
+      AND u."sessionVersion"=${session.staffVersion}
+  `;
+  if (!actor || !canAccess(actor.role, false, true, required)) {
     await securityEvent("ACCESS_DENIED", session.staffId, session.staffId);
     throw new DomainError("Staff access is not permitted.", 403);
   }
-  return {
-    id: user.id,
-    role: user.role,
-    sessionId: record.id,
-    authenticatedAt: record.authenticatedAt,
-  };
-}
+  return actor;
+});
 export async function assertCsrf(request: Request) {
   const origin = request.headers.get("origin");
   const expected = new URL(process.env.NEXTAUTH_URL ?? "http://localhost:3000")

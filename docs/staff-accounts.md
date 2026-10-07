@@ -4,6 +4,16 @@ Staff sign in at `https://pailangz.vercel.app/staff`. On the homepage, click the
 
 The password eye button shows or hides what you typed. Staff authentication still uses email and password only. This change adds no public password-reset route.
 
+## Manage accounts in the portal
+
+After migration `202610070010_staff_management_performance` and the updated app are deployed, an admin can open **Staff accounts → Add staff account**, enter a name, email, role and password, then create the account. Moderator is the default role. A password must contain at least 14 characters and fit within 72 UTF-8 bytes. The admin enters and confirms the password privately; it is hashed at bcrypt cost 12 and never included in audit history or returned to the browser.
+
+The list initially shows active accounts. Search by name/email, or switch to **Suspended accounts** or **All accounts** to find old test accounts. It shows 20 accounts per page. Expand **Edit account** to change name, email, role or suspension. **Delete account** opens a confirmation. Edits revoke existing sessions; deleting an account removes its sessions while preserving past activity and tournament records. No written reason is required for these account actions: the actor, target, time and changed fields are logged automatically in the same transaction.
+
+Moderators cannot manage staff accounts. The API and database independently enforce the current admin session. The app refuses edits/deletion of the signed-in admin's own account, and retains at least one active admin. The first admin still needs the owner provisioning command; subsequent admins and moderators can be created in the portal.
+
+For your existing Neon database, run `pnpm db:neon:migrate`, then deploy the reviewed source. The command reads the saved private owner connection in `.local/neon-transfer/target.env`, verifies existing migration history and applies only pending migrations. It does not repeat the snapshot import or seed. Keep the owner connection out of the application's Vercel runtime environment. Migration 010 adds restricted account functions and optimizes database permission checks; it does not create, edit or delete existing accounts. The repository's `vercel.json` runs functions in Singapore, alongside the current Singapore database.
+
 ## Why the copied passwords did not appear to work
 
 The Neon transfer preserves `StaffUser.passwordHash` exactly. It generates a separate database runtime password, which does not change staff passwords. The diagnosis on 7 October 2026 confirmed matching hashes for all 22 imported staff accounts, including the three active real staff accounts.

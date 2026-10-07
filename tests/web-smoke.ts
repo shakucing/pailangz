@@ -5,6 +5,10 @@ import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { newTournamentConfiguration } from "../src/lib/tournament-config";
+if (process.env.PAILANGZ_ISOLATED_WEB_TEST !== "true")
+  throw new Error(
+    "Use pnpm test:web. Staff HTTP checks only run in its disposable database/server.",
+  );
 if (
   process.env.APP_ENV !== "development" ||
   process.env.DATABASE_ENV !== "development"
@@ -212,6 +216,15 @@ try {
         );
 
         assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+        if (section === "/matches") {
+          assert.equal(
+            (html.match(/<form[^>]*class="form match-result-form"/g) ?? [])
+              .length,
+            8,
+            "the fixture page must render only eight score editors",
+          );
+          assert.ok(html.includes("Show fixtures"));
+        }
       }
     },
   );
@@ -234,6 +247,114 @@ try {
     );
     assert.ok(!html.includes("Staff accounts</h1>"));
   });
+  await check(
+    "all moderator workflow pages render without admin-only navigation",
+    async () => {
+      for (const section of [
+        "",
+        "/registrations",
+        "/members",
+        "/tournaments",
+        "/teams",
+        "/matches",
+        "/content",
+        "/imports",
+        "/audit",
+      ]) {
+        const response = await fetch(`${origin}/moderator${section}`, {
+          headers: { Cookie: mod.cookie },
+        });
+        assert.equal(response.status, 200);
+        const html = await response.text();
+        const screen = html
+          .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<[^>]+>/g, " ");
+        assert.ok(screen.includes("Operations workspace"), section);
+        assert.ok(!screen.includes("Staff accounts"), section);
+        assert.ok(!screen.includes("Registration settings"), section);
+        assert.ok(!screen.includes("Publish (admin approval)"), section);
+      }
+    },
+  );
+  await check(
+    "malformed JSON and oversized chunked staff requests fail with bounded errors",
+    async () => {
+      const requestHeaders = {
+        "Content-Type": "application/json",
+        Cookie: admin.cookie,
+        Origin: origin,
+      };
+      assert.equal(
+        (
+          await fetch(`${origin}/api/staff`, {
+            method: "POST",
+            headers: requestHeaders,
+            body: "{",
+          })
+        ).status,
+        400,
+      );
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(new Uint8Array(2_000_001));
+          controller.close();
+        },
+      });
+      const oversized = await fetch(`${origin}/api/staff`, {
+        method: "POST",
+        headers: requestHeaders,
+        body: stream,
+        duplex: "half",
+      } as RequestInit);
+      assert.equal(oversized.status, 413);
+    },
+  );
+  await check(
+    "admin manages moderator accounts over HTTP without a reason; moderators are denied",
+    async () => {
+      const account = {
+        name: "Disposable HTTP moderator",
+        email: `http-${randomUUID()}@synthetic.invalid`,
+        password,
+        role: "MODERATOR",
+      };
+      assert.equal(
+        (await post(mod.cookie, "staffCreate", account)).status,
+        403,
+      );
+      const created = await post(admin.cookie, "staffCreate", account);
+      assert.equal(created.status, 200);
+      const { id } = await created.json();
+      assert.ok(id);
+      assert.equal(
+        (await post(admin.cookie, "staffCreate", account)).status,
+        409,
+      );
+      assert.equal(
+        (
+          await post(admin.cookie, "staffEdit", {
+            id,
+            name: "Edited HTTP moderator",
+            role: "MODERATOR",
+            suspended: true,
+          })
+        ).status,
+        200,
+      );
+      assert.equal((await post(mod.cookie, "staffRemove", { id })).status, 403);
+      assert.equal(
+        (await post(admin.cookie, "staffRemove", { id })).status,
+        200,
+      );
+      assert.equal(await owner.staffUser.count({ where: { id } }), 0);
+      const events = await owner.auditEvent.findMany({
+        where: { entityId: id },
+      });
+      assert.ok(events.some((event) => event.action === "STAFF_CREATE"));
+      assert.ok(events.some((event) => event.action === "STAFF_DELETE"));
+      assert.ok(!JSON.stringify(events).includes(password));
+    },
+  );
   await check(
     "configured tournament editor renders and rejects destructive capacity changes",
     async () => {

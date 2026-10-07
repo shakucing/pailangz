@@ -14,6 +14,7 @@
     "db:seed": "node --import tsx prisma/seed.ts",
     "db:neon:export": "node --import tsx scripts/neon-transfer.ts export",
     "db:neon:import": "node --import tsx scripts/neon-transfer.ts import",
+    "db:neon:migrate": "node --import tsx scripts/neon-migrate.ts",
     "evidence:check": "node --import tsx scripts/check-evidence-storage.ts",
     "db:local": "node --import tsx scripts/local-db.ts",
     "setup:local": "node --import tsx scripts/setup-local.ts",
@@ -22,15 +23,14 @@
     "staff:passwords": "node --import tsx scripts/staff-maintenance.ts passwords",
     "staff:cleanup": "node --import tsx scripts/staff-maintenance.ts cleanup",
     "format": "prettier --write src scripts tests prisma/*.ts *.ts *.json",
-    "test:web": "node --import tsx tests/web-smoke.ts"
+    "test:web": "node --import tsx tests/web-isolated.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1000.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "bcryptjs": "^3.0.2",
-    "csv-parse": "^6.1.0",
-    "gsap": "^3.15.0",
+    "csv-parse": "^7.0.2",
     "libphonenumber-js": "^1.12.0",
     "lucide-react": "^0.577.0",
     "next": "16.4.0",

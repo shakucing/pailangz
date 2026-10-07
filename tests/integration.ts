@@ -750,6 +750,12 @@ try {
     match.id,
     seed,
   );
+  const { runStaffAccountIntegration } =
+    await import("./staff-accounts-integration");
+  await runStaffAccountIntegration(owner, actor, mod, check);
+  const { checkRoutineStaffOperations } =
+    await import("./staff-ops-integration");
+  await checkRoutineStaffOperations(owner, actor, mod, check);
   await check(
     "suspension and demotion revoke current private-data access",
     async () => {

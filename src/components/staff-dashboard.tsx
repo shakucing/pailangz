@@ -15,6 +15,9 @@ import {
   newTournamentConfiguration,
 } from "@/lib/tournament-config";
 import Link from "next/link";
+import Form from "next/form";
+import { Suspense } from "react";
+import { headers } from "next/headers";
 import { redirect, notFound } from "next/navigation";
 import { getActor } from "@/lib/auth";
 import { privateTx, audit, type Actor, type Tx } from "@/lib/db";
@@ -25,17 +28,28 @@ import {
   AuditExport,
   type Field,
 } from "./action-form";
-import { Logout } from "./login-form";
-import { Wordmark } from "./wordmark";
 import { operationalTime } from "@/lib/public-data";
 import type { Rules } from "@/lib/domain";
 import { standingsFor, tournamentReadiness } from "@/lib/competition";
 import { decrypt } from "@/lib/crypto";
+import { DomainError } from "@/lib/domain";
+import { StaffLoading } from "./staff-loading";
+import { AddStaffAccount, StaffAccountRow } from "./staff-accounts-panel";
+import {
+  renderMembers,
+  renderRegistrations,
+  renderActivityHistory,
+} from "./operations-sections";
 const reason: Field = {
   name: "reason",
-  label: "Reason for this change",
+  label: "Note",
+  placeholder: "Add a note if useful",
+};
+const requiredReason: Field = {
+  name: "reason",
+  label: "Reason for this decision",
   required: true,
-  placeholder: "Briefly explain your decision",
+  placeholder: "Explain the override or correction",
 };
 const nav = [
   ["overview", "Overview"],
@@ -62,8 +76,10 @@ export async function StaffDashboard({
   let actor: Actor;
   try {
     actor = await getActor();
-  } catch {
-    redirect("/staff");
+  } catch (e) {
+    if (e instanceof DomainError && [401, 403].includes(e.status))
+      redirect("/staff");
+    throw e;
   }
   if (area === "admin" && actor.role !== "ADMIN") redirect("/moderator");
   const { path } = await params,
@@ -74,54 +90,51 @@ export async function StaffDashboard({
   if (["settings", "staff"].includes(section) && actor.role !== "ADMIN")
     redirect("/moderator");
   const base = actor.role === "ADMIN" ? "/admin" : "/moderator";
-  const content = await privateTx(actor, async (tx) => {
-    await audit(tx, actor, "STAFF_VIEW", "VIEW", section, {
-      filterApplied: !!query.q,
-      page: Number(query.page) || 1,
-    });
+  return (
+    <>
+      <div className="eyebrow">PAILANGZ operations</div>
+      <h1>{nav.find(([key]) => key === section)?.[1]}</h1>
+      <Suspense
+        key={`${section}:${JSON.stringify(query)}`}
+        fallback={<StaffLoading />}
+      >
+        <SectionContent
+          actor={actor}
+          section={section}
+          query={query}
+          base={base}
+        />
+      </Suspense>
+    </>
+  );
+}
+async function SectionContent({
+  actor,
+  section,
+  query,
+  base,
+}: {
+  actor: Actor;
+  section: string;
+  query: Record<string, string | undefined>;
+  base: string;
+}) {
+  const requestHeaders = await headers();
+  const prefetch =
+    requestHeaders.has("next-router-prefetch") ||
+    requestHeaders.get("purpose") === "prefetch";
+  return privateTx(actor, async (tx) => {
+    if (!prefetch)
+      await audit(tx, actor, "STAFF_VIEW", "VIEW", section, {
+        filterApplied: !!query.q,
+        page: Number(query.page) || 1,
+      });
     return renderSection(tx, actor, section, query, base);
   });
-  return (
-    <div className="wrap staff-layout">
-      <aside className="sidebar">
-        <div className="staff-meta mb-6">
-          <Wordmark />
-          <span className="badge">{friendlyLabel(actor.role)}</span>
-          <p className="text-xs muted mt-3">
-            Operations workspace
-            <br />
-            Malaysia time
-          </p>
-          <Logout />
-        </div>
-        <nav aria-label="Staff workspace">
-          {nav
-            .filter(
-              ([key]) =>
-                actor.role === "ADMIN" || !["settings", "staff"].includes(key),
-            )
-            .map(([key, label]) => (
-              <Link
-                key={key}
-                className={key === section ? "active" : ""}
-                href={`${base}${key === "overview" ? "" : `/${key}`}`}
-              >
-                {label}
-              </Link>
-            ))}
-        </nav>
-      </aside>
-      <section className="staff-main">
-        <div className="eyebrow">PAILANGZ operations</div>
-        <h1>{nav.find(([key]) => key === section)?.[1]}</h1>
-        {content}
-      </section>
-    </div>
-  );
 }
 function Filter({ status = false }: { status?: boolean }) {
   return (
-    <form className="filter" method="get">
+    <Form className="filter" action="">
       <label className="sr-only" htmlFor="search">
         Search
       </label>
@@ -144,7 +157,7 @@ function Filter({ status = false }: { status?: boolean }) {
         </>
       )}
       <button className="button small secondary">Filter</button>
-    </form>
+    </Form>
   );
 }
 function Pagination({
@@ -152,11 +165,13 @@ function Pagination({
   total,
   base,
   query,
+  size = 20,
 }: {
   page: number;
   total: number;
   base: string;
   query: Record<string, string | undefined>;
+  size?: number;
 }) {
   function url(n: number) {
     const q = new URLSearchParams();
@@ -172,7 +187,7 @@ function Pagination({
       </span>
       <div className="row">
         {page > 1 && <Link href={url(page - 1)}>← Previous</Link>}
-        {page * 20 < total && <Link href={url(page + 1)}>Next →</Link>}
+        {page * size < total && <Link href={url(page + 1)}>Next →</Link>}
       </div>
     </nav>
   );
@@ -233,293 +248,9 @@ async function renderSection(
       </div>
     );
   }
-  if (section === "registrations") {
-    const memberChoices = (
-      await tx.member.findMany({
-        where: { archived: false },
-        select: { id: true, displayIgn: true },
-        orderBy: { displayIgn: "asc" },
-      })
-    ).map((m) => ({ value: m.id, label: m.displayIgn }));
-    const status = [
-      "PENDING",
-      "APPROVED",
-      "REJECTED",
-      "NEEDS_CLARIFICATION",
-    ].includes(q.status ?? "")
-      ? (q.status as
-          "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_CLARIFICATION")
-      : undefined;
-    const where = {
-      status,
-      ...(query
-        ? {
-            OR: [
-              { displayIgn: { contains: query, mode: "insensitive" as const } },
-              { sourceResponseId: { contains: query } },
-            ],
-          }
-        : {}),
-    };
-    const [rows, total, counts] = await Promise.all([
-      tx.registrationSubmission.findMany({
-        where,
-        skip,
-        take: 20,
-        orderBy: { ingestedAt: "desc" },
-        select: {
-          id: true,
-          displayIgn: true,
-          source: true,
-          sourceResponseId: true,
-          ingestedAt: true,
-          status: true,
-          phoneLastFour: true,
-          phoneIssue: true,
-          conflicts: {
-            select: { reason: true, existingMemberId: true, resolved: true },
-          },
-          decisions: {
-            orderBy: { createdAt: "asc" },
-            select: {
-              action: true,
-              reason: true,
-              createdAt: true,
-              actorId: true,
-            },
-          },
-        },
-      }),
-      tx.registrationSubmission.count({ where }),
-      tx.registrationSubmission.groupBy({ by: ["status"], _count: true }),
-    ]);
-    return (
-      <div className="stack">
-        <div className="row">
-          {counts.map((c) => (
-            <span key={c.status} className="badge neutral">
-              {friendlyLabel(c.status)}: {c._count}
-            </span>
-          ))}
-        </div>
-        <div className="panel">
-          <h3>Upload registrations</h3>
-          <p className="muted text-sm">
-            Upload the registration spreadsheet downloaded from Google Sheets.
-            Automatic syncing is not connected yet. All answers stay private.
-          </p>
-          <UploadForm action="import" />
-        </div>
-        <div>
-          <Filter status />
-          {!rows.length && (
-            <div className="empty">
-              <strong>No registrations found.</strong> Try another search or
-              upload your registration spreadsheet.
-            </div>
-          )}
-          <div className="stack">
-            {rows.map((r) => (
-              <article className="panel" key={r.id}>
-                <div className="row">
-                  <h3 className="mb-0">{r.displayIgn}</h3>
-                  <span className="badge neutral ml-auto">
-                    {friendlyLabel(r.status)}
-                  </span>
-                </div>
-                <p className="muted text-xs mt-3 break-all">
-                  {friendlyLabel(r.source)} ·{operationalTime(r.ingestedAt)} ·
-                  WhatsApp{" "}
-                  {r.phoneLastFour ? `•••• ${r.phoneLastFour}` : "not supplied"}{" "}
-                  {r.phoneIssue && `· ${friendlyLabel(r.phoneIssue)}`}
-                </p>
-                {r.conflicts
-                  .filter((c) => !c.resolved)
-                  .map((c, i) => (
-                    <div className="notice" key={i}>
-                      {c.reason}
-                      {c.existingMemberId && (
-                        <p className="text-xs break-all mb-0">
-                          Existing member:{" "}
-                          {memberChoices.find(
-                            (m) => m.value === c.existingMemberId,
-                          )?.label ?? "Review the member list"}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                <details className="details">
-                  <summary>Private registration details</summary>
-                  <PrivateDetails kind="submission" id={r.id} />
-                </details>
-                {r.status !== "APPROVED" && (
-                  <details className="details">
-                    <summary>Review registration</summary>
-                    <ActionForm
-                      action="review"
-                      fixed={{ id: r.id }}
-                      label="Record decision"
-                      fields={[
-                        {
-                          name: "action",
-                          required: true,
-                          label: "Decision",
-                          type: "select",
-                          options: [
-                            { value: "APPROVE", label: "Approve membership" },
-                            { value: "REJECT", label: "Reject" },
-                            {
-                              value: "CLARIFY",
-                              label: "Request clarification",
-                            },
-                          ],
-                        },
-                        reason,
-                        {
-                          name: "memberId",
-                          label: "Link to an existing member",
-                          type: "select",
-                          options: memberChoices,
-                          help: "For a duplicate name, choose the matching member. Their existing registration details are protected.",
-                        },
-                        { name: "ign", label: "Corrected player name" },
-                        {
-                          name: "note",
-                          label: "Internal note",
-                          type: "textarea",
-                        },
-                      ]}
-                    />
-                  </details>
-                )}
-                <details className="details">
-                  <summary>Past decisions ({r.decisions.length})</summary>
-                  {r.decisions.map((d, i) => (
-                    <p className="text-xs muted" key={i}>
-                      {operationalTime(d.createdAt)} · {friendlyLabel(d.action)}{" "}
-                      · {decrypt(d.reason, `decision:${r.id}`)}
-                    </p>
-                  ))}
-                </details>
-              </article>
-            ))}
-          </div>
-          <Pagination
-            page={page}
-            total={total}
-            base={`${base}/registrations`}
-            query={q}
-          />
-        </div>
-      </div>
-    );
-  }
-  if (section === "members") {
-    const where = query
-      ? { displayIgn: { contains: query, mode: "insensitive" as const } }
-      : {};
-    const [rows, total] = await Promise.all([
-      tx.member.findMany({
-        where,
-        skip,
-        take: 20,
-        orderBy: { displayIgn: "asc" },
-        select: {
-          id: true,
-          displayIgn: true,
-          verified: true,
-          archived: true,
-          privateData: { select: { phoneLastFour: true, phoneIssue: true } },
-          participants: {
-            select: {
-              id: true,
-              code: true,
-              eligible: true,
-              tournamentId: true,
-            },
-          },
-        },
-      }),
-      tx.member.count({ where }),
-    ]);
-    return (
-      <>
-        <Filter />
-        <div className="stack">
-          {rows.map((m) => (
-            <article className="panel" key={m.id}>
-              <div className="row">
-                <h3 className="mb-0">{m.displayIgn}</h3>
-                <span className={`badge ${m.verified ? "" : "warning"}`}>
-                  {m.archived
-                    ? "Archived"
-                    : m.verified
-                      ? "Approved"
-                      : "Awaiting approval"}
-                </span>
-              </div>
-              <p className="text-xs muted mt-3">
-                WhatsApp:{" "}
-                {m.privateData?.phoneLastFour
-                  ? `•••• ${m.privateData.phoneLastFour}`
-                  : "not supplied"}{" "}
-                {m.privateData?.phoneIssue &&
-                  `· ${friendlyLabel(m.privateData.phoneIssue)}`}
-              </p>
-              {m.privateData && (
-                <details className="details">
-                  <summary>Private registration details</summary>
-                  <PrivateDetails kind="member" id={m.id} />
-                </details>
-              )}
-              <details className="details">
-                <summary>Update player name or archive</summary>
-                <ActionForm
-                  action="member"
-                  fixed={{ id: m.id }}
-                  fields={[
-                    { name: "ign", label: "Player name", value: m.displayIgn },
-                    reason,
-                  ]}
-                  label="Update player name"
-                />
-                <hr className="divider" />
-                <ActionForm
-                  action="member"
-                  fixed={{ id: m.id, archived: !m.archived }}
-                  fields={[reason]}
-                  label={m.archived ? "Restore member" : "Archive member"}
-                />
-              </details>
-              {m.participants.map((p) => (
-                <details className="details" key={p.id}>
-                  <summary>
-                    {p.code} · {p.eligible ? "Eligible" : "Eligibility pending"}
-                  </summary>
-                  <ActionForm
-                    action="participant"
-                    fixed={{ id: p.id, eligible: !p.eligible }}
-                    fields={[reason]}
-                    label={
-                      p.eligible
-                        ? "Remove eligibility"
-                        : "Confirm tournament eligibility"
-                    }
-                  />
-                </details>
-              ))}
-            </article>
-          ))}
-        </div>
-        <Pagination
-          page={page}
-          total={total}
-          base={`${base}/members`}
-          query={q}
-        />
-      </>
-    );
-  }
+  if (section === "registrations")
+    return renderRegistrations(tx, actor, q, base);
+  if (section === "members") return renderMembers(tx, actor, q, base);
   if (section === "tournaments") {
     if (!q.id) {
       const rows = await tx.tournament.findMany({
@@ -595,8 +326,19 @@ async function renderSection(
       string,
       { value: string; label: string }[]
     >();
+    const populatedStages = new Set(
+      (
+        await tx.round.findMany({
+          where: {
+            stageId: { in: stages.map((s) => s.id) },
+            matches: { some: {} },
+          },
+          select: { stageId: true },
+        })
+      ).map((r) => r.stageId),
+    );
     for (const stage of stages)
-      if (stage.format === "LEAGUE") {
+      if (stage.format === "LEAGUE" && populatedStages.has(stage.id)) {
         const { rows } = await standingsFor(tx, stage.id);
         rankingChoices.set(
           stage.id,
@@ -711,7 +453,7 @@ async function renderSection(
                       type: "checkbox",
                       required: true,
                     },
-                    reason,
+                    requiredReason,
                   ]}
                   label="Restart competition with these sizes"
                 />
@@ -771,13 +513,32 @@ async function renderSection(
               {checks.map((c) => (
                 <div className={`check ${c.done ? "done" : ""}`} key={c.key}>
                   <span>{c.done ? "✓" : "○"}</span>
-                  {c.label}
+                  {c.done ? (
+                    c.label
+                  ) : (
+                    <a
+                      className="text-link"
+                      href={
+                        c.key === "teams"
+                          ? `${base}/teams`
+                          : c.key === "eligibility"
+                            ? `${base}/members`
+                            : c.key === "mapping"
+                              ? "#player-list-confirmation"
+                              : ["dates", "gameTitle"].includes(c.key)
+                                ? "#tournament-overview"
+                                : "#tournament-rules"
+                      }
+                    >
+                      {c.label} ↗
+                    </a>
+                  )}
                 </div>
               ))}
             </div>
           </div>
           <div className="panel">
-            <h3>Overview & schedule</h3>
+            <h3 id="tournament-overview">Overview & schedule</h3>
             <ActionForm
               action="tournament"
               fixed={{ id: t.id }}
@@ -836,7 +597,7 @@ async function renderSection(
         {actor.role === "ADMIN" && (
           <div className="grid2">
             <div className="panel">
-              <h3>Player list confirmation</h3>
+              <h3 id="player-list-confirmation">Player list confirmation</h3>
               <p className="muted text-sm">
                 Check that the player names and codes match your approved list.
                 Approve registrations and confirm each player can compete before
@@ -885,7 +646,10 @@ async function renderSection(
               {s.confirmedRules.map(ruleLabel).join(", ") ||
                 "No rules confirmed yet"}
             </p>
-            <details className="details">
+            <details
+              className="details"
+              id={s === stages[0] ? "tournament-rules" : undefined}
+            >
               <summary>
                 Tournament rules{" "}
                 {actor.role !== "ADMIN" && "· admin approval required"}
@@ -949,7 +713,11 @@ async function renderSection(
                         required: true,
                         help: "The current standings appear below. Use the arrows to resolve tied players, then explain your decision. Points and confirmed tiebreakers still apply.",
                       },
-                      reason,
+                      (rankingChoices.get(s.id) ?? []).some((p) =>
+                        p.label.includes(" · Tied"),
+                      )
+                        ? requiredReason
+                        : reason,
                     ]}
                   />
                   {s.key === "qualification" && (
@@ -1068,20 +836,10 @@ async function renderSection(
               Exactly four approved players per team. Players may belong to only
               one active team in this category.
             </p>
-            <div className="team-slots">
-              {Array.from({ length: c.capacity }, (_, i) => {
-                const t = c.teams.filter((t) => !t.archived)[i];
-                return (
-                  <div className="slot" key={i}>
-                    <strong>{t?.name ?? `Empty team slot ${i + 1}`}</strong>
-                    {t?.memberships.map((m) => (
-                      <div key={m.id}>{m.member.displayIgn}</div>
-                    ))}
-                    {!t && <span>No roster assigned</span>}
-                  </div>
-                );
-              })}
-            </div>
+            <p className="muted text-sm">
+              {c.teams.filter((t) => !t.archived).length}/{c.capacity} team
+              slots assigned
+            </p>
             <details className="panel">
               <summary>Create a team</summary>
               <ActionForm
@@ -1111,51 +869,67 @@ async function renderSection(
             </details>
             <div className="stack">
               {c.teams.map((team) => (
-                <details className="panel" key={team.id}>
-                  <summary>
-                    {team.name} ·{" "}
-                    {team.archived
-                      ? "Archived"
-                      : `${team.memberships.length}/4 players`}
-                  </summary>
-                  <ActionForm
-                    action="team"
-                    fixed={{ categoryId: c.id, id: team.id }}
-                    label="Save team"
-                    fields={[
-                      {
-                        name: "name",
-                        label: "Team name",
-                        required: true,
-                        value: team.name,
-                      },
-                      {
-                        name: "memberIds",
-                        label: "Team players",
-                        type: "members",
-                        value: team.memberships.map((m) => m.memberId),
-                        max: 4,
-                        options: approvedMembers.map((m) => ({
-                          ...m,
-                          disabled: c.teams.some(
-                            (t) =>
-                              t.id !== team.id &&
-                              !t.archived &&
-                              t.memberships.some((p) => p.memberId === m.value),
-                          ),
-                        })),
-                        help: "Search by name to add players. Remove a selected name using the × button.",
-                      },
-                      {
-                        name: "archived",
-                        label: "Archive this team",
-                        type: "checkbox",
-                        value: team.archived,
-                      },
-                      reason,
-                    ]}
-                  />
-                </details>
+                <article className="panel" key={team.id}>
+                  <div className="row">
+                    <h3 className="mb-0">
+                      {team.code} · {team.name}
+                    </h3>
+                    <span
+                      className={`badge ${team.archived ? "neutral" : team.memberships.length === 4 ? "" : "warning"}`}
+                    >
+                      {team.archived
+                        ? "Archived"
+                        : `${team.memberships.length}/4 players`}
+                    </span>
+                  </div>
+                  <p className="muted text-sm mt-3">
+                    {team.memberships
+                      .map((m) => m.member.displayIgn)
+                      .join(" · ") || "No players assigned"}
+                  </p>
+                  <details className="details">
+                    <summary>Edit team roster</summary>
+                    <ActionForm
+                      action="team"
+                      fixed={{ categoryId: c.id, id: team.id }}
+                      label="Save team"
+                      fields={[
+                        {
+                          name: "name",
+                          label: "Team name",
+                          required: true,
+                          value: team.name,
+                        },
+                        {
+                          name: "memberIds",
+                          label: "Team players",
+                          type: "members",
+                          value: team.memberships.map((m) => m.memberId),
+                          max: 4,
+                          options: approvedMembers.map((m) => ({
+                            ...m,
+                            disabled: c.teams.some(
+                              (t) =>
+                                t.id !== team.id &&
+                                !t.archived &&
+                                t.memberships.some(
+                                  (p) => p.memberId === m.value,
+                                ),
+                            ),
+                          })),
+                          help: "Search by name to add players. Remove a selected name using the × button.",
+                        },
+                        {
+                          name: "archived",
+                          label: "Archive this team",
+                          type: "checkbox",
+                          value: team.archived,
+                        },
+                        reason,
+                      ]}
+                    />
+                  </details>
+                </article>
               ))}
             </div>
           </div>
@@ -1164,19 +938,123 @@ async function renderSection(
     );
   }
   if (section === "matches") {
-    const stages = await tx.stage.findMany({
+    const stageChoices = await tx.stage.findMany({
       where: {
         ...(q.tournamentId
           ? { category: { tournamentId: q.tournamentId } }
           : {}),
         ...(q.history === "true" ? {} : { archived: false }),
       },
+      select: {
+        id: true,
+        name: true,
+        category: {
+          select: {
+            tournamentId: true,
+            tournament: { select: { name: true } },
+          },
+        },
+        rounds: {
+          orderBy: { number: "asc" },
+          select: {
+            id: true,
+            number: true,
+            name: true,
+            _count: { select: { matches: true } },
+          },
+        },
+      },
+      orderBy: [
+        { category: { tournament: { createdAt: "desc" } } },
+        { key: "asc" },
+      ],
+    });
+    const selectedStage =
+      stageChoices.find((s) => s.id === q.stageId) ??
+      stageChoices.find((s) => s.rounds.length) ??
+      stageChoices[0];
+    if (!selectedStage)
+      return (
+        <div className="empty">
+          <strong>No fixtures yet</strong>Prepare a tournament and create its
+          matches first.
+        </div>
+      );
+    const selectedRound =
+      selectedStage.rounds.find((r) => String(r.number) === q.round) ??
+      selectedStage.rounds[0];
+    const participants = await tx.participant.findMany({
+        where: { tournamentId: selectedStage.category.tournamentId },
+        select: {
+          id: true,
+          code: true,
+          tournamentId: true,
+          member: { select: { displayIgn: true } },
+        },
+      }),
+      teams = await tx.team.findMany({
+        where: {
+          category: { tournamentId: selectedStage.category.tournamentId },
+        },
+        select: { id: true, name: true, categoryId: true },
+      });
+    const names = new Map([
+      ...participants.map(
+        (p) => [p.id, `${p.code} · ${p.member.displayIgn}`] as const,
+      ),
+      ...teams.map((t) => [t.id, t.name] as const),
+    ]);
+    const statusOptions = [
+      "SCHEDULED",
+      "IN_PROGRESS",
+      "RESULT_SUBMITTED",
+      "FINALIZED",
+      "DISPUTED",
+      "VOIDED",
+      "BYE",
+    ] as const;
+    const matchStatus = statusOptions.find((status) => status === q.status);
+    const matchingIds = query
+      ? [...names]
+          .filter(([, name]) =>
+            name.toLowerCase().includes(query.toLowerCase().trim()),
+          )
+          .map(([id]) => id)
+      : [];
+    const editorWhere = {
+      ...(matchStatus ? { status: matchStatus } : {}),
+      ...(query
+        ? {
+            OR: [
+              { sideAId: { in: matchingIds } },
+              { sideBId: { in: matchingIds } },
+            ],
+          }
+        : {}),
+    };
+    const totalMatches = selectedRound
+      ? query || matchStatus
+        ? await tx.match.count({
+            where: { roundId: selectedRound.id, ...editorWhere },
+          })
+        : selectedRound._count.matches
+      : 0;
+    const matchPage = Math.max(
+      1,
+      Math.min(Math.ceil(totalMatches / 8) || 1, page),
+    );
+    const stages = await tx.stage.findMany({
+      where: { id: selectedStage.id },
       include: {
         category: { include: { tournament: { select: { name: true } } } },
         rounds: {
+          where: { id: selectedRound?.id ?? "none" },
           orderBy: { number: "asc" },
           include: {
             matches: {
+              where: editorWhere,
+              skip: (matchPage - 1) * 8,
+              take: 8,
               orderBy: { order: "asc" },
               include: {
                 results: {
@@ -1199,7 +1077,7 @@ async function renderSection(
       Awaited<ReturnType<typeof standingsFor>>["rows"]
     >();
     for (const stage of stages)
-      if (stage.format === "LEAGUE")
+      if (stage.format === "LEAGUE" && q.standings === "true")
         stageStandings.set(
           stage.id,
           stage.archived
@@ -1208,18 +1086,28 @@ async function renderSection(
               >["rows"])
             : (await standingsFor(tx, stage.id)).rows,
         );
-    const participants = await tx.participant.findMany({
-        include: { member: { select: { displayIgn: true } } },
-      }),
-      teams = await tx.team.findMany({
-        select: { id: true, name: true, categoryId: true },
-      });
-    const names = new Map([
-      ...participants.map(
-        (p) => [p.id, `${p.code} · ${p.member.displayIgn}`] as const,
-      ),
-      ...teams.map((t) => [t.id, t.name] as const),
-    ]);
+    const previewMatches = selectedRound
+      ? await tx.match.findMany({
+          where: { roundId: selectedRound.id },
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            order: true,
+            sideAId: true,
+            sideBId: true,
+            status: true,
+            bestOf: true,
+            scheduledAt: true,
+            currentResult: {
+              select: {
+                status: true,
+                outcome: true,
+                games: { select: { number: true, scoreA: true, scoreB: true } },
+              },
+            },
+          },
+        })
+      : [];
     return (
       <div className="stack">
         <Link
@@ -1230,6 +1118,71 @@ async function renderSection(
             ? "Show current stages"
             : "Include retained competition history"}
         </Link>
+        <Form action={`${base}/matches`} className="form panel fixture-filters">
+          {q.tournamentId && (
+            <input type="hidden" name="tournamentId" value={q.tournamentId} />
+          )}
+          {q.history === "true" && (
+            <input type="hidden" name="history" value="true" />
+          )}
+          <div className="grid2">
+            <label htmlFor="fixture-stage">
+              Tournament / stage
+              <select
+                id="fixture-stage"
+                name="stageId"
+                defaultValue={selectedStage.id}
+              >
+                {stageChoices.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.category.tournament.name} · {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label htmlFor="fixture-round">
+              Round
+              <select
+                id="fixture-round"
+                name="round"
+                defaultValue={String(selectedRound?.number ?? 1)}
+              >
+                {selectedStage.rounds.map((r) => (
+                  <option key={r.id} value={r.number}>
+                    {r.name} · {r._count.matches} series
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="grid2">
+            <label htmlFor="fixture-search">
+              Player name, code or team
+              <input
+                id="fixture-search"
+                name="q"
+                defaultValue={query}
+                placeholder="Find a player's match"
+              />
+            </label>
+            <label htmlFor="fixture-status">
+              Match status
+              <select
+                id="fixture-status"
+                name="status"
+                defaultValue={matchStatus ?? ""}
+              >
+                <option value="">All statuses</option>
+                {statusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {friendlyLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <button className="button secondary small">Show fixtures</button>
+        </Form>
         {stages.map((s) => {
           const opponentChoices =
             s.category.kind === "SOLO"
@@ -1253,21 +1206,29 @@ async function renderSection(
                   stage is read only and does not count in the current revision.
                 </div>
               )}
-              {s.format === "LEAGUE" && (
-                <details className="details">
-                  <summary>
-                    Current standings · tied players need a decision
-                  </summary>
-                  <Standings rows={stageStandings.get(s.id) ?? []} />
-                </details>
-              )}
+              {s.format === "LEAGUE" &&
+                (q.standings === "true" ? (
+                  <details className="details" open>
+                    <summary>
+                      Current standings · tied players need a decision
+                    </summary>
+                    <Standings rows={stageStandings.get(s.id) ?? []} />
+                  </details>
+                ) : (
+                  <Link
+                    className="text-link"
+                    href={`${base}/matches?stageId=${s.id}&round=${selectedRound?.number ?? 1}&standings=true${q.history === "true" ? "&history=true" : ""}`}
+                  >
+                    Show current standings ↗
+                  </Link>
+                ))}
               {!s.rounds.length && (
                 <div className="empty">
                   Fixtures await confirmed rules and participants.
                 </div>
               )}
               {s.format === "LEAGUE" && s.rounds.length > 0 && (
-                <details className="panel mb-4" open>
+                <details className="panel mb-4">
                   <summary className="cursor-pointer text-link">
                     Visual fixture preview
                   </summary>
@@ -1278,12 +1239,11 @@ async function renderSection(
                       rounds={s.rounds.map((r) => ({
                         number: r.number,
                         name: r.name,
-                        matches: r.matches.map((m) => {
-                          const result = m.results.find(
-                            (result) =>
-                              result.id === m.currentResultId &&
-                              result.status === "ACCEPTED",
-                          );
+                        matches: previewMatches.map((m) => {
+                          const result =
+                            m.currentResult?.status === "ACCEPTED"
+                              ? m.currentResult
+                              : null;
                           return {
                             id: m.id,
                             a: names.get(m.sideAId ?? "") ?? "Menunggu peserta",
@@ -1314,15 +1274,18 @@ async function renderSection(
                 </details>
               )}
               {s.rounds.map((r) => (
-                <details
-                  className="panel mb-4"
-                  key={r.id}
-                  open={q.round === String(r.number)}
-                >
+                <details className="panel mb-4" key={r.id} open>
                   <summary className="cursor-pointer text-lime">
-                    {r.name} · {r.matches.length} series
+                    {r.name} ·{" "}
+                    {selectedRound?._count.matches ?? r.matches.length} series
                   </summary>
                   <div className="stack mt-5">
+                    {!r.matches.length && (
+                      <div className="empty">
+                        <strong>No matching fixtures</strong>Try a different
+                        name or status.
+                      </div>
+                    )}
                     {r.matches.map((m) => (
                       <article key={m.id} className="panel">
                         <fieldset
@@ -1353,7 +1316,7 @@ async function renderSection(
                                   action="dependency"
                                   fixed={{ id: d.id }}
                                   fields={[
-                                    reason,
+                                    requiredReason,
                                     {
                                       name: "sideAId",
                                       label: "Replace first opponent",
@@ -1377,6 +1340,7 @@ async function renderSection(
                             <MatchResultForm
                               matchId={m.id}
                               bestOf={m.bestOf}
+                              knockout={s.format === "KNOCKOUT"}
                               sideA={names.get(m.sideAId ?? "") ?? "Player A"}
                               sideB={names.get(m.sideBId ?? "") ?? "Player B"}
                               rules={s.rules as Rules}
@@ -1427,7 +1391,7 @@ async function renderSection(
                                   <ActionForm
                                     action="resultReview"
                                     fixed={{ id: v.id, action: "DISPUTE" }}
-                                    fields={[reason]}
+                                    fields={[requiredReason]}
                                     label="Open a dispute"
                                   />
                                 )}
@@ -1494,7 +1458,7 @@ async function renderSection(
                                         "Keep the accepted result (leave unchecked to cancel the match)",
                                       type: "checkbox",
                                     },
-                                    reason,
+                                    requiredReason,
                                   ]}
                                   label="Resolve dispute"
                                 />
@@ -1527,7 +1491,11 @@ async function renderSection(
                                     ? "IN_PROGRESS"
                                     : "VOIDED",
                               }}
-                              fields={[reason]}
+                              fields={[
+                                m.status === "SCHEDULED"
+                                  ? reason
+                                  : requiredReason,
+                              ]}
                               label={
                                 m.status === "SCHEDULED"
                                   ? "Start match"
@@ -1556,6 +1524,17 @@ async function renderSection(
                   </div>
                 </details>
               ))}
+              <Pagination
+                page={matchPage}
+                total={totalMatches}
+                size={8}
+                base={`${base}/matches`}
+                query={{
+                  ...q,
+                  stageId: s.id,
+                  round: String(selectedRound?.number ?? 1),
+                }}
+              />
             </div>
           );
         })}
@@ -1572,6 +1551,7 @@ async function renderSection(
           <h3>Create announcement</h3>
           <ActionForm
             action="announcement"
+            fixed={{ published: false }}
             fields={[
               { name: "title", label: "Title", required: true },
               {
@@ -1580,11 +1560,15 @@ async function renderSection(
                 type: "textarea",
                 required: true,
               },
-              {
-                name: "published",
-                label: "Publish (admin approval)",
-                type: "checkbox",
-              },
+              ...(actor.role === "ADMIN"
+                ? [
+                    {
+                      name: "published",
+                      label: "Publish (admin approval)",
+                      type: "checkbox" as const,
+                    },
+                  ]
+                : []),
               { name: "titleEn", label: "English title" },
               {
                 name: "bodyEn",
@@ -1600,49 +1584,61 @@ async function renderSection(
             <summary>
               {r.title} · {r.published ? "Published" : "Draft"}
             </summary>
-            <ActionForm
-              action="announcement"
-              fixed={{ id: r.id }}
-              fields={[
-                {
-                  name: "title",
-                  label: "Title",
-                  value: r.title,
-                  required: true,
-                },
-                {
-                  name: "body",
-                  label: "Body",
-                  type: "textarea",
-                  value: r.body,
-                  required: true,
-                },
-                {
-                  name: "published",
-                  label: "Published",
-                  type: "checkbox",
-                  value: r.published,
-                },
-                {
-                  name: "archived",
-                  label: "Archived",
-                  type: "checkbox",
-                  value: r.archived,
-                },
-                {
-                  name: "titleEn",
-                  label: "English title",
-                  value: r.titleEn ?? "",
-                },
-                {
-                  name: "bodyEn",
-                  label: "English announcement",
-                  type: "textarea",
-                  value: r.bodyEn ?? "",
-                },
-                reason,
-              ]}
-            />
+            {actor.role !== "ADMIN" && r.published ? (
+              <p className="muted text-sm whitespace-pre-wrap">
+                {r.body}
+                <br />
+                An admin can edit published announcements.
+              </p>
+            ) : (
+              <ActionForm
+                action="announcement"
+                fixed={{ id: r.id, published: r.published }}
+                fields={[
+                  {
+                    name: "title",
+                    label: "Title",
+                    value: r.title,
+                    required: true,
+                  },
+                  {
+                    name: "body",
+                    label: "Body",
+                    type: "textarea",
+                    value: r.body,
+                    required: true,
+                  },
+                  ...(actor.role === "ADMIN"
+                    ? [
+                        {
+                          name: "published",
+                          label: "Published",
+                          type: "checkbox" as const,
+                          value: r.published,
+                        },
+                      ]
+                    : []),
+                  {
+                    name: "archived",
+                    label: "Archived",
+                    type: "checkbox",
+                    value: r.archived,
+                  },
+                  {
+                    name: "titleEn",
+                    label: "English title",
+                    value: r.titleEn ?? "",
+                  },
+                  {
+                    name: "bodyEn",
+                    label: "English announcement",
+                    type: "textarea",
+                    value: r.bodyEn ?? "",
+                  },
+                  reason,
+                ]}
+              />
+            )}
           </details>
         ))}
       </div>
@@ -1698,93 +1694,7 @@ async function renderSection(
       </>
     );
   }
-  if (section === "audit") {
-    const staffNames = new Map(
-      (await tx.staffUser.findMany({ select: { id: true, name: true } })).map(
-        (u) => [u.id, u.name],
-      ),
-    );
-    const where = {
-      ...(actor.role === "MODERATOR"
-        ? { entityType: { notIn: ["STAFF", "SECURITY", "SETTING"] } }
-        : {}),
-      ...(query
-        ? {
-            OR: [
-              { action: { contains: query, mode: "insensitive" as const } },
-              {
-                actorId: {
-                  in: [...staffNames]
-                    .filter(([, name]) =>
-                      name.toLowerCase().includes(query.toLowerCase()),
-                    )
-                    .map(([id]) => id),
-                },
-              },
-            ],
-          }
-        : {}),
-    };
-    const [rows, total] = await Promise.all([
-      tx.auditEvent.findMany({
-        where,
-        skip,
-        take: 20,
-        orderBy: { createdAt: "desc" },
-      }),
-      tx.auditEvent.count({ where }),
-    ]);
-    return (
-      <>
-        <Filter />
-        <details className="panel">
-          <summary>Download activity history</summary>
-          <AuditExport />
-        </details>
-        <div className="notice">
-          Every activity is recorded here and cannot be changed or deleted.
-          Times are shown in Malaysia time. Private information stays hidden.
-        </div>
-        <div className="stack">
-          {rows.map((e) => (
-            <details className="panel" key={e.id}>
-              <summary className="cursor-pointer text-sm">
-                {operationalTime(e.createdAt)} · {activityLabel(e.action)}{" "}
-                <span className="badge neutral ml-2">
-                  {friendlyLabel(e.outcome)}
-                </span>
-              </summary>
-              <p className="muted text-xs mt-4">
-                By{" "}
-                {staffNames.get(e.actorId ?? "") ?? friendlyLabel(e.actorRole)}{" "}
-                · {friendlyLabel(e.entityType)}
-                {e.reason && (
-                  <>
-                    <br />
-                    {e.reason}
-                  </>
-                )}
-              </p>
-              <dl className="readable-details">
-                {activityDetails(e.changes).map((detail) => (
-                  <div key={detail.label}>
-                    <dt>{detail.label}</dt>
-                    <dd>{detail.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </details>
-          ))}
-        </div>
-        <Pagination
-          page={page}
-          total={total}
-          base={`${base}/audit`}
-          query={q}
-        />
-      </>
-    );
-  }
+  if (section === "audit") return renderActivityHistory(tx, actor, q, base);
   if (section === "settings") {
     const settings = await tx.integrationSetting.findMany({
       where: { key: { in: ["formMapping", "responderUrl"] } },
@@ -1850,58 +1760,76 @@ async function renderSection(
     );
   }
   if (section === "staff") {
-    const users = await tx.staffUser.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        suspended: true,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const suspended = q.status === "all" ? undefined : q.status === "suspended";
+    const where = {
+      ...(suspended === undefined ? {} : { suspended }),
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" as const } },
+              { email: { contains: query, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
+    };
+    const [users, total] = await Promise.all([
+      tx.staffUser.findMany({
+        where,
+        skip,
+        take: 20,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          suspended: true,
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      tx.staffUser.count({ where }),
+    ]);
     return (
       <div className="stack">
-        <div className="notice">
-          To add a staff account, contact the person managing this site. You can
-          change existing staff permissions below.
-        </div>
-        {users.map((u) => (
-          <div className="panel" key={u.id}>
-            <h3>{u.name}</h3>
-            <p className="muted text-sm">
-              {u.email} · {friendlyLabel(u.role)} ·{" "}
-              {u.suspended ? "Suspended" : "Active"}
-            </p>
-            {u.id !== actor.id && (
-              <ActionForm
-                action="staff"
-                fixed={{ id: u.id }}
-                fields={[
-                  {
-                    name: "role",
-                    required: true,
-                    label: "Role",
-                    type: "select",
-                    value: u.role,
-                    options: ["ADMIN", "MODERATOR"].map((x) => ({
-                      value: x,
-                      label: friendlyLabel(x),
-                    })),
-                  },
-                  {
-                    name: "suspended",
-                    label: "Suspended",
-                    type: "checkbox",
-                    value: u.suspended,
-                  },
-                  reason,
-                ]}
-                label="Save permissions and sign out this staff member"
-              />
-            )}
+        <AddStaffAccount />
+        <Form action={`${base}/staff`} className="filter staff-account-filter">
+          <label className="sr-only" htmlFor="staff-search">
+            Search staff
+          </label>
+          <input
+            id="staff-search"
+            name="q"
+            placeholder="Search name or email"
+            defaultValue={query}
+          />
+          <label className="sr-only" htmlFor="staff-status">
+            Account status
+          </label>
+          <select
+            id="staff-status"
+            name="status"
+            defaultValue={q.status ?? "active"}
+          >
+            <option value="active">Active accounts</option>
+            <option value="suspended">Suspended accounts</option>
+            <option value="all">All accounts</option>
+          </select>
+          <button className="button small secondary">Search</button>
+        </Form>
+        {!users.length && (
+          <div className="empty">
+            <strong>No matching staff accounts</strong>Change the search or
+            status filter.
           </div>
+        )}
+        {users.map((u) => (
+          <StaffAccountRow key={u.id} account={u} current={u.id === actor.id} />
         ))}
+        <Pagination
+          page={page}
+          total={total}
+          base={`${base}/staff`}
+          query={q}
+        />
       </div>
     );
   }

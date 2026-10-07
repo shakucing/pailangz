@@ -1,0 +1,133 @@
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+.search {
+  flex: 1;
+  min-width: 180px;
+}
+.list {
+  display: grid;
+  gap: 0.65rem;
+}
+.item {
+  border: 1px solid var(--border, #303638);
+  border-radius: 12px;
+  background: var(--panel, #141918);
+  padding: 1rem;
+}
+.row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.name {
+  font-weight: 700;
+  flex: 1;
+  min-width: 140px;
+  overflow-wrap: anywhere;
+}
+.meta {
+  color: var(--muted, #a5aaa7);
+  font-size: 0.8rem;
+  margin: 0.4rem 0;
+}
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.editor {
+  border-top: 1px solid var(--border, #303638);
+  margin-top: 1rem;
+  padding-top: 1rem;
+  display: grid;
+  gap: 1rem;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.fields label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  font-size: 0.875rem;
+}
+.fields input {
+  width: 100%;
+  min-width: 0;
+}
+.contact {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 0.6rem 0;
+}
+.contact a {
+  text-decoration: underline;
+}
+.status {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: #26352c;
+}
+.error {
+  color: #fca5a5;
+  font-size: 0.875rem;
+}
+.success {
+  color: #9be6ad;
+  font-size: 0.875rem;
+}
+.history {
+  display: grid;
+  grid-template-columns: 150px 130px 1fr;
+  gap: 0.8rem;
+  align-items: start;
+}
+.history small {
+  color: var(--muted, #a5aaa7);
+}
+.history p {
+  margin: 0;
+}
+.selection {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.85rem;
+}
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+  .history {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+  }
+  .toolbar {
+    align-items: stretch;
+  }
+  .toolbar input,
+  .toolbar select {
+    width: 100%;
+  }
+  .actions button {
+    min-height: 40px;
+  }
+  .row {
+    align-items: flex-start;
+  }
+  .item {
+    padding: 0.85rem;
+  }
+}

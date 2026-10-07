@@ -40,7 +40,7 @@ Sign in using the email and password entered during provisioning. No authenticat
 
 Staff sign in at `/staff`, or click the homepage's top-left logo five times within five seconds. Public navigation has no staff portal links. The password field has a show/hide button.
 
-Admins manage existing staff roles and suspension at `/admin/staff`; changes revoke all existing sessions. Operators provision accounts through the CLI. To update existing passwords, run `pnpm staff:passwords --neon` and enter a separate password for each active account privately in the terminal. To preview disposable QA cleanup, run `pnpm staff:cleanup --neon`; add `--apply` to remove the displayed suspended QA accounts and their sessions while retaining audit history. Use `--local` for the local database. Follow [the staff account guide](docs/staff-accounts.md) for the complete procedure. Password maintenance is an audited operator procedure; there is no public reset endpoint.
+Admins create, edit, suspend and remove staff accounts at `/admin/staff`. Active accounts appear first; suspended accounts have a separate filter. Account edits revoke existing sessions, and the database prevents self-removal or removing the last active admin. Operators can also provision accounts through the CLI. To update existing passwords, run `pnpm staff:passwords --neon` and enter a separate password for each active account privately in the terminal. To preview disposable QA cleanup, run `pnpm staff:cleanup --neon`; add `--apply` to remove the displayed suspended QA accounts and their sessions while retaining audit history. Use `--local` for the local database. Follow [the staff account guide](docs/staff-accounts.md) for the complete procedure. Password maintenance is an audited operator procedure; there is no public reset endpoint.
 
 Public registration creates neither staff accounts nor tournament eligibility. Staff and member IDs are independent; tournament codes P01–P64 are not global member IDs. The application rechecks current staff status, session revocation and role on every protected request. Client-supplied roles or Auth.js session updates cannot assign permissions.
 
@@ -71,7 +71,9 @@ Upload UTF-8 CSV with a unique header row in the inbox/import screen. Optional `
 
 Use `fixtures/registration-demo.csv` only for demonstration. Its phone marker is deliberately invalid, one row demonstrates an existing IGN conflict, and another demonstrates a missing phone. There are no demo results in the official seed. CSV imports are limited to 2 MB / 1,000 rows, retain provenance, and are processed transactionally.
 
-Imported records enter pending review (invalid IGN records need clarification). Search/filter/pagination and counts are available. Approve, reject or request clarification with a reason and optional encrypted internal note. Conflicts remain in staging; choose the matching existing member by player name in the registration review form. Linking never overwrites an existing private registration record. Approval does not automatically enter a tournament. Confirm eligibility separately in the member registry.
+Imported records enter the registration inbox's default pending-review queue. Search/filter/pagination and counts are available. Approve a clean record directly or select several for one atomic approval. Notes are optional for ordinary approval, rejection or clarification. Conflicts remain in staging; choose the matching existing member by player name in the review form. Linking preserves that member's saved contact information. Approval does not automatically enter a tournament. Confirm eligibility separately in the member registry.
+
+Members have a compact searchable list with one-click phone viewing and an editor for player name, phone and imported registration fields. Sensitive fields remain encrypted, and access and changes are recorded automatically. Ordinary edits, eligibility checks, roster changes and settings do not require a reason. Activity history defaults to changes and shows the staff name, time, affected record and readable summary; access events have a separate filter. See [staff operations](docs/staff-operations.md) for the daily workflow and the decisions that still require an explanation.
 
 ## Google Form / Sheets
 
@@ -85,7 +87,7 @@ Restrict Google Form editing and the linked response Sheet to authorized operato
 
 The admin readiness screen shows the unresolved dates/deadline, game title, draw policy, series-level scoring, league tiebreakers, qualification series length / carry / pairing / tiebreakers, SOLO knockout pairing, TEAM seeding, special outcomes and evidence/dispute deadlines. Weapon and weapon mode selection remains free.
 
-Staff edit rules with readable choices, arrange tiebreakers with Move up / Move down, and tick Confirmed only for approved rules. A reason and a new rule version are recorded. The structured settings below describe the internal storage format; staff never need to type it. A typical **admin-chosen** league confirmation might contain:
+Staff edit rules with readable choices, arrange tiebreakers with Move up / Move down, and tick Confirmed only for approved rules. A new rule version and an optional note are recorded. The structured settings below describe the internal storage format; staff never need to type it. A typical **admin-chosen** league confirmation might contain:
 
 ```json
 {"seriesPoints":true,"drawPolicy":"no_draws","tiebreakers":["differential","wins"]}
@@ -93,9 +95,9 @@ Staff edit rules with readable choices, arrange tiebreakers with Move up / Move 
 
 Supported keys: `seriesPoints` (must be true), `drawPolicy` (`no_draws` / `moderated_draw`), `tiebreakers` (`wins`, `differential`, `gameWins` in approved order), `qualificationBestOf` (3 / 5), `qualificationCarry` (boolean), `qualificationPairing` (`manual`), `qualificationTiebreakers` (same metrics), `knockoutPairing` (`ranked_cross` / `manual`), `teamSeeding` (`manual`), `byePolicy` (`none` / `rotating_no_points` / `seeded_top`), `specialOutcomes` (`none` / `forfeit`), `evidenceDeadline` and `disputeDeadline` (operator-confirmed text). These options are capabilities, not official tournament decisions.
 
-Each result is a versioned series with individual game scores, submitter/time, private evidence and an audited reason. BO3 wins require two game wins and BO5 wins three; games cannot continue after the series is won. Individual game ties are unsupported. Draws and forfeits require the selected confirmed policy. Moderators upload evidence and accept, reject, dispute or correct results. Open disputes can be resolved by upholding the current accepted result or voiding the match, with an encrypted resolution reason and atomic audit event. Acceptance is transactional and idempotent; old accepted versions remain immutable. Only the current accepted result of a finalized non-voided match contributes to standings. W/D/L series points are 3/1/0, not per-game points.
+Each result is a versioned series with individual game scores, submitter/time and private evidence. Ordinary submissions and confirmations have optional notes; corrections, forfeits, rejection and disputes require an explanation. BO3 wins require two game wins and BO5 wins three; games cannot continue after the series is won. Individual game ties are unsupported. Draws and forfeits require the selected confirmed policy. Open disputes can be resolved by upholding the current accepted result or voiding the match, with an encrypted resolution reason and atomic audit event. Acceptance is transactional and idempotent; old accepted versions remain immutable. Only the current accepted result of a finalized non-voided match contributes to standings. W/D/L series points are 3/1/0, not per-game points.
 
-Under **Fixtures & results → Submit / correct result**, enter each game's scores in numbered boxes labelled with the opponents' names. The form calculates the series winner, supports BO3/BO5, adds a deciding game when needed and explains invalid or incomplete scores. Existing scores are prefilled for corrections. Confirmed draws/forfeits use readable choices, and retries reuse the same submission key. The result note, screenshot evidence, moderator review and server rule checks still apply; staff do not edit game-score JSON.
+Under **Fixtures & results**, select the stage and round, then search opponents or filter match status. Only eight editors are loaded per page; the complete round remains available in a collapsed visual preview. **Submit / correct result** has numbered game boxes labelled with the opponents' names, automatic series winner calculation and BO3/BO5 validation. Add screenshot evidence in the same form and choose **Save & confirm**, or save for later review. Knockout confirmations can advance the winner in the same workflow. Retries reuse the saved submission instead of creating duplicate versions. Evidence, confirmed rules and server checks still apply.
 
 Unresolved ties have no numerical rank. Freeze a complete ranking only after every approved, eligible player completes the configured stage match quota; any remaining ties require an explicit reason and a complete player ranking arranged by name. The direct slots select the first league ranks; the playoff pool selects the following ranks. Choose opponents by name for `playoffEntrants × qualificationMatchesPerPlayer / 2` matches with equal match counts and no repeated opponents. In the original draft, ranks 1–8 qualify directly, ranks 9–24 play qualification, and 16 qualification series give each player two matches. Its supplied six-round league remains unchanged until an explicit revision.
 
@@ -135,6 +137,8 @@ The landing page uses adapted React Bits SpotlightCard and FadeContent for subtl
 
 To seed Neon with the **current saved local database**, including approvals and the revised P65 roster, use the snapshot transfer described in [neon-deployment.md](docs/neon-deployment.md). `pnpm db:neon:export` prepares private ignored transfer files; `pnpm db:neon:import` copies them to an empty Neon database and compares every row before committing. The original `db:seed` creates the original draft and does not reproduce all subsequent local edits.
 
+For an existing imported Neon database, run `pnpm db:neon:migrate` before deploying app updates. It reads the owner URL from the existing private `.local/neon-transfer/target.env`, verifies the production label and migration checksums, applies only pending migrations and verifies completion. It does not import, seed, rotate passwords or replace encryption keys. Migration 010 enables staff management and improves row-policy evaluation; apply it before deploying this staff operations update. The Vercel function region is `sin1`, matching the Singapore database. Push the updated code and redeploy Production after the migration succeeds.
+
 For native local PostgreSQL, use the included Docker Compose file (PostgreSQL 17) or an existing **dedicated** instance. Supply an owner password privately and configure separate owner and runtime URLs. Do not reuse unrelated local databases.
 
 Run `pnpm db:migrate` with `MIGRATION_DATABASE_URL`, then provision the runtime role as the owner using a SQL console:
@@ -156,7 +160,7 @@ Evidence is restricted to validated PNG/JPEG/WebP signatures, up to 4 MiB (shown
 
 Private APIs explicitly send `Cache-Control: private, no-store`; staff pages are dynamic, with CDN no-store headers. Next.js development pages may normalize Cache-Control to `no-store`, which also forbids shared storage. No private records enter static pages, public data projections, metadata, analytics or session replay. Script CSP uses a per-request nonce. Server mutations validate Origin; Auth.js handles its login/sign-out CSRF flow. Persistent database rate limits cover login, mutations, details/reveals and exports.
 
-Bulk private export is disabled unless `PRIVATE_EXPORT_ENABLED=true`. The admin-only API then requires a login within ten minutes, an explicit reason, a rate limit and a committed audit event, and returns at most 1,000 encrypted-source-derived records as a private JSON response. It is deliberately unavailable in the public or moderator UI. Audit history includes an authenticated JSON export with an explicit reason, rate limit and audit event, capped at 1,000 accessible events; moderators receive operational events allowed by row policies.
+Bulk private export is disabled unless `PRIVATE_EXPORT_ENABLED=true`. The admin-only API then requires a login within ten minutes, an explicit reason, a rate limit and a committed audit event, and returns at most 1,000 encrypted-source-derived records as a private JSON response. It is deliberately unavailable in the public or moderator UI. Activity history has an authenticated CSV export with optional notes, a rate limit and an audit event, capped at 1,000 accessible events; moderators receive operational events allowed by row policies.
 
 ## Keys, retention and recovery
 
@@ -175,13 +179,13 @@ pnpm typecheck
 pnpm test
 pnpm test:integration
 pnpm build
-# With the synthetic local web + database servers running:
+# After building; the runner creates its own temporary database and server:
 pnpm test:web
 ```
 
 The integration runner creates an isolated temporary database and destroys it afterward. By default it uses PGlite. To verify actual multi-connection race behavior on native PostgreSQL, set `TEST_PG_BIN_DIR` to a directory containing `initdb`, `pg_ctl` and `postgres` (run as a non-root user), then run `pnpm test:integration`. It initializes its own temporary instance on an unused port; it never connects to your existing PostgreSQL database.
 
-HTTP smoke tests create random, disposable synthetic operators, test password login/CSRF/roles/cache/import/privacy, and suspend those operators and revoke their sessions in a finally block. QA records remain with provenance for audit traceability; they are not official tournament results. Do not run these tests against production or a real member database.
+HTTP smoke tests run against an isolated temporary database and loopback server with independent random secrets. The runner applies migrations, seeds synthetic fixtures, tests password login/CSRF/roles/cache/import/privacy and account management, then tears down its resources. It does not use the working local or production database, and it leaves no QA accounts in them. `TEST_PG_BIN_DIR` optionally selects native PostgreSQL for this runner too.
 
 See [verification.md](docs/verification.md) for completed checks and precise limitations. This is a maintainable scaffold, not a claim of completed production security certification.
 

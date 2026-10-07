@@ -106,8 +106,7 @@ export async function privateTx<T>(actor: Actor, fn: (tx: Tx) => Promise<T>) {
     async (tx) => {
       if (process.env.LOCAL_PGLITE === "true")
         await tx.$executeRawUnsafe("SET LOCAL ROLE pailangz_app");
-      await tx.$executeRaw`SELECT set_config('app.actor_id', ${actor.id}, true)`;
-      await tx.$executeRaw`SELECT set_config('app.session_id', ${actor.sessionId}, true)`;
+      await tx.$executeRaw`SELECT set_config('app.actor_id', ${actor.id}, true),set_config('app.session_id', ${actor.sessionId}, true)`;
       const valid = await tx.$queryRaw<
         { allowed: boolean }[]
       >`SELECT app_staff_allowed() AS allowed`;

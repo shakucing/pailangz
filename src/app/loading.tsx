@@ -1,9 +1,11 @@
-import { getLocale, translate } from "@/lib/i18n";
-export default async function Loading() {
-  const locale = await getLocale();
+"use client";
+import { useLocale } from "@/components/locale-context";
+export default function Loading() {
+  const locale = useLocale();
   return (
     <div className="wrap loading" role="status">
-      {translate(locale, "Memuatkan arena…", "Loading the arena…")}
+      <span className="loading-spinner" aria-hidden="true" />
+      {locale === "en" ? "Loading the arena…" : "Memuatkan arena…"}
     </div>
   );
 }

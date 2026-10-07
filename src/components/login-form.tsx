@@ -32,7 +32,7 @@ export function LoginForm({ locale = "ms" }: { locale?: Locale }) {
               ),
             );
           } else {
-            router.push("/moderator");
+            router.replace("/admin");
             router.refresh();
           }
         } catch {

@@ -26,8 +26,8 @@ export default async function StaffLogin() {
         <hr className="divider" />
         <p className="muted text-xs mb-0">
           {t(
-            "Untuk akaun staff, hubungi pengurus laman ini. Pendaftaran ahli tidak memberikan akses staff.",
-            "Contact the person managing this site for a staff account. Member registration does not grant staff access.",
+            "Minta admin komuniti menyediakan akaun moderator anda. Admin boleh mengurus akaun staff dalam portal.",
+            "Ask a community admin to create your moderator account. Admins manage staff accounts inside the portal.",
           )}
         </p>
       </section>
