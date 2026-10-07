@@ -18,6 +18,9 @@
     "db:local": "node --import tsx scripts/local-db.ts",
     "setup:local": "node --import tsx scripts/setup-local.ts",
     "staff:provision": "node --import tsx scripts/provision-staff.ts",
+    "staff:check": "node --import tsx scripts/staff-maintenance.ts check",
+    "staff:passwords": "node --import tsx scripts/staff-maintenance.ts passwords",
+    "staff:cleanup": "node --import tsx scripts/staff-maintenance.ts cleanup",
     "format": "prettier --write src scripts tests prisma/*.ts *.ts *.json",
     "test:web": "node --import tsx tests/web-smoke.ts"
   },

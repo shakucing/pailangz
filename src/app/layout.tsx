@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Wordmark } from "@/components/wordmark";
+import { HeaderBrand } from "@/components/header-brand";
 import { LanguageSwitch } from "@/components/language-switch";
 import { getLocale, translate } from "@/lib/i18n";
 import { LocaleProvider } from "@/components/locale-context";
@@ -39,17 +40,12 @@ export default async function RootLayout({
           </a>
           <header className="wrap">
             <div className="topbar">
-              <Link href="/" className="brand">
-                <Wordmark />
-              </Link>
+              <HeaderBrand />
               <nav aria-label={t("Utama", "Main navigation")} className="nav">
                 <Link href="/" className="optional">
                   {t("Komuniti", "Community")}
                 </Link>
                 <Link href="/tournaments">{t("Kejohanan", "Tournaments")}</Link>
-                <Link href="/login" className="optional">
-                  Staff portal
-                </Link>
                 <LanguageSwitch locale={locale} />
               </nav>
             </div>
@@ -66,7 +62,6 @@ export default async function RootLayout({
                   "Play together. Rise together.",
                 )}
               </span>
-              <Link href="/login">Staff portal ↗</Link>
             </div>
           </footer>
         </LocaleProvider>

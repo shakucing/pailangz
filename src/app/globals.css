@@ -84,6 +84,12 @@ button:disabled {
   font-size: 22px;
   font-style: italic;
 }
+.brand-trigger {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
 .nav {
   display: flex;
   align-items: center;
@@ -549,6 +555,33 @@ tr:hover td {
 .form textarea {
   min-height: 100px;
   resize: vertical;
+}
+.password-control {
+  display: grid;
+  gap: 6px;
+}
+.password-field {
+  position: relative;
+  display: block;
+}
+.password-field input {
+  padding-right: 50px;
+}
+.password-toggle {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  bottom: 3px;
+  width: 42px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #b3bbcb;
+}
+.password-toggle:hover {
+  color: #d1fa57;
 }
 .form input[type="checkbox"] {
   width: auto;

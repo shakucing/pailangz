@@ -181,7 +181,8 @@ export async function securityEvent(
   actorId?: string,
   outcome = "FAILURE",
 ) {
-  await db.auditEvent.create({
+  // Auth events may be written without a staff session, but cannot be read back.
+  await db.auditEvent.createMany({
     data: {
       actorId,
       actorRole: "AUTH",

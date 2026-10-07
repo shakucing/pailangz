@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
-  pages: { signIn: "/login" },
+  pages: { signIn: "/staff" },
   providers: [
     Credentials({
       name: "Staff",
@@ -47,7 +47,8 @@ export const authOptions: NextAuthOptions = {
                 expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000),
               },
             });
-            await tx.auditEvent.create({
+            // Login has no staff context yet. Do not RETURNING private audit rows.
+            await tx.auditEvent.createMany({
               data: {
                 actorId: user.id,
                 actorRole: "AUTH",
@@ -100,7 +101,7 @@ export const authOptions: NextAuthOptions = {
             where: { id: token.sessionId as string },
             data: { revoked: true },
           });
-          await tx.auditEvent.create({
+          await tx.auditEvent.createMany({
             data: {
               actorId: token.sub,
               actorRole: "AUTH",

@@ -38,7 +38,9 @@ PGlite is a local development convenience, with serialized underlying transactio
 
 Sign in using the email and password entered during provisioning. No authenticator enrollment or code is required. The user's later request replaces the original mandatory MFA requirement. Migration 008 removes the old authenticator fields, revokes previous sessions and records the authentication policy change while preserving existing staff identities, roles and password hashes.
 
-Admins manage existing staff roles and suspension at `/admin/staff`; changes revoke all existing sessions. Operators provision accounts through the CLI. Staff password recovery is an operator procedure rather than a public reset endpoint. To recover access, provision a replacement account using the owner connection, then suspend the old account and revoke its sessions. Audit that recovery. Prevent simultaneous operator provisioning and administrative changes in production.
+Staff sign in at `/staff`, or click the homepage's top-left logo five times within five seconds. Public navigation has no staff portal links. The password field has a show/hide button.
+
+Admins manage existing staff roles and suspension at `/admin/staff`; changes revoke all existing sessions. Operators provision accounts through the CLI. To update existing passwords, run `pnpm staff:passwords --neon` and enter a separate password for each active account privately in the terminal. To preview disposable QA cleanup, run `pnpm staff:cleanup --neon`; add `--apply` to remove the displayed suspended QA accounts and their sessions while retaining audit history. Use `--local` for the local database. Follow [the staff account guide](docs/staff-accounts.md) for the complete procedure. Password maintenance is an audited operator procedure; there is no public reset endpoint.
 
 Public registration creates neither staff accounts nor tournament eligibility. Staff and member IDs are independent; tournament codes P01–P64 are not global member IDs. The application rechecks current staff status, session revocation and role on every protected request. Client-supplied roles or Auth.js session updates cannot assign permissions.
 

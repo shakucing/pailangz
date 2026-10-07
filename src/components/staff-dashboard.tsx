@@ -63,7 +63,7 @@ export async function StaffDashboard({
   try {
     actor = await getActor();
   } catch {
-    redirect("/login");
+    redirect("/staff");
   }
   if (area === "admin" && actor.role !== "ADMIN") redirect("/moderator");
   const { path } = await params,
