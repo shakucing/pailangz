@@ -1,0 +1,360 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum StaffRole {
+  ADMIN
+  MODERATOR
+}
+enum TournamentStatus {
+  DRAFT
+  REGISTRATION_OPEN
+  REGISTRATION_CLOSED
+  IN_PROGRESS
+  COMPLETED
+  ARCHIVED
+}
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_CLARIFICATION
+}
+enum MatchStatus {
+  BYE
+  SCHEDULED
+  IN_PROGRESS
+  RESULT_SUBMITTED
+  DISPUTED
+  FINALIZED
+  VOIDED
+}
+model StaffUser {
+  id String @id @default(uuid())
+  email String @unique
+  name String
+  passwordHash String
+  role StaffRole
+  suspended Boolean @default(false)
+  sessionVersion Int @default(1)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  sessions StaffSession[]
+}
+model StaffSession {
+  id String @id @default(uuid())
+  userId String
+  user StaffUser @relation(fields: [userId], references: [id])
+  expiresAt DateTime @db.Timestamptz(3)
+  authenticatedAt DateTime @default(now()) @db.Timestamptz(3)
+  revoked Boolean @default(false)
+  @@index([userId, expiresAt])
+}
+model AuthThrottle {
+  key String @id
+  count Int @default(1)
+  windowStart DateTime @default(now()) @db.Timestamptz(3)
+}
+model Member {
+  id String @id @default(uuid())
+  displayIgn String
+  canonicalIgn String @unique
+  verified Boolean @default(false)
+  archived Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  privateData MemberPrivate?
+  participants Participant[]
+  memberships TeamMembership[]
+}
+model MemberPrivate {
+  memberId String @id
+  member Member @relation(fields: [memberId], references: [id])
+  originalIgn String
+  registrationEncrypted String
+  phoneEncrypted String?
+  phoneLastFour String?
+  phoneIssue String?
+  sourceSubmissionId String? @unique
+}
+model ImportJob {
+  id String @id @default(uuid())
+  source String
+  filename String?
+  actorId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  rowCount Int @default(0)
+  submissions RegistrationSubmission[]
+}
+model RegistrationSubmission {
+  id String @id @default(uuid())
+  source String
+  sourceResponseId String
+  ingestedAt DateTime @default(now()) @db.Timestamptz(3)
+  importJobId String
+  importJob ImportJob @relation(fields: [importJobId], references: [id])
+  originalIgn String
+  displayIgn String
+  canonicalIgn String
+  payloadEncrypted String
+  phoneEncrypted String?
+  phoneLastFour String?
+  phoneIssue String?
+  status ReviewStatus @default(PENDING)
+  linkedMemberId String?
+  decisions SubmissionDecision[]
+  conflicts IgnConflict[]
+  @@unique([source, sourceResponseId])
+  @@index([status, ingestedAt])
+  @@index([canonicalIgn])
+}
+model SubmissionDecision {
+  id String @id @default(uuid())
+  submissionId String
+  submission RegistrationSubmission @relation(fields: [submissionId], references: [id])
+  actorId String
+  action String
+  reason String
+  noteEncrypted String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model IgnConflict {
+  id String @id @default(uuid())
+  submissionId String
+  submission RegistrationSubmission @relation(fields: [submissionId], references: [id])
+  existingMemberId String?
+  reason String
+  resolved Boolean @default(false)
+}
+model Announcement {
+  id String @id @default(uuid())
+  title String
+  titleEn String?
+  body String
+  bodyEn String?
+  published Boolean @default(false)
+  archived Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model IntegrationSetting {
+  key String @id
+  value Json
+}
+model Tournament {
+  id String @id @default(uuid())
+  slug String @unique
+  name String
+  overview String
+  overviewEn String?
+  status TournamentStatus @default(DRAFT)
+  published Boolean @default(false)
+  startsAt DateTime? @db.Timestamptz(3)
+  registrationDeadline DateTime? @db.Timestamptz(3)
+  gameTitle String?
+  configuration Json @default("{}")
+  configurationVersion Int @default(1)
+  revisions ConfigurationRevision[]
+  mappingConfirmed Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  categories Category[]
+  participants Participant[]
+}
+model Category {
+  id String @id @default(uuid())
+  tournamentId String
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  kind String
+  capacity Int
+  stages Stage[]
+  teams Team[]
+  memberships TeamMembership[]
+  @@unique([tournamentId, kind])
+}
+model Stage {
+  id String @id @default(uuid())
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  key String
+  name String
+  format String
+  bestOf Int?
+  rules Json
+  confirmedRules String[] @default([])
+  ruleVersion Int @default(1)
+  published Boolean @default(false)
+  archived Boolean @default(false)
+  archivedStandings Json?
+  finalized Boolean @default(false)
+  rounds Round[]
+  snapshots RankingSnapshot[]
+  @@unique([categoryId, key])
+}
+model Participant {
+  id String @id @default(uuid())
+  tournamentId String
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  code String
+  eligible Boolean @default(false)
+  provisional Boolean @default(true)
+  @@unique([tournamentId, code])
+  @@unique([tournamentId, memberId])
+}
+model Team {
+  id String @id @default(uuid())
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  name String
+  code String @default("AUTO")
+  archived Boolean @default(false)
+  memberships TeamMembership[]
+  @@unique([categoryId, code])
+}
+model TeamMembership {
+  id String @id @default(uuid())
+  teamId String
+  team Team @relation(fields: [teamId], references: [id])
+  categoryId String
+  category Category @relation(fields: [categoryId], references: [id])
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  active Boolean @default(true)
+  @@index([categoryId, memberId])
+}
+model Round {
+  id String @id @default(uuid())
+  stageId String
+  stage Stage @relation(fields: [stageId], references: [id])
+  number Int
+  name String
+  matches Match[]
+  @@unique([stageId, number])
+}
+model Match {
+  id String @id @default(uuid())
+  roundId String
+  round Round @relation(fields: [roundId], references: [id])
+  order Int
+  sideAId String?
+  sideBId String?
+  sideKind String @default("PARTICIPANT")
+  bestOf Int
+  status MatchStatus @default(SCHEDULED)
+  scheduledAt DateTime? @db.Timestamptz(3)
+  currentResultId String? @unique
+  currentResult ResultVersion? @relation("CurrentResult", fields: [currentResultId], references: [id])
+  results ResultVersion[] @relation("ResultHistory")
+  disputes Dispute[]
+  dependencies BracketDependency[]
+  @@unique([roundId, order])
+}
+model ResultVersion {
+  id String @id @default(uuid())
+  matchId String
+  match Match @relation("ResultHistory", fields: [matchId], references: [id])
+  currentFor Match? @relation("CurrentResult")
+  version Int
+  outcome String
+  status String @default("SUBMITTED")
+  submittedBy String
+  acceptedBy String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  reason String
+  idempotencyKey String @unique
+  games GameResult[]
+  evidence Evidence[]
+  @@unique([matchId, version])
+}
+model GameResult {
+  id String @id @default(uuid())
+  resultId String
+  result ResultVersion @relation(fields: [resultId], references: [id])
+  number Int
+  scoreA Int
+  scoreB Int
+  @@unique([resultId, number])
+}
+model Evidence {
+  id String @id @default(uuid())
+  resultId String
+  result ResultVersion @relation(fields: [resultId], references: [id])
+  storageKey String @unique
+  mime String
+  size Int
+  uploadedBy String
+  publicVisible Boolean @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model Dispute {
+  id String @id @default(uuid())
+  matchId String
+  match Match @relation(fields: [matchId], references: [id])
+  actorId String
+  reasonEncrypted String
+  resolved Boolean @default(false)
+  resolutionEncrypted String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+}
+model RankingSnapshot {
+  id String @id @default(uuid())
+  stageId String
+  stage Stage @relation(fields: [stageId], references: [id])
+  version Int
+  rankings Json
+  stale Boolean @default(false)
+  frozenBy String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  dependencies BracketDependency[]
+  @@unique([stageId, version])
+}
+model BracketDependency {
+  id String @id @default(uuid())
+  snapshotId String?
+  snapshot RankingSnapshot? @relation(fields: [snapshotId], references: [id])
+  sourceMatchId String?
+  matchId String
+  match Match @relation(fields: [matchId], references: [id])
+  stale Boolean @default(false)
+  resolutionReason String?
+  @@index([sourceMatchId])
+}
+model AuditEvent {
+  id String @id @default(uuid())
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  actorId String?
+  actorRole String
+  action String
+  entityType String
+  entityId String
+  tournamentId String?
+  stageId String?
+  correlationId String
+  source String
+  changes Json
+  reason String?
+  outcome String @default("SUCCESS")
+  relatedIds String[] @default([])
+  @@index([createdAt, action])
+  @@index([entityType, entityId])
+}
+
+model ConfigurationRevision {
+ id String @id @default(uuid())
+ tournamentId String
+ tournament Tournament @relation(fields:[tournamentId],references:[id])
+ version Int
+ beforeConfiguration Json
+ configuration Json
+ status String @default("PENDING")
+ requiresAdmin Boolean @default(false)
+ reasonEncrypted String
+ resolutionEncrypted String?
+ createdBy String
+ appliedBy String?
+ createdAt DateTime @default(now()) @db.Timestamptz(3)
+ appliedAt DateTime? @db.Timestamptz(3)
+ @@unique([tournamentId,version])
+}

@@ -1,0 +1,4 @@
+response_id,Timestamp,IGN,Whatsapp Number,Tiktok username,Tiktok ID,Discord Name,Discord ID,State/Province,Country,status
+synthetic-demo-001,,Demo Player Alpha,DEMO_PHONE_ONLY,,,,,,MY,unverified
+synthetic-demo-002,,KingMinz,,,,,,,MY,unverified
+synthetic-demo-003,,Demo Player Beta,,,,,,,MY,unverified

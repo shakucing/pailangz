@@ -1,0 +1,546 @@
+.presentation {
+  color: #e8e9ee;
+}
+.heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 18px;
+}
+.heading h2 {
+  margin: 8px 0 10px;
+}
+.heading p {
+  margin: 0;
+  color: #9da4b3;
+  font-size: 13px;
+}
+.privacy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a8b493;
+  font-size: 11px;
+  margin-bottom: 20px;
+}
+.privacy svg {
+  flex-shrink: 0;
+}
+.categorySwitch {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.categorySwitch button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  padding: 16px 20px;
+  border: 1px solid #303744;
+  border-radius: 8px;
+  background: #12151c;
+  color: #9da4b3;
+  text-align: left;
+}
+.categorySwitch button[aria-pressed="true"] {
+  border-color: #d1fa57;
+  background: #d1fa570a;
+  color: #d1fa57;
+}
+.categorySwitch span {
+  font-size: 15px;
+  font-weight: 700;
+}
+.categorySwitch small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 3px;
+  color: #9da4b3;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid #30343f;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #101215;
+  margin-bottom: 18px;
+}
+.metrics > div {
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.metrics > div + div {
+  border-left: 1px solid #292e37;
+}
+.metrics strong {
+  font-size: 25px;
+  letter-spacing: -1px;
+  line-height: 1.3;
+}
+.metrics small {
+  font-size: 15px;
+  font-weight: 400;
+  color: #778091;
+}
+.metrics span {
+  font-size: 10px;
+  color: #9da4b3;
+}
+.chart {
+  border: 1px solid #30343f;
+  border-radius: 10px;
+  background: #101215;
+  padding: 24px;
+  margin-bottom: 18px;
+}
+.chartHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+.chartHeading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.chartHeading > span {
+  font-size: 10px;
+  color: #9da4b3;
+}
+.route {
+  display: grid;
+  grid-template-columns: 1fr 26px 1.2fr 26px 1fr;
+  align-items: center;
+  gap: 16px;
+}
+.routeCard {
+  border: 1px solid #3b4454;
+  border-radius: 7px;
+  padding: 18px;
+  background: #181d26;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.routeCard strong {
+  font-size: 37px;
+  line-height: 1.3;
+  letter-spacing: -1px;
+}
+.routeCard > span:not(.kicker) {
+  font-size: 11px;
+  color: #a9b1bf;
+}
+.routeCard p {
+  font-size: 11px;
+  color: #9da4b3;
+  margin: 14px 0 0;
+}
+.routeCard small {
+  margin-top: 5px;
+  font-size: 10px;
+  color: #9da4b3;
+}
+.kicker {
+  font-size: 10px;
+  color: #a9b1bf;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+.routeArrow {
+  color: #78865d;
+  justify-self: center;
+}
+.qualification {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.qualification > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid #343d2a;
+  padding: 12px 16px;
+  border-radius: 7px;
+  background: #192015;
+}
+.qualification span,
+.qualification small {
+  font-size: 10px;
+  color: #a6b392;
+}
+.qualification strong {
+  font-size: 17px;
+  color: #d1fa57;
+  font-weight: 600;
+}
+.knockoutCard {
+  border-color: #475938;
+  background: #171e16;
+}
+.knockoutCard strong {
+  color: #d1fa57;
+}
+.knockoutFlow {
+  display: flex;
+  margin: 24px 0 0;
+  list-style: none;
+  padding: 0;
+  gap: 10px;
+}
+.knockoutFlow li {
+  flex: 1;
+  min-width: 0;
+  border-top: 2px solid #404958;
+  padding: 10px 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.knockoutFlow strong {
+  font-size: 21px;
+}
+.knockoutFlow span {
+  font-size: 11px;
+}
+.knockoutFlow small {
+  font-size: 10px;
+  color: #9da4b3;
+}
+.knockoutFlow .champion {
+  border-color: #d1fa57;
+  color: #d1fa57;
+  justify-content: center;
+  align-items: center;
+}
+.workspace {
+  border: 1px solid #30343f;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #12151c;
+}
+.workspaceHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 22px 24px 18px;
+}
+.workspaceHeading h3 {
+  font-size: 18px;
+  margin: 0 0 5px;
+}
+.workspaceHeading p {
+  font-size: 11px;
+  color: #9da4b3;
+  margin: 0;
+}
+.viewSwitch,
+.stageSwitch,
+.roundSwitch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.viewSwitch button,
+.stageSwitch button,
+.roundSwitch button {
+  border: 1px solid #343b49;
+  border-radius: 5px;
+  background: transparent;
+  padding: 9px 12px;
+  color: #b6bcc8;
+  font-size: 11px;
+}
+.viewSwitch button[aria-pressed="true"],
+.roundSwitch button[aria-pressed="true"] {
+  border-color: #d1fa57;
+  color: #d1fa57;
+  background: #d1fa570a;
+}
+.stageSwitch,
+.roundSwitch {
+  padding: 0 24px 16px;
+}
+.stageSwitch button {
+  border: 0;
+  padding: 6px 12px;
+}
+.stageSwitch button[aria-pressed="true"] {
+  background: #28313f;
+  color: #e8e9ee;
+}
+.tableScroll {
+  max-height: 440px;
+  overflow: auto;
+  margin: 0 24px 24px;
+  border: 1px solid #30343f;
+  border-radius: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: #4c5541 #101215;
+}
+.tableScroll table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.tableScroll caption {
+  text-align: left;
+  padding: 12px 14px;
+  color: #bdc5d2;
+  background: #101215;
+  font-size: 11px;
+}
+.tableScroll caption span {
+  float: right;
+  color: #9da4b3;
+}
+.tableScroll th,
+.tableScroll td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #292e37;
+  text-align: left;
+}
+.tableScroll thead th {
+  position: sticky;
+  top: 0;
+  background: #1b2029;
+  font-size: 10px;
+  color: #aab3c2;
+  font-weight: 500;
+}
+.tableScroll tbody th {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #d1fa57;
+  font-weight: 600;
+}
+.opponent {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #d1fa57;
+}
+.tableScroll tbody td:first-child {
+  color: #778091;
+}
+.matchStatus {
+  color: #aab3c2;
+  font-size: 10px;
+}
+.empty {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+  background: #101215;
+  border-top: 1px solid #292e37;
+  border-bottom: 1px solid #292e37;
+}
+.empty svg {
+  color: #83946b;
+}
+.empty strong {
+  font-size: 15px;
+  font-weight: 500;
+}
+.empty p {
+  max-width: 460px;
+  font-size: 12px;
+  color: #9da4b3;
+  margin: 0;
+}
+.entrants {
+  padding: 20px 24px;
+  border-top: 1px solid #292e37;
+}
+.entrants > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.entrants h4 {
+  font-size: 12px;
+  margin: 0;
+}
+.entrants span {
+  font-size: 10px;
+  color: #9da4b3;
+}
+.entrants ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.entrants li {
+  padding: 5px 10px;
+  border: 1px solid #343b49;
+  border-radius: 4px;
+  background: #181c23;
+  color: #bdc5d2;
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.entrants p {
+  font-size: 11px;
+  color: #9da4b3;
+  margin: 12px 0 0;
+}
+.entrants li span {
+  font: inherit;
+  color: #e8e9ee;
+}
+.bracketScroll {
+  overflow-x: auto;
+  padding: 0 24px 24px;
+}
+.bracketColumns {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+  min-width: max-content;
+}
+.bracketColumn {
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+.bracketColumn h4 {
+  font-size: 12px;
+  color: #bdc5d2;
+  margin: 0 0 12px;
+}
+.bracketColumn > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 16px;
+  flex: 1;
+}
+.bracketMatch {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #101215;
+  border: 1px solid #3b4454;
+  border-radius: 6px;
+  padding: 12px;
+}
+.bracketMatch span {
+  font-size: 9px;
+  color: #9da4b3;
+}
+.bracketMatch strong {
+  font:
+    12px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  color: #d1fa57;
+  overflow-wrap: anywhere;
+}
+.bracketMatch small {
+  color: #9da4b3;
+}
+.note {
+  color: #9da4b3;
+  font-size: 11px;
+  margin: 12px 0 0;
+}
+@media (max-width: 800px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .metrics > div:nth-child(3) {
+    border-left: 0;
+  }
+  .metrics > div:nth-child(n + 3) {
+    border-top: 1px solid #292e37;
+  }
+  .workspaceHeading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 600px) {
+  .heading {
+    flex-direction: column;
+    gap: 12px;
+  }
+  .categorySwitch button {
+    padding: 12px;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .categorySwitch small {
+    font-size: 9px;
+  }
+  .chart {
+    padding: 18px 16px;
+  }
+  .chartHeading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .route {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .routeArrow {
+    transform: rotate(90deg);
+  }
+  .routeCard {
+    padding: 14px 16px;
+  }
+  .routeCard strong {
+    font-size: 31px;
+  }
+  .knockoutFlow {
+    flex-wrap: wrap;
+  }
+  .knockoutFlow li {
+    flex: 1 1 70px;
+  }
+  .metrics > div {
+    padding: 16px;
+  }
+  .metrics strong {
+    font-size: 22px;
+  }
+  .workspaceHeading {
+    padding: 18px 16px;
+  }
+  .stageSwitch,
+  .roundSwitch {
+    padding: 0 16px 16px;
+  }
+  .tableScroll {
+    margin: 0 16px 18px;
+  }
+  .tableScroll th,
+  .tableScroll td {
+    padding: 9px 10px;
+  }
+  .entrants {
+    padding: 18px 16px;
+  }
+}

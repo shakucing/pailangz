@@ -1,0 +1,477 @@
+import "dotenv/config";
+import assert from "node:assert/strict";
+import { randomBytes, randomUUID } from "node:crypto";
+import { hash } from "bcryptjs";
+import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { newTournamentConfiguration } from "../src/lib/tournament-config";
+if (
+  process.env.APP_ENV !== "development" ||
+  process.env.DATABASE_ENV !== "development"
+)
+  throw new Error(
+    "Web smoke tests require the synthetic development environment.",
+  );
+const origin = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+const owner = new PrismaClient({
+  adapter: new PrismaPg({
+    options: "-c timezone=UTC",
+    connectionString: process.env.MIGRATION_DATABASE_URL,
+    max: 1,
+  }),
+});
+const password = randomBytes(32).toString("base64url");
+const adminId = randomUUID(),
+  modId = randomUUID(),
+  email = `qa-${adminId}@synthetic.invalid`,
+  modEmail = `qa-${modId}@synthetic.invalid`;
+for (const [id, mail, role] of [
+  [adminId, email, "ADMIN"],
+  [modId, modEmail, "MODERATOR"],
+] as const)
+  await owner.staffUser.create({
+    data: {
+      id,
+      email: mail,
+      name: "Disposable synthetic QA operator",
+      role,
+      passwordHash: await hash(password, 12),
+    },
+  });
+await owner.auditEvent.create({
+  data: {
+    actorRole: "SYSTEM",
+    action: "QA_ACCOUNT_PROVISION",
+    entityType: "STAFF",
+    entityId: "synthetic-qa",
+    correlationId: randomUUID(),
+    source: "TEST",
+    changes: { accountIds: [adminId, modId], synthetic: true },
+    reason: "Disposable HTTP verification operators.",
+  },
+});
+let passed = 0;
+async function check(name: string, fn: () => Promise<void>) {
+  await fn();
+  passed++;
+  console.log(`PASS ${name}`);
+}
+function cookies(response: Response) {
+  return response.headers
+    .getSetCookie()
+    .map((s) => s.split(";")[0])
+    .join("; ");
+}
+async function login(mail: string, suppliedPassword = password) {
+  const csrfResponse = await fetch(`${origin}/api/auth/csrf`);
+  const csrf = await csrfResponse.json();
+  const body = new URLSearchParams({
+    csrfToken: csrf.csrfToken,
+    email: mail,
+    password: suppliedPassword,
+    callbackUrl: `${origin}/moderator`,
+    json: "true",
+  });
+  const response = await fetch(`${origin}/api/auth/callback/credentials`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: cookies(csrfResponse),
+      Origin: origin,
+    },
+    body,
+    redirect: "manual",
+  });
+  const result = await response.json();
+  return { response, result, cookie: cookies(response) };
+}
+async function post(cookie: string, action: string, data: unknown) {
+  return fetch(`${origin}/api/staff`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: cookie,
+      Origin: origin,
+    },
+    body: JSON.stringify({ action, data }),
+  });
+}
+try {
+  await check(
+    "public interface supports persisted English and Malay locales",
+    async () => {
+      for (const [locale, heading] of [
+        ["en", "PLAY TOGETHER."],
+        ["ms", "MAIN BERSAMA."],
+      ]) {
+        const response = await fetch(origin, {
+          headers: { Cookie: `pailangz_locale=${locale}` },
+        });
+        const html = await response.text();
+        assert.match(html, new RegExp(`<html lang="${locale}"`));
+        assert.ok(html.includes(heading));
+        assert.ok(html.includes("pailangz-wordmark.webp"));
+        assert.match(
+          response.headers.get("content-security-policy") ?? "",
+          /nonce-/,
+        );
+      }
+    },
+  );
+  await check(
+    "anonymous guessed private IDs and evidence downloads are denied",
+    async () => {
+      const response = await post("", "privateDetails", {
+        kind: "member",
+        id: randomUUID(),
+        role: "ADMIN",
+      });
+      assert.equal(response.status, 401);
+      assert.match(
+        response.headers.get("cache-control") ?? "",
+        /private.*no-store/,
+      );
+      assert.equal(
+        (await fetch(`${origin}/api/staff?evidence=${randomUUID()}`)).status,
+        401,
+      );
+    },
+  );
+  await check(
+    "incorrect or missing passwords cannot create a session",
+    async () => {
+      const attempted = await login(email, "incorrect-password");
+      assert.match(attempted.result.url ?? "", /error/);
+      const missing = await login(email, "");
+      assert.match(missing.result.url ?? "", /error/);
+      assert.ok(!missing.cookie.includes("session-token"));
+    },
+  );
+  const admin = await login(email),
+    mod = await login(modEmail);
+  await check(
+    "admin and moderator login succeeds with only email and password",
+    async () => {
+      assert.ok(!admin.result.url?.includes("error"));
+      assert.ok(!mod.result.url?.includes("error"));
+      assert.ok(admin.cookie.includes("session-token"));
+      assert.ok(mod.cookie.includes("session-token"));
+    },
+  );
+  await check(
+    "password-only logins create independent revocable sessions",
+    async () => {
+      const second = await login(email);
+      assert.ok(!second.result.url?.includes("error"));
+      assert.ok(second.cookie.includes("session-token"));
+      assert.notEqual(second.cookie, admin.cookie);
+      assert.equal(
+        await owner.staffSession.count({
+          where: { userId: adminId, revoked: false },
+        }),
+        2,
+      );
+    },
+  );
+  await check(
+    "all staff workflow pages render without leaking credential hashes",
+    async () => {
+      for (const section of [
+        "",
+        "/registrations",
+        "/members",
+        "/tournaments",
+        "/teams",
+        "/matches",
+        "/content",
+        "/imports",
+        "/audit",
+        "/settings",
+        "/staff",
+      ]) {
+        const response = await fetch(`${origin}/admin${section}`, {
+          headers: { Cookie: admin.cookie },
+          redirect: "manual",
+        });
+        assert.equal(response.status, 200, section);
+        const html = await response.text();
+        assert.ok(!html.includes("$2b$12$"));
+        assert.ok(!html.includes("Staff access has been revoked"));
+        assert.ok(
+          html.includes("Operations workspace"),
+          section + " must render the authenticated workspace",
+        );
+        assert.ok(!html.includes("totpEncrypted"));
+        const screenText = html
+          .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+          .replace(/<[^>]+>/g, " ");
+        assert.doesNotMatch(
+          screenText,
+          /\bUUIDs?\b|\bJSON\b|ISO 8601|pnpm|owner CLI|admin-only API/i,
+          section + " must use friendly screen copy",
+        );
+
+        assert.match(response.headers.get("cache-control") ?? "", /no-store/);
+      }
+    },
+  );
+  await check("moderator cannot elevate staff roles or publish", async () => {
+    const response = await post(mod.cookie, "staff", {
+      id: adminId,
+      role: "MODERATOR",
+      suspended: true,
+      reason: "Forbidden synthetic change",
+    });
+    assert.equal(response.status, 403);
+    const denied = await fetch(`${origin}/admin`, {
+      headers: { Cookie: mod.cookie },
+      redirect: "manual",
+    });
+    const html = await denied.text();
+    assert.ok(
+      denied.status === 307 ||
+        (denied.status === 200 && html.includes("NEXT_REDIRECT")),
+    );
+    assert.ok(!html.includes("Staff accounts</h1>"));
+  });
+  await check(
+    "configured tournament editor renders and rejects destructive capacity changes",
+    async () => {
+      const tournament = await owner.tournament.findUniqueOrThrow({
+        where: { slug: "pailangz-solo-team" },
+      });
+      const response = await fetch(
+        `${origin}/admin/tournaments?id=${tournament.id}`,
+        { headers: { Cookie: admin.cookie } },
+      );
+      const html = await response.text();
+      assert.ok(
+        html.includes("Number of SOLO players") &&
+          html.includes("League rounds") &&
+          html.includes("Players qualifying through playoffs"),
+      );
+      const setupText = html
+        .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+        .replace(/<[^>]+>/g, " ");
+      assert.doesNotMatch(
+        setupText,
+        /\bUUIDs?\b|\bJSON\b|ISO 8601|RESTART_AND_RETAIN_HISTORY/,
+      );
+      assert.ok(html.includes('type="datetime-local"'));
+      assert.ok(html.includes("Final player rankings"));
+      const invalid = await post(mod.cookie, "configure", {
+        id: tournament.id,
+        configuration: newTournamentConfiguration,
+        regenerate: true,
+        reason: "Reject capacity that cannot retain original entrants",
+      });
+      assert.equal(invalid.status, 400);
+      assert.match((await invalid.json()).error, /retain all 64/);
+      assert.equal(
+        (
+          await post(mod.cookie, "revisionApply", {
+            id: randomUUID(),
+            acknowledgement: "RESTART_AND_RETAIN_HISTORY",
+            reason: "Reject unauthorized revision application",
+          })
+        ).status,
+        403,
+      );
+      assert.equal(
+        (
+          await owner.tournament.findUniqueOrThrow({
+            where: { id: tournament.id },
+          })
+        ).configurationVersion,
+        tournament.configurationVersion,
+      );
+    },
+  );
+  await check(
+    "audit exports require staff access and record an audit event",
+    async () => {
+      const response = await post(admin.cookie, "auditExport", {
+        reason: "Synthetic verification of audit export",
+      });
+      assert.equal(
+        response.status,
+        200,
+        response.status === 200 ? undefined : await response.text(),
+      );
+      const body = await response.json();
+      assert.ok(Array.isArray(body.records));
+      assert.ok(body.records.length <= 1000);
+      assert.ok(
+        await owner.auditEvent.findFirst({
+          where: { actorId: adminId, action: "AUDIT_EXPORT" },
+        }),
+      );
+      assert.equal(
+        (
+          await post("", "auditExport", {
+            reason: "Forbidden anonymous export",
+          })
+        ).status,
+        401,
+      );
+    },
+  );
+  await check("cross-origin mutations fail", async () => {
+    const response = await fetch(`${origin}/api/staff`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: admin.cookie,
+        Origin: "https://untrusted.invalid",
+      },
+      body: JSON.stringify({
+        action: "member",
+        data: { id: randomUUID(), ign: "forged", reason: "Forged" },
+      }),
+    });
+    assert.equal(response.status, 403);
+  });
+  await check("bulk private export is disabled by default", async () =>
+    assert.equal(
+      (
+        await post(admin.cookie, "privateExport", {
+          reason: "Synthetic export attempt",
+        })
+      ).status,
+      403,
+    ),
+  );
+  await check(
+    "synthetic CSV reaches approval inbox; import never provisions staff",
+    async () => {
+      const form = new FormData();
+      form.set("action", "import");
+      form.set(
+        "file",
+        new File(
+          [
+            "response_id,Timestamp,IGN,Whatsapp Number,Tiktok username,Tiktok ID,Discord Name,Discord ID,State/Province,Country,status\nqa-" +
+              adminId +
+              ",,QA " +
+              adminId +
+              ",PRIVATE_WEB_CANARY,,,,,,MY,ADMIN",
+          ],
+          "synthetic-qa.csv",
+          { type: "text/csv" },
+        ),
+      );
+      const response = await fetch(`${origin}/api/staff`, {
+        method: "POST",
+        headers: { Cookie: admin.cookie, Origin: origin },
+        body: form,
+      });
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).created, 1);
+      const submission = await owner.registrationSubmission.findUniqueOrThrow({
+        where: {
+          source_sourceResponseId: {
+            source: "CSV",
+            sourceResponseId: "qa-" + adminId,
+          },
+        },
+      });
+      assert.equal(submission.status, "PENDING");
+      assert.ok(!submission.payloadEncrypted.includes("PRIVATE_WEB_CANARY"));
+    },
+  );
+  await check(
+    "public HTML / APIs / browser bundles omit private registration canary",
+    async () => {
+      for (const route of [
+        "/",
+        "/tournaments",
+        "/register",
+        "/api/tournaments/pailangz-solo-team",
+      ]) {
+        const response = await fetch(origin + route);
+        const html = await response.text();
+        assert.ok(!html.includes("PRIVATE_WEB_CANARY"));
+        assert.ok(!html.includes(email));
+        for (const match of html.matchAll(/src="([^\"]+\.js[^\"]*)"/g)) {
+          const bundle = await fetch(
+            new URL(match[1].replaceAll("&amp;", "&"), origin),
+          );
+          assert.ok(!(await bundle.text()).includes("PRIVATE_WEB_CANARY"));
+        }
+      }
+      assert.equal(
+        (await fetch(`${origin}/api/tournaments/pailangz-solo-team`)).status,
+        404,
+      );
+    },
+  );
+  await check(
+    "demoted / suspended staff lose existing-session private access",
+    async () => {
+      await owner.staffUser.update({
+        where: { id: modId },
+        data: { suspended: true, sessionVersion: { increment: 1 } },
+      });
+      await owner.staffSession.updateMany({
+        where: { userId: modId },
+        data: { revoked: true },
+      });
+      assert.equal(
+        (
+          await post(mod.cookie, "privateDetails", {
+            kind: "member",
+            id: randomUUID(),
+          })
+        ).status,
+        403,
+      );
+    },
+  );
+  await check(
+    "webhooks stay disconnected and audit records omit plaintext private canary",
+    async () => {
+      assert.equal(
+        (
+          await fetch(`${origin}/api/registration/webhook`, {
+            method: "POST",
+            body: "{}",
+          })
+        ).status,
+        503,
+      );
+      const events = await owner.auditEvent.findMany();
+      assert.ok(!JSON.stringify(events).includes("PRIVATE_WEB_CANARY"));
+    },
+  );
+  console.log(
+    `${passed} HTTP workflow checks passed. Disposable accounts will now be suspended and all QA sessions revoked.`,
+  );
+} finally {
+  await owner.$transaction(async (tx) => {
+    await tx.registrationSubmission.updateMany({
+      where: { source: "CSV", sourceResponseId: "qa-" + adminId },
+      data: { status: "REJECTED" },
+    });
+    await tx.staffUser.updateMany({
+      where: { id: { in: [adminId, modId] } },
+      data: { suspended: true, sessionVersion: { increment: 1 } },
+    });
+    await tx.staffSession.updateMany({
+      where: { userId: { in: [adminId, modId] } },
+      data: { revoked: true },
+    });
+    await tx.auditEvent.create({
+      data: {
+        actorRole: "SYSTEM",
+        action: "QA_ACCOUNT_REVOKE",
+        entityType: "STAFF",
+        entityId: "synthetic-qa",
+        correlationId: randomUUID(),
+        source: "TEST",
+        changes: { accountIds: [adminId, modId], revoked: true },
+        reason: "Disposable HTTP verification operators revoked.",
+      },
+    });
+  });
+  await owner.$disconnect();
+}
