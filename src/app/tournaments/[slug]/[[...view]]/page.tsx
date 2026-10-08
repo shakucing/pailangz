@@ -297,6 +297,8 @@ export default async function Tournament({
                   category={c.kind === "TEAM" ? "TEAM" : "SOLO"}
                   storageScope={t.slug}
                   rounds={c.stages.find((s) => s.format === "KNOCKOUT")?.rounds}
+                  stages={c.stages}
+                  participants={t.participants}
                 />
               </div>
             ))}

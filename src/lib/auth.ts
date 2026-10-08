@@ -6,6 +6,7 @@ import { db, securityEvent, rateLimit, ensureRuntime, type Actor } from "./db";
 import { canAccess, DomainError } from "./domain";
 import { headers } from "next/headers";
 import { cache } from "react";
+import { assertStaffRequestOrigin } from "./request-origin";
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
@@ -165,11 +166,7 @@ export const getActor = cache(async function getActor(
   return actor;
 });
 export async function assertCsrf(request: Request) {
-  const origin = request.headers.get("origin");
-  const expected = new URL(process.env.NEXTAUTH_URL ?? "http://localhost:3000")
-    .origin;
-  if (origin !== expected)
-    throw new DomainError("Invalid request origin.", 403);
+  assertStaffRequestOrigin(request);
 }
 export async function pageActor() {
   try {

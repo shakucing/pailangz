@@ -1,11 +1,108 @@
 import { describe, expect, it } from "vitest";
-import { readScoreEntry } from "../src/lib/score-entry";
+import {
+  readScoreEntry,
+  readGameWinners,
+  selectGameWinner,
+  winnerDrafts,
+  type GameWinner,
+} from "../src/lib/score-entry";
 import { validateSeries } from "../src/lib/domain";
 const win = { scoreA: "3", scoreB: "0" };
 const loss = { scoreA: "0", scoreB: "3" };
 const blank = { scoreA: "", scoreB: "" };
 const rules = { seriesPoints: true, drawPolicy: "no_draws" };
 const confirmed = ["seriesPoints", "drawPolicy"];
+describe("staff game winner selection", () => {
+  function picks(winners: GameWinner[], bestOf = 3) {
+    return winners.reduce(
+      (drafts, winner, index) =>
+        selectGameWinner(drafts, index, winner, bestOf),
+      winnerDrafts([], bestOf),
+    );
+  }
+  it("starts with no result and derives either BO3 winner from game picks", () => {
+    expect(readGameWinners(winnerDrafts([], 3), 3)).toMatchObject({
+      games: [],
+      outcome: null,
+    });
+    expect(readGameWinners(picks(["A", "B"]), 3).outcome).toBeNull();
+    for (const [winners, outcome] of [
+      [["A", "B", "A"], "A_WIN"],
+      [["B", "B"], "B_WIN"],
+    ] as const) {
+      const entry = readGameWinners(picks([...winners]), 3);
+      expect(entry.outcome).toBe(outcome);
+      expect(() =>
+        validateSeries(3, entry.games, outcome, rules, confirmed),
+      ).not.toThrow();
+    }
+  });
+  it("requires three wins in BO5 and allows a five-game series", () => {
+    expect(readGameWinners(picks(["A", "A"], 5), 5).outcome).toBeNull();
+    const entry = readGameWinners(picks(["A", "B", "B", "A", "B"], 5), 5);
+    expect(entry).toMatchObject({ winsA: 2, winsB: 3, outcome: "B_WIN" });
+    expect(
+      validateSeries(5, entry.games, entry.outcome!, rules, confirmed),
+    ).toEqual({ a: 2, b: 3 });
+  });
+  it("removes later games when a correction decides the series earlier", () => {
+    const corrected = selectGameWinner(picks(["A", "B", "A"]), 1, "A", 3);
+    expect(corrected.map((draft) => draft.winner)).toEqual(["A", "A", null]);
+    expect(readGameWinners(corrected, 3).games).toHaveLength(2);
+    const reopened = selectGameWinner(corrected, 0, "B", 3);
+    expect(readGameWinners(reopened, 3).outcome).toBeNull();
+    expect(
+      readGameWinners(selectGameWinner(reopened, 2, "B", 3), 3).outcome,
+    ).toBe("B_WIN");
+  });
+  it("clears the selected game and later games and prevents gaps", () => {
+    const cleared = selectGameWinner(picks(["A", "B", "A"]), 1, null, 3);
+    expect(cleared.map((draft) => draft.winner)).toEqual(["A", null, null]);
+    expect(readGameWinners(cleared, 3)).toMatchObject({
+      winsA: 1,
+      winsB: 0,
+      outcome: null,
+    });
+    expect(
+      selectGameWinner(winnerDrafts([], 3), 1, "A", 3).every(
+        (draft) => !draft.winner,
+      ),
+    ).toBe(true);
+  });
+  it("preserves historical scores for unchanged picks while storing new picks as win markers", () => {
+    const games = [
+      { scoreA: 20, scoreB: 8 },
+      { scoreA: 18, scoreB: 9 },
+    ];
+    const drafts = winnerDrafts(games, 3);
+    expect(drafts.map((draft) => draft.winner)).toEqual(["A", "A", null]);
+    expect(readGameWinners(drafts, 3).games).toEqual(games);
+    expect(
+      readGameWinners(selectGameWinner(drafts, 1, "B", 3), 3).games,
+    ).toEqual([games[0], { scoreA: 0, scoreB: 1 }]);
+  });
+  it("supports partial games before configured draws and forfeits", () => {
+    const entry = readGameWinners(picks(["A", "B"]), 3);
+    expect(
+      validateSeries(
+        3,
+        entry.games,
+        "DRAW",
+        { ...rules, drawPolicy: "moderated_draw" },
+        confirmed,
+      ),
+    ).toEqual({ a: 1, b: 1 });
+    expect(
+      validateSeries(
+        3,
+        entry.games,
+        "A_FORFEIT",
+        { ...rules, specialOutcomes: "forfeit" },
+        [...confirmed, "specialOutcomes"],
+      ),
+    ).toEqual({ a: 1, b: 1 });
+  });
+});
 describe("staff score entry", () => {
   it("keeps blank scores distinct from zero and omits unused trailing games", () => {
     expect(readScoreEntry([blank, blank], 3).games).toEqual([]);

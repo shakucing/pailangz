@@ -4,6 +4,7 @@ import { useId, useState } from "react";
 import { ArrowRight, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { useLocale } from "./locale-context";
 import { InteractiveBracket, type BracketTeam } from "./interactive-bracket";
+import { PlayerResultsDialog } from "./player-results-dialog";
 import {
   configuredByes,
   progressionRounds,
@@ -34,6 +35,12 @@ export function EventPresentation({
   const [view, setView] = useState<"fixtures" | "standings" | "bracket">(
     "fixtures",
   );
+  const [selectedPlayerCode, setSelectedPlayerCode] = useState<string | null>(
+    null,
+  );
+  const selectedPlayer = data?.participants.find(
+    (p) => p.code === selectedPlayerCode,
+  );
   const solo = category === "SOLO";
   const categoryData = data?.categories.find((c) => c.kind === category);
   const stages = solo
@@ -58,11 +65,16 @@ export function EventPresentation({
     data?.participants.filter((p) => p.ign).map((p) => [p.code, p.ign]) ?? [],
   );
   const hasPlayerNames = playerNames.size > 0;
+  const leagueStandings =
+    categoryData?.stages.find((s) => s.key === "league")?.standings ?? [];
+  const showLeaguePoints = solo && leagueStandings.some((r) => r.played > 0);
+  const leaguePoints = new Map(leagueStandings.map((r) => [r.code, r.points]));
   const rounds = progressionRounds(config, category);
   const range = qualificationRange(config);
   const byes = configuredByes(config, category);
-  const status =
-    data?.preview || !data
+  const status = data?.testResults
+    ? t("Pratonton keputusan ujian", "Test results preview")
+    : data?.preview || !data
       ? t("Pratonton jadual", "Schedule preview")
       : data.status === "IN_PROGRESS"
         ? t("Sedang berlangsung", "In progress")
@@ -87,6 +99,21 @@ export function EventPresentation({
     !value || ["Awaiting entrant", "Menunggu peserta"].includes(value)
       ? t("Menunggu peserta", "Awaiting entrant")
       : value;
+  const playerLabel = (value: string | null) => {
+    const playerCode = value?.split(" · ")[0];
+    return solo && data?.participants.some((p) => p.code === playerCode) ? (
+      <button
+        type="button"
+        className={styles.playerLink}
+        aria-haspopup="dialog"
+        onClick={() => setSelectedPlayerCode(playerCode!)}
+      >
+        {code(value)}
+      </button>
+    ) : (
+      code(value)
+    );
+  };
   const matchStatus = (value: string) =>
     ({
       SCHEDULED: t("Dijadualkan", "Scheduled"),
@@ -328,15 +355,20 @@ export function EventPresentation({
                 : t("Papan acara TEAM", "TEAM event board")}
             </h3>
             <p>
-              {data?.preview
+              {data?.testResults
                 ? t(
-                    "Jadual tersimpan · Keputusan rasmi belum diterbitkan",
-                    "Saved schedule · Official results not yet published",
+                    "Keputusan ujian setempat · Keputusan rasmi belum diterbitkan",
+                    "Local test results · Official results not yet published",
                   )
-                : t(
-                    "Peserta, perlawanan dan keputusan rasmi",
-                    "Entrants, fixtures and official results",
-                  )}
+                : data?.preview
+                  ? t(
+                      "Jadual tersimpan · Keputusan rasmi belum diterbitkan",
+                      "Saved schedule · Official results not yet published",
+                    )
+                  : t(
+                      "Peserta, perlawanan dan keputusan rasmi",
+                      "Entrants, fixtures and official results",
+                    )}
             </p>
           </div>
           <div
@@ -390,6 +422,8 @@ export function EventPresentation({
             rounds={knockout?.rounds}
             storageScope={data?.slug}
             teams={teams}
+            stages={categoryData?.stages}
+            participants={data?.participants}
           />
         ) : view === "standings" ? (
           stage?.standings.length ? (
@@ -412,7 +446,7 @@ export function EventPresentation({
                       "W",
                       "D",
                       "L",
-                      "Pts",
+                      t("Jumlah mata", "Total points"),
                     ].map((label) => (
                       <th scope="col" key={label}>
                         {label}
@@ -425,15 +459,17 @@ export function EventPresentation({
                     <tr key={r.code}>
                       <td>{r.rank ?? t("Seri", "Tied")}</td>
                       <th scope="row">
-                        {r.code}
-                        {playerNames.get(r.code) &&
-                          ` · ${playerNames.get(r.code)}`}
+                        {playerLabel(
+                          playerNames.get(r.code)
+                            ? `${r.code} · ${playerNames.get(r.code)}`
+                            : r.code,
+                        )}
                       </th>
                       <td>{r.played}</td>
                       <td>{r.wins}</td>
                       <td>{r.draws}</td>
                       <td>{r.losses}</td>
-                      <td>{r.points}</td>
+                      <td className={styles.totalPoints}>{r.points}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -512,8 +548,8 @@ export function EventPresentation({
                     {round.matches.map((m, i) => (
                       <tr key={m.id}>
                         <td>{m.order ?? i + 1}</td>
-                        <th scope="row">{code(m.a)}</th>
-                        <td className={styles.opponent}>{code(m.b)}</td>
+                        <th scope="row">{playerLabel(m.a)}</th>
+                        <td className={styles.opponent}>{playerLabel(m.b)}</td>
                         <td>{m.bestOf}</td>
                         <td>{score(m)}</td>
                         <td>
@@ -550,24 +586,67 @@ export function EventPresentation({
           <div>
             <h4>
               {solo
-                ? hasPlayerNames
-                  ? t("Pemain & nama dalam game", "Players & in-game names")
-                  : t("Kod pemain", "Player codes")
+                ? showLeaguePoints
+                  ? t(
+                      "Pemain & jumlah mata liga",
+                      "Players & total league points",
+                    )
+                  : hasPlayerNames
+                    ? t("Pemain & nama dalam game", "Players & in-game names")
+                    : t("Kod pemain", "Player codes")
                 : t("Pasukan & kod", "Teams & codes")}
             </h4>
             <span>
               {entrants.length} {t("rekod tersimpan", "saved records")}
             </span>
           </div>
+          {solo && entrants.length > 0 && (
+            <p>
+              {t(
+                "Klik pemain untuk melihat keputusan perlawanan mereka.",
+                "Click a player to see their match results.",
+              )}
+            </p>
+          )}
+          {showLeaguePoints && (
+            <p>
+              {t(
+                `Jumlah semua pusingan liga · Menang 3 mata · Seri 1 · Kalah 0. Menang semua ${config.leagueMatchesPerPlayer} perlawanan = ${config.leagueMatchesPerPlayer * 3} mata.`,
+                `Total across all league rounds · Win 3 points · Draw 1 · Loss 0. Win all ${config.leagueMatchesPerPlayer} matches = ${config.leagueMatchesPerPlayer * 3} points.`,
+              )}
+            </p>
+          )}
           {entrants.length ? (
             <ul>
               {entrants.map((entrant) => (
-                <li key={entrant.code}>
-                  {entrant.code}
-                  {solo && playerNames.get(entrant.code) && (
-                    <span> · {playerNames.get(entrant.code)}</span>
+                <li
+                  key={entrant.code}
+                  className={solo ? styles.playerChipItem : undefined}
+                >
+                  {solo ? (
+                    <button
+                      type="button"
+                      className={styles.playerChip}
+                      aria-haspopup="dialog"
+                      onClick={() => setSelectedPlayerCode(entrant.code)}
+                    >
+                      {entrant.code}
+                      {playerNames.get(entrant.code) && (
+                        <span> · {playerNames.get(entrant.code)}</span>
+                      )}
+                      {showLeaguePoints && (
+                        <strong className={styles.totalPoints}>
+                          {leaguePoints.get(entrant.code) ?? 0}{" "}
+                          {t("mata", "pts")}
+                        </strong>
+                      )}
+                    </button>
+                  ) : (
+                    <>
+                      {entrant.code}
+                      <span> · {teamNames.get(entrant.code)}</span>
+                    </>
                   )}
-                  {!solo && <span> · {teamNames.get(entrant.code)}</span>}
                 </li>
               ))}
             </ul>
@@ -592,6 +671,14 @@ export function EventPresentation({
           "Entrant codes identify event records, not rankings or seeds. Rosters, dates, qualification format and results are subject to organizer confirmation.",
         )}
       </p>
+      {selectedPlayer && (
+        <PlayerResultsDialog
+          player={selectedPlayer}
+          stages={data?.categories.find((c) => c.kind === "SOLO")?.stages ?? []}
+          testResults={data?.testResults}
+          onClose={() => setSelectedPlayerCode(null)}
+        />
+      )}
     </div>
   );
 }

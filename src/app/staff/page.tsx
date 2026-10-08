@@ -1,6 +1,8 @@
 import { LoginForm } from "@/components/login-form";
 import { getLocale, translate } from "@/lib/i18n";
 import { Wordmark } from "@/components/wordmark";
+import { pageActor } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
@@ -8,6 +10,9 @@ export async function generateMetadata() {
   return { title: translate(locale, "Log masuk staff", "Staff sign in") };
 }
 export default async function StaffLogin() {
+  const actor = await pageActor();
+  if (actor) redirect(actor.role === "ADMIN" ? "/admin" : "/moderator");
+
   const locale = await getLocale();
   const t = (ms: string, en: string) => translate(locale, ms, en);
   return (

@@ -1,7 +1,7 @@
 "use client";
 import { useId, useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
+import { Eye, EyeOff, UserPlus, Trash2, KeyRound } from "lucide-react";
 import { TaskDialog, WorkspaceDialog, useDialogForm } from "./workspace-dialog";
 
 type StaffAccount = {
@@ -252,17 +252,29 @@ export function StaffAccountRow({
       </div>
       {!current && (
         <>
-          <button
-            type="button"
-            className="button secondary small"
-            aria-haspopup="dialog"
-            onClick={() => {
-              setFeedback(null);
-              setEditing(true);
-            }}
-          >
-            Edit account
-          </button>
+          <div className="account-actions">
+            <button
+              type="button"
+              className="button secondary small"
+              aria-haspopup="dialog"
+              onClick={() => {
+                setFeedback(null);
+                setEditing(true);
+              }}
+            >
+              Edit account
+            </button>
+            <TaskDialog
+              label={
+                <>
+                  <KeyRound size={16} aria-hidden="true" /> Reset password
+                </>
+              }
+              title={`Reset password · ${account.name}`}
+            >
+              <ResetStaffPassword account={account} />
+            </TaskDialog>
+          </div>
           {editing && (
             <WorkspaceDialog
               title={`Edit account · ${account.name}`}
@@ -407,5 +419,119 @@ export function StaffAccountRow({
         </div>
       </dialog>
     </article>
+  );
+}
+
+function ResetStaffPassword({ account }: { account: StaffAccount }) {
+  const uid = useId();
+  const [busy, setBusy] = useState(false);
+  const [show, setShow] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    error: boolean;
+    text: string;
+  } | null>(null);
+  const dialogForm = useDialogForm(busy);
+  return (
+    <form
+      className="form"
+      onChange={dialogForm.onChange}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const data = new FormData(form);
+        const password = String(data.get("password") ?? "");
+        setFeedback(null);
+        if (password !== data.get("confirmPassword")) {
+          setFeedback({ error: true, text: "The passwords do not match." });
+          return;
+        }
+        if (new TextEncoder().encode(password).length > 72) {
+          setFeedback({
+            error: true,
+            text: "Use at most 72 UTF-8 bytes for the password.",
+          });
+          return;
+        }
+        setBusy(true);
+        try {
+          await save("staffResetPassword", { id: account.id, password });
+          form.reset();
+          setShow(false);
+          dialogForm.onSaved();
+          setFeedback({
+            error: false,
+            text: "Password reset. Existing sessions signed out. Share the new password privately with this staff member.",
+          });
+        } catch (error) {
+          setFeedback({
+            error: true,
+            text:
+              error instanceof Error
+                ? error.message
+                : "Unable to reset password.",
+          });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <p className="muted text-sm">
+        Set a new password for {account.name} (
+        {account.role === "ADMIN" ? "Admin" : "Moderator"}). This signs out
+        their existing sessions. A suspended account stays suspended.
+      </p>
+      <fieldset className="form-fields" disabled={busy}>
+        <div className="password-control">
+          <label htmlFor={`${uid}-password`}>New password</label>
+          <span className="password-field">
+            <input
+              id={`${uid}-password`}
+              name="password"
+              type={show ? "text" : "password"}
+              autoComplete="new-password"
+              minLength={14}
+              maxLength={72}
+              required
+              aria-describedby={`${uid}-help`}
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              aria-label={show ? "Hide password" : "Show password"}
+              aria-pressed={show}
+              onClick={() => setShow(!show)}
+            >
+              {show ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </span>
+          <span id={`${uid}-help`} className="muted text-xs">
+            At least 14 characters; at most 72 UTF-8 bytes.
+          </span>
+        </div>
+        <label htmlFor={`${uid}-confirm`}>
+          Confirm new password
+          <input
+            id={`${uid}-confirm`}
+            name="confirmPassword"
+            type={show ? "text" : "password"}
+            autoComplete="new-password"
+            minLength={14}
+            maxLength={72}
+            required
+          />
+        </label>
+        <button type="submit" className="button">
+          {busy ? "Resetting…" : "Reset password and sign out sessions"}
+        </button>
+      </fieldset>
+      {feedback && (
+        <p
+          className={`feedback ${feedback.error ? "error" : ""}`}
+          role={feedback.error ? "alert" : "status"}
+        >
+          {feedback.text}
+        </p>
+      )}
+    </form>
   );
 }

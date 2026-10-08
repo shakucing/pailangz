@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getActor } from "@/lib/auth";
 import { DomainError } from "@/lib/domain";
 import { StaffNavigation } from "./staff-navigation";
-import { Wordmark } from "./wordmark";
 import { Logout } from "./login-form";
 
 export async function StaffShell({
@@ -26,7 +25,6 @@ export async function StaffShell({
     <div className="wrap staff-layout" lang="en">
       <aside className="sidebar">
         <div className="staff-meta">
-          <Wordmark />
           <span className="badge">
             {actor.role === "ADMIN" ? "Admin" : "Moderator"}
           </span>

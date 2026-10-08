@@ -59,6 +59,7 @@ export function ActionForm({
   label = "Save",
   compact = false,
   onSuccess,
+  resetOnSuccess = false,
 }: {
   action: string;
   fields: Field[];
@@ -66,7 +67,9 @@ export function ActionForm({
   label?: string;
   compact?: boolean;
   onSuccess?: () => void;
+  resetOnSuccess?: boolean;
 }) {
+  const [formVersion, setFormVersion] = useState(0);
   const [decision, setDecision] = useState(
     String(
       fixed.action ?? fields.find((f) => f.name === "action")?.value ?? "",
@@ -106,6 +109,7 @@ export function ActionForm({
             error: false,
           });
           dialogForm.onSaved();
+          if (resetOnSuccess) setFormVersion((version) => version + 1);
           onSuccess?.();
           router.refresh();
         } catch (error) {
@@ -121,7 +125,7 @@ export function ActionForm({
         }
       }}
     >
-      <fieldset className="form-fields" disabled={busy}>
+      <fieldset key={formVersion} className="form-fields" disabled={busy}>
         {fields.map((f) => {
           const required =
             f.required ||

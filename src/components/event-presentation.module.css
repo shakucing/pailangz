@@ -416,6 +416,54 @@
   font-size: inherit;
   color: var(--text);
 }
+.totalPoints {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.entrants li .totalPoints {
+  margin-left: 10px;
+  white-space: nowrap;
+}
+.playerLink {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+}
+.entrants .playerChipItem {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.playerChip {
+  max-width: 100%;
+  padding: 5px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface-soft);
+  color: var(--text-soft);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.playerChip:hover,
+.playerLink:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.playerChip:focus-visible,
+.playerLink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 .note {
   color: var(--muted);
   font-size: 11px;

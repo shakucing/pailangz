@@ -638,18 +638,25 @@ try {
   await check(
     "team roster membership is unique and limited to four",
     async () => {
+      const category = (
+        await owner.query(
+          'SELECT id, "tournamentId" FROM "Category" WHERE kind=\'TEAM\' LIMIT 1',
+        )
+      ).rows[0];
       const ids = (
-        await owner.query('SELECT id FROM "Member" LIMIT 5')
-      ).rows.map((r) => r.id);
+        await owner.query(
+          'SELECT "memberId" FROM "Participant" WHERE "tournamentId"=$1 AND NOT withdrawn LIMIT 5',
+          [category.tournamentId],
+        )
+      ).rows.map((r) => r.memberId);
       await owner.query(
         'UPDATE "Member" SET verified=true WHERE id=ANY($1::text[])',
         [ids],
       );
-      const category = (
-        await owner.query(
-          "SELECT id FROM \"Category\" WHERE kind='TEAM' LIMIT 1",
-        )
-      ).rows[0];
+      await owner.query(
+        'UPDATE "Participant" SET eligible=true WHERE "tournamentId"=$1 AND "memberId"=ANY($2::text[])',
+        [category.tournamentId, ids],
+      );
       await teamUpdate(actor, {
         categoryId: category.id,
         name: "Synthetic team one",
@@ -822,10 +829,19 @@ try {
   const { checkRoutineStaffOperations } =
     await import("./staff-ops-integration");
   await checkRoutineStaffOperations(owner, actor, mod, check);
+  const { checkBulkParticipantEligibility } =
+    await import("./participant-eligibility-integration");
+  await checkBulkParticipantEligibility(owner, mod, check);
+  const { checkStaffParticipation } =
+    await import("./staff-participation-integration");
+  await checkStaffParticipation(owner, mod, check);
   const { checkWebRegistration } = await import("./registration-integration");
   await checkWebRegistration(owner, actor, check);
   const { checkModeratorSetup } = await import("./moderator-setup-integration");
   await checkModeratorSetup(owner, mod, check);
+  const { checkTeamRosterRegistration } =
+    await import("./team-roster-integration");
+  await checkTeamRosterRegistration(owner, mod, check);
   const { checkParticipation } = await import("./participation-integration");
   await checkParticipation(owner, actor, check);
   const { checkTeamPortal } = await import("./team-portal-integration");

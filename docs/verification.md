@@ -1,6 +1,10 @@
 # Verification and remaining setup
 
-Latest verification: 8 October 2026. Migration 020 is applied to the dedicated loopback development database. It enables registration for the existing original event and preserves member and competition records. Verification used isolated databases and generated test accounts. This update has not been deployed to Vercel or migrated on Neon.
+Latest command verification: 8 October 2026. All 20 schema migrations and their checksums are now verified on Neon. The separately requested empty 32-player / eight-team data reset is implemented in `pnpm db:neon:migrate` and remains pending until the operator runs that command. Its `--check` mode reported zero pending SQL migrations and the pending data reset. A production preview without `--apply` validated the owner, saved encryption keys and reset prerequisites: 64 assignments, 192 fixtures, zero active teams and zero participation requests. No production data was changed during this verification.
+
+The command update passes TypeScript, 163 unit tests, and the disposable-database tournament reset integration checks. These cover production/key validation, backup and audit failure rollback, published/started-event rejection, preserved members/private registrations/applications, team archival, encrypted revision notes, atomic completion tracking, reruns preserving later entrants/teams/fixtures, and already-empty/fresh-seed behavior. The data reset is tracked separately from Prisma SQL migrations; SQL Editor users receive it when they next run the updated command. See [Neon deployment](neon-deployment.md#updating-the-existing-deployment).
+
+The earlier application verification below used isolated databases and generated test accounts. Migration 020 was first applied to the dedicated loopback development database; its corresponding production schema has since been verified as described above.
 
 ## Independent moderator tournament setup (8 October 2026)
 

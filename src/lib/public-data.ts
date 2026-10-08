@@ -233,6 +233,9 @@ export async function publicTournament(slug: string) {
         name: s.name,
         key: s.key,
         format: s.format,
+        rankingsFinalized: snapshots.some(
+          (r) => r.stageId === s.id && !r.stale,
+        ),
         qualificationBestOf:
           s.key === "qualification" &&
           s.confirmedRules.includes("qualificationBestOf")

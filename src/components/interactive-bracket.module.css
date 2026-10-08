@@ -306,6 +306,13 @@ button.entrant:not(:disabled):hover {
   border-color: var(--accent-line);
   font-weight: 700;
 }
+.origin {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 400;
+}
 .winner .seed {
   color: var(--accent);
 }

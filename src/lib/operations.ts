@@ -211,6 +211,67 @@ export async function participantUpdate(
     return { id: p.id };
   });
 }
+export const bulkParticipantEligibilitySchema = z.object({
+  tournamentId: z.string().uuid(),
+  ids: z.array(z.string().uuid()).min(1).max(256),
+  eligible: z.boolean(),
+  reason: z.string().trim().max(1000).optional().default(""),
+});
+
+export async function bulkParticipantEligibility(
+  actor: Actor,
+  input: z.input<typeof bulkParticipantEligibilitySchema>,
+) {
+  const { tournamentId, ids, eligible, reason } =
+    bulkParticipantEligibilitySchema.parse(input);
+  if (new Set(ids).size !== ids.length)
+    throw new DomainError("Choose each player only once.");
+  return privateTx(actor, async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Tournament" WHERE id=${tournamentId} FOR UPDATE`;
+    const tournament = await tx.tournament.findUniqueOrThrow({
+      where: { id: tournamentId },
+    });
+    if (tournament.published)
+      throw new DomainError(
+        "Unpublish before changing participant eligibility.",
+      );
+    const participants = await tx.participant.findMany({
+      where: { tournamentId, id: { in: ids } },
+      include: { member: true },
+    });
+    if (participants.length !== ids.length)
+      throw new DomainError(
+        "Some selected players are no longer in this tournament. Refresh and select them again.",
+      );
+    if (participants.some((p) => p.withdrawn))
+      throw new DomainError(
+        "Restore withdrawn players before changing eligibility.",
+      );
+    if (
+      eligible &&
+      participants.some((p) => !p.member.verified || p.member.archived)
+    )
+      throw new DomainError(
+        "Approve and verify the selected member registrations first.",
+      );
+    const result = await tx.participant.updateMany({
+      where: { tournamentId, id: { in: ids }, withdrawn: false },
+      data: { eligible, provisional: !tournament.mappingConfirmed },
+    });
+    await audit(
+      tx,
+      actor,
+      "PARTICIPANTS_ELIGIBILITY",
+      "TOURNAMENT",
+      tournamentId,
+      { eligible, playerCount: result.count },
+      reason,
+      { tournamentId, relatedIds: ids },
+    );
+    return { count: result.count };
+  });
+}
+
 export async function confirmMapping(
   actor: Actor,
   input: { id: string; reason: string },
@@ -259,6 +320,10 @@ export async function teamUpdate(
       ? null
       : undefined;
   return privateTx(actor, async (tx) => {
+    // Serialize roster saves with tournament publication and entrant withdrawal.
+    await tx.$queryRaw`SELECT t.id FROM "Tournament" t
+      JOIN "Category" c ON c."tournamentId"=t.id
+      WHERE c.id=${input.categoryId} FOR UPDATE OF t`;
     const category = await tx.category.findUniqueOrThrow({
       where: { id: input.categoryId },
       include: { tournament: true },
@@ -275,6 +340,20 @@ export async function teamUpdate(
     });
     if (members.length !== input.memberIds.length)
       throw new DomainError("Team players must be approved active members.");
+    if (!input.archived) {
+      const registered = await tx.participant.count({
+        where: {
+          tournamentId: category.tournamentId,
+          memberId: { in: input.memberIds },
+          eligible: true,
+          withdrawn: false,
+        },
+      });
+      if (registered !== input.memberIds.length)
+        throw new DomainError(
+          "Team players must be registered and eligible in this tournament.",
+        );
+    }
     if (
       !input.id &&
       (await tx.team.count({
@@ -302,19 +381,6 @@ export async function teamUpdate(
       throw new DomainError(
         "Keep the team owner in the roster, or archive the team.",
       );
-    if (team.ownerId && !input.archived) {
-      const approved = await tx.participant.count({
-        where: {
-          tournamentId: category.tournamentId,
-          memberId: { in: input.memberIds },
-          eligible: true,
-        },
-      });
-      if (approved !== input.memberIds.length)
-        throw new DomainError(
-          "Team players must have approved tournament participation.",
-        );
-    }
     await tx.team.update({
       where: { id: team.id },
       data: {

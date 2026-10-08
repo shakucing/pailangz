@@ -16,6 +16,8 @@ const config: NextConfig = {
         ],
       },
       ...[
+        "/staff",
+        "/login",
         "/admin/:path*",
         "/moderator/:path*",
         "/api/staff/:path*",

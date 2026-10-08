@@ -77,11 +77,11 @@ export function TeamPortal({
       "These details do not match an approved member record. Check your IGN and TikTok ID, or contact a moderator.",
     ],
     NOT_APPROVED: [
-      "Kau perlukan slot kejohanan yang diluluskan sebelum boleh cipta atau sertai pasukan. Semak penyertaan kejohanan kau.",
+      "Anda perlukan slot kejohanan yang diluluskan sebelum boleh cipta atau sertai pasukan. Semak penyertaan kejohanan anda.",
       "You need an approved tournament slot to create or join a team. Check your tournament participation.",
     ],
     SIGN_IN: [
-      "Sesi tamat. Sahkan semula maklumat kau.",
+      "Sesi tamat. Sahkan semula maklumat anda.",
       "Your session expired. Verify your details again.",
     ],
     CLOSED: [
@@ -89,7 +89,7 @@ export function TeamPortal({
       "Team registration and applications are closed.",
     ],
     ALREADY_IN_TEAM: [
-      "Kau sudah menyertai pasukan untuk kejohanan ini.",
+      "Anda sudah menyertai pasukan untuk kejohanan ini.",
       "You already belong to a team in this tournament.",
     ],
     TOURNAMENT_FULL: [
@@ -292,7 +292,7 @@ export function TeamPortal({
                     "Submit your tournament application. Matching active members are automatically approved while slots are available.",
                   )
                 : t(
-                    "Kelulusan ahli sahaja belum mencukupi. Moderator perlu meluluskan slot kejohanan kau sebelum kau boleh cipta atau sertai pasukan.",
+                    "Kelulusan ahli sahaja belum mencukupi. Moderator perlu meluluskan slot kejohanan anda sebelum anda boleh cipta atau sertai pasukan.",
                     "Member approval alone is not enough. A moderator must approve your tournament slot before you can create or join a team.",
                   )}
           </p>
@@ -311,7 +311,7 @@ export function TeamPortal({
             <>
               <p className="muted">
                 {t(
-                  "Pemohon hanya menyertai roster selepas kau luluskan. Pasukan terhad kepada empat pemain termasuk pemilik.",
+                  "Pemohon hanya menyertai roster selepas anda luluskan. Pasukan terhad kepada empat pemain termasuk pemilik.",
                   "Applicants join the roster only after you approve them. Teams have four places, including the owner.",
                 )}
               </p>
@@ -377,15 +377,15 @@ export function TeamPortal({
             <p className={styles.notice}>
               {state.teamSlug === team.slug
                 ? t(
-                    "Kau adalah ahli pasukan ini.",
+                    "Anda adalah ahli pasukan ini.",
                     "You are a member of this team.",
                   )
                 : t(
-                    "Kau sudah menyertai pasukan lain dalam kejohanan ini.",
+                    "Anda sudah menyertai pasukan lain dalam kejohanan ini.",
                     "You already belong to another team in this tournament.",
                   )}{" "}
               <Link className="text-link" href={`${base}/${state.teamSlug}`}>
-                {t("Pasukan kau ↗", "Your team ↗")}
+                {t("Pasukan anda ↗", "Your team ↗")}
               </Link>
             </p>
           ) : state.application ? (
@@ -397,11 +397,11 @@ export function TeamPortal({
                   )
                 : state.application === "REJECTED"
                   ? t(
-                      "Permohonan kau ditolak atau ditutup selepas menyertai pasukan lain. Kau boleh mohon kepada pasukan lain yang masih mempunyai tempat.",
+                      "Permohonan anda ditolak atau ditutup selepas menyertai pasukan lain. Anda boleh mohon kepada pasukan lain yang masih mempunyai tempat.",
                       "Your application was rejected or closed after joining another team. You can apply to another team with an open place.",
                     )
                   : t(
-                      "Permohonan kau telah diluluskan. Hubungi moderator jika kau tidak disenaraikan dalam roster.",
+                      "Permohonan anda telah diluluskan. Hubungi moderator jika anda tidak disenaraikan dalam roster.",
                       "Your application was approved. Contact a moderator if you are missing from the roster.",
                     )}
             </p>
@@ -409,7 +409,7 @@ export function TeamPortal({
             <>
               <p className="muted">
                 {t(
-                  "Penyertaan kejohanan kau telah diluluskan. Hantar permohonan untuk disemak oleh pemilik pasukan.",
+                  "Penyertaan kejohanan anda telah diluluskan. Hantar permohonan untuk disemak oleh pemilik pasukan.",
                   "Your tournament participation is approved. Send an application for the team owner to review.",
                 )}
               </p>
@@ -443,11 +443,11 @@ export function TeamPortal({
       ) : state.teamSlug ? (
         <p className={styles.notice}>
           {t(
-            "Kau sudah mempunyai pasukan untuk kejohanan ini.",
+            "Anda sudah mempunyai pasukan untuk kejohanan ini.",
             "You already have a team in this tournament.",
           )}{" "}
           <Link className="text-link" href={`${base}/${state.teamSlug}`}>
-            {t("Buka pasukan kau ↗", "Open your team ↗")}
+            {t("Buka pasukan anda ↗", "Open your team ↗")}
           </Link>
         </p>
       ) : (
@@ -462,7 +462,7 @@ export function TeamPortal({
         >
           <p className="muted">
             {t(
-              "Kau akan menjadi pemilik dan pemain pertama. Pasukan akan terus disenaraikan di halaman utama supaya pemain lain yang diluluskan boleh memohon.",
+              "Anda akan menjadi pemilik dan pemain pertama. Pasukan akan terus disenaraikan di halaman utama supaya pemain lain yang diluluskan boleh memohon.",
               "You will be the owner and first player. Your team will appear on the landing page so other approved players can apply.",
             )}
           </p>

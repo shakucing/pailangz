@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import type pg from "pg";
 import type { Actor } from "../src/lib/db";
 import {
@@ -7,6 +7,7 @@ import {
   staffEdit,
   staffRemove,
   staffCreateSchema,
+  staffResetPassword,
 } from "../src/lib/staff-accounts";
 import { privateTx, audit } from "../src/lib/db";
 import { compare } from "bcryptjs";
@@ -18,6 +19,98 @@ export async function runStaffAccountIntegration(
   check: (name: string, fn: () => Promise<void>) => Promise<void>,
 ) {
   const password = "synthetic integration password 2026";
+  await check(
+    "admin resets other admins and moderators; sessions expire, login throttles clear and audit excludes credentials",
+    async () => {
+      const resetPassword = "new isolated staff password 2026";
+      for (const role of ["ADMIN", "MODERATOR"] as const) {
+        const id = randomUUID(),
+          sid = randomUUID(),
+          email = `${id}@synthetic.invalid`;
+        await owner.query(
+          'INSERT INTO "StaffUser" (id,email,name,role,"passwordHash") VALUES ($1,$2,$3,$4::"StaffRole",$5)',
+          [id, email, "Password reset test", role, "old-hash"],
+        );
+        await owner.query(
+          'INSERT INTO "StaffSession" (id,"userId","expiresAt") VALUES ($1,$2,now()+interval \'1 hour\')',
+          [sid, id],
+        );
+        const key = `login:${createHash("sha256").update(email).digest("hex")}`;
+        await owner.query(
+          'INSERT INTO "AuthThrottle" (key,count) VALUES ($1,10)',
+          [key],
+        );
+        await assert.rejects(
+          staffResetPassword(mod, { id, password: resetPassword }),
+        );
+        await assert.rejects(
+          staffResetPassword(
+            { ...mod, role: "ADMIN" },
+            { id, password: resetPassword },
+          ),
+        );
+        await assert.rejects(
+          privateTx(
+            mod,
+            (tx) =>
+              tx.$executeRaw`SELECT app_reset_staff_password(${id},${"$2b$12$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})`,
+          ),
+        );
+        await staffResetPassword(actor, { id, password: resetPassword });
+        const target = (
+          await owner.query(
+            'SELECT "passwordHash","sessionVersion",role,suspended FROM "StaffUser" WHERE id=$1',
+            [id],
+          )
+        ).rows[0];
+        assert.ok(await compare(resetPassword, target.passwordHash));
+        assert.equal(target.sessionVersion, 2);
+        assert.equal(target.role, role);
+        assert.equal(target.suspended, false);
+        assert.equal(
+          (
+            await owner.query(
+              'SELECT revoked FROM "StaffSession" WHERE id=$1',
+              [sid],
+            )
+          ).rows[0].revoked,
+          true,
+        );
+        assert.equal(
+          (
+            await owner.query(
+              'SELECT count(*)::int n FROM "AuthThrottle" WHERE key=$1',
+              [key],
+            )
+          ).rows[0].n,
+          0,
+        );
+        const logs = (
+          await owner.query(
+            'SELECT changes FROM "AuditEvent" WHERE action=\'STAFF_PASSWORD_RESET\' AND "entityId"=$1',
+            [id],
+          )
+        ).rows;
+        assert.equal(logs.length, 1);
+        assert.ok(!JSON.stringify(logs).includes(resetPassword));
+        assert.ok(!JSON.stringify(logs).includes(target.passwordHash));
+        await owner.query('DELETE FROM "StaffSession" WHERE "userId"=$1', [id]);
+        await owner.query('DELETE FROM "StaffUser" WHERE id=$1', [id]);
+      }
+      await assert.rejects(
+        staffResetPassword(actor, { id: actor.id, password: resetPassword }),
+      );
+      await assert.rejects(
+        staffResetPassword(actor, {
+          id: randomUUID(),
+          password: "😀".repeat(20),
+        }),
+      );
+      await assert.rejects(
+        staffResetPassword(actor, { id: randomUUID(), password: "short" }),
+      );
+    },
+  );
   let createdId = "";
   await check(
     "admin creates moderator in-app without a reason; audit excludes credentials",

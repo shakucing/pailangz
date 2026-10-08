@@ -4,7 +4,9 @@ import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { Check, GitBranch, Medal, RotateCcw, Trophy } from "lucide-react";
 import { useLocale } from "./locale-context";
 import { TeamAvatar } from "./team-avatar";
-import type { EventMatch } from "@/lib/event-presentation-data";
+import { BracketQualification } from "./bracket-qualification";
+import { bracketQualification } from "@/lib/bracket-qualification";
+import type { EventMatch, EventStage } from "@/lib/event-presentation-data";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
 import {
   bracketMatchLabel,
@@ -33,12 +35,16 @@ export function InteractiveBracket({
   rounds = emptyRounds,
   storageScope = "planned-event",
   teams = emptyTeams,
+  stages,
+  participants,
 }: {
   configuration: TournamentConfiguration;
   category: "SOLO" | "TEAM";
   rounds?: SourceRound[];
   storageScope?: string;
   teams?: BracketTeam[];
+  stages?: EventStage[];
+  participants?: { code: string; ign?: string }[];
 }) {
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
@@ -91,6 +97,7 @@ export function InteractiveBracket({
   const activeMode = hasOfficial ? mode : "picks";
   const resolved = resolveBracket(source, picks, activeMode);
   const { champion, runnerUp } = bracketPlacings(resolved);
+  const { origins } = bracketQualification(configuration, stages);
   const total = source.reduce(
     (count, round) =>
       count + round.matches.filter((match) => match.status !== "BYE").length,
@@ -166,7 +173,10 @@ export function InteractiveBracket({
         <div>
           <div className={styles.eyebrow}>
             <GitBranch size={14} aria-hidden="true" />
-            {category} · {t("Penyingkiran tunggal", "Single elimination")}
+            {category} ·{" "}
+            {category === "SOLO"
+              ? t("Liga ke juara", "League to champion")
+              : t("Penyingkiran tunggal", "Single elimination")}
           </div>
           <h4 id={`${id}-title`}>
             {t("Bracket kejohanan", "Tournament bracket")}
@@ -308,6 +318,14 @@ export function InteractiveBracket({
         </div>
       </div>
 
+      {category === "SOLO" && (
+        <BracketQualification
+          configuration={configuration}
+          stages={stages}
+          participants={participants}
+        />
+      )}
+
       <div
         className={styles.scroll}
         tabIndex={0}
@@ -391,6 +409,10 @@ export function InteractiveBracket({
                             : match.status === "BYE" && side === 1
                               ? "BYE"
                               : placeholder(side);
+                          const origin =
+                            entrant && !entrant.seed
+                              ? origins.get(entrant.label.split(" · ")[0])
+                              : undefined;
                           const contents = (
                             <>
                               {category === "TEAM" && entrant ? (
@@ -400,7 +422,17 @@ export function InteractiveBracket({
                                   {entrant?.seed ?? (side === 0 ? "A" : "B")}
                                 </span>
                               )}
-                              <span className={styles.entrantName}>{name}</span>
+                              <span className={styles.entrantName}>
+                                {name}
+                                {origin && (
+                                  <small className={styles.origin}>
+                                    {origin.stage === "league"
+                                      ? t("Liga", "League")
+                                      : t("Kelayakan", "Qualification")}{" "}
+                                    #{origin.rank}
+                                  </small>
+                                )}
+                              </span>
                               {winner && <Check size={15} aria-hidden="true" />}
                             </>
                           );

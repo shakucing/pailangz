@@ -181,8 +181,9 @@ export function FixtureBrowser({
                       <div className="pairing-scores">
                         {m.result.games.map((g) => (
                           <span key={g.number}>
-                            {t("Game", "Game")} {g.number}: {g.scoreA}–
-                            {g.scoreB}
+                            Game {g.number}:{" "}
+                            {entrantName(g.scoreA > g.scoreB ? m.a : m.b)}{" "}
+                            {t("menang", "wins")}
                           </span>
                         ))}
                       </div>

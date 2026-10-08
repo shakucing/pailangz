@@ -1,5 +1,10 @@
 import { boundedJson, boundedFormData } from "@/lib/request-body";
-import { staffCreate, staffEdit, staffRemove } from "@/lib/staff-accounts";
+import {
+  staffCreate,
+  staffEdit,
+  staffRemove,
+  staffResetPassword,
+} from "@/lib/staff-accounts";
 import * as configurationActions from "@/lib/configuration";
 import { z } from "zod";
 import { assertCsrf, getActor, freshAdmin } from "@/lib/auth";
@@ -127,6 +132,7 @@ export async function POST(request: Request) {
       "rules",
       "mapping",
       "participant",
+      "participantsEligibility",
       "member",
       "team",
       "staff",
@@ -261,6 +267,12 @@ export async function POST(request: Request) {
           z.object({ id, eligible: z.boolean(), reason }).parse(data),
         );
         break;
+      case "participantsEligibility":
+        value = await operations.bulkParticipantEligibility(
+          actor,
+          operations.bulkParticipantEligibilitySchema.parse(data),
+        );
+        break;
       case "member":
         value = await operations.memberUpdate(
           actor,
@@ -302,6 +314,9 @@ export async function POST(request: Request) {
         break;
       case "staffRemove":
         value = await staffRemove(actor, data);
+        break;
+      case "staffResetPassword":
+        value = await staffResetPassword(actor, data);
         break;
       case "announcement":
         value = await operations.announcementUpdate(

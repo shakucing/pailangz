@@ -54,6 +54,8 @@ try {
     [sessionId, id],
   );
   const { checkModeratorSetup } = await import("./moderator-setup-integration");
+  const { checkTeamRosterRegistration } =
+    await import("./team-roster-integration");
   let passed = 0;
   await checkModeratorSetup(
     owner,
@@ -64,7 +66,16 @@ try {
       console.log(`PASS ${name}`);
     },
   );
-  console.log(`${passed} moderator setup checks passed.`);
+  await checkTeamRosterRegistration(
+    owner,
+    { id, sessionId, role: "MODERATOR", authenticatedAt: new Date() },
+    async (name, fn) => {
+      await fn();
+      passed++;
+      console.log(`PASS ${name}`);
+    },
+  );
+  console.log(`${passed} moderator setup and team roster checks passed.`);
   if (process.env.TEST_REGISTRATION_REGRESSIONS === "true") {
     const { saveTournament } = await import("../src/lib/competition");
     const { newTournamentConfiguration } =

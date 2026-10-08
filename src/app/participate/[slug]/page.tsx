@@ -50,7 +50,7 @@ export default async function Participate({
             </p>
             <p className="muted">
               {t(
-                `Terhad kepada ${event.capacity} pemain. Satu penyertaan untuk SOLO & TEAM. Sahkan maklumat kau dengan rekod ahli yang sedia ada.`,
+                `Terhad kepada ${event.capacity} pemain. Satu penyertaan untuk SOLO & TEAM. Sahkan maklumat anda dengan rekod ahli yang sedia ada.`,
                 `Limited to ${event.capacity} players. One submission for SOLO & TEAM. Verify your details against your existing member record.`,
               )}
             </p>

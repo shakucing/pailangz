@@ -6,7 +6,14 @@ import { validateSeries, type Rules } from "@/lib/domain";
 import { friendlyError } from "@/lib/staff-presentation";
 import { staffRequest } from "@/lib/staff-request";
 import { evidenceSizeError } from "@/lib/evidence-policy";
-import { readScoreEntry, type ScoreDraft } from "@/lib/score-entry";
+import { Check } from "lucide-react";
+import {
+  readGameWinners,
+  selectGameWinner,
+  winnerDrafts,
+  type GameWinner,
+  type WinnerDraft,
+} from "@/lib/score-entry";
 
 type ResultType = "played" | "DRAW" | "A_FORFEIT" | "B_FORFEIT";
 export function MatchResultForm({
@@ -46,13 +53,8 @@ export function MatchResultForm({
   const [includeGames, setIncludeGames] = useState(
     Boolean(initialResult?.games.length),
   );
-  const [drafts, setDrafts] = useState<ScoreDraft[]>(() =>
-    initialResult?.games.length
-      ? initialResult.games.map((game) => ({
-          scoreA: String(game.scoreA),
-          scoreB: String(game.scoreB),
-        }))
-      : Array.from({ length: needed }, () => ({ scoreA: "", scoreB: "" })),
+  const [drafts, setDrafts] = useState<WinnerDraft[]>(() =>
+    winnerDrafts(initialResult?.games ?? [], bestOf),
   );
   const [file, setFile] = useState<File | null>(null);
   const [advance, setAdvance] = useState(knockout);
@@ -73,15 +75,15 @@ export function MatchResultForm({
   const needsReason =
     resultType.includes("FORFEIT") || initialResult?.status === "ACCEPTED";
   const showGames = resultType === "played" || includeGames;
-  let scores: ReturnType<typeof readScoreEntry> | null = null,
+  let scores: ReturnType<typeof readGameWinners> | null = null,
     scoreError = "";
   try {
-    scores = readScoreEntry(showGames ? drafts : [], bestOf);
+    scores = readGameWinners(showGames ? drafts : [], bestOf);
   } catch (error) {
     scoreError =
       error instanceof Error
         ? friendlyError(error.message)
-        : "Check the game scores.";
+        : "Check the game winners.";
   }
   const rulesReady =
     confirmedRules.includes("drawPolicy") &&
@@ -107,12 +109,11 @@ export function MatchResultForm({
           : scores?.outcome === "B_WIN"
             ? sideB
             : null;
-  function changeScore(index: number, side: keyof ScoreDraft, value: string) {
-    setDrafts((current) =>
-      current.map((game, i) =>
-        i === index ? { ...game, [side]: value } : game,
-      ),
-    );
+  const visibleGames = scores?.outcome
+    ? scores.games.length
+    : Math.min(bestOf, (scores?.games.length ?? 0) + 1);
+  function pickWinner(index: number, winner: GameWinner | null) {
+    setDrafts((current) => selectGameWinner(current, index, winner, bestOf));
     setFeedback(null);
   }
   return (
@@ -129,11 +130,11 @@ export function MatchResultForm({
           return;
         }
         try {
-          const entry = readScoreEntry(showGames ? drafts : [], bestOf);
+          const entry = readGameWinners(showGames ? drafts : [], bestOf);
           const outcome = resultType === "played" ? entry.outcome : resultType;
           if (!outcome)
             throw new Error(
-              `Enter scores until a player wins ${needed} games. Add another game if needed.`,
+              `Pick each game’s winner until a player wins ${needed} games.`,
             );
           validateSeries(bestOf, entry.games, outcome, rules, confirmedRules);
           const note = reason.trim();
@@ -154,8 +155,6 @@ export function MatchResultForm({
             const problem = evidenceSizeError(file.size);
             if (problem) throw new Error(problem);
           }
-          if (confirm && !file && !submission.current?.uploadedFile)
-            throw new Error("Select a match screenshot before confirming.");
           setBusy(true);
           const attempt = submission.current!;
           if (!attempt.resultId) {
@@ -194,7 +193,9 @@ export function MatchResultForm({
             await staffRequest("advance", { matchId, reason: note });
           setFeedback({
             text: confirm
-              ? "Result and screenshot saved and confirmed."
+              ? attempt.uploadedFile
+                ? "Result and screenshot saved and confirmed."
+                : "Result saved and confirmed."
               : "Result saved for review.",
             error: false,
           });
@@ -214,8 +215,8 @@ export function MatchResultForm({
       }}
     >
       <p className="score-entry-help" id={`${uid}-help`}>
-        Best of {bestOf} · First to {needed} game wins. Enter the score shown at
-        the end of each game.
+        Best of {bestOf} · First to {needed} game wins. Tap the player who won
+        each game.
       </p>
       {unavailable && <p className="notice">{unavailable}</p>}
       <fieldset
@@ -232,7 +233,7 @@ export function MatchResultForm({
               setFeedback(null);
             }}
           >
-            <option value="played">Decide the winner from game scores</option>
+            <option value="played">Played · Pick each game’s winner</option>
             {allowDraw && <option value="DRAW">Draw</option>}
             {allowForfeit && (
               <>
@@ -258,61 +259,44 @@ export function MatchResultForm({
         )}
         {showGames && (
           <div className="score-entry-games" aria-describedby={`${uid}-help`}>
-            {drafts.map((game, index) => (
+            {drafts.slice(0, visibleGames).map((game, index) => (
               <fieldset className="score-entry-game" key={index}>
                 <legend>Game {index + 1}</legend>
                 <div className="score-entry-pair">
-                  {(["scoreA", "scoreB"] as const).map((side) => (
-                    <label key={side} htmlFor={`${uid}-${index}-${side}`}>
-                      <span>{side === "scoreA" ? sideA : sideB}</span>
-                      <input
-                        id={`${uid}-${index}-${side}`}
-                        type="number"
-                        inputMode="numeric"
-                        min={0}
-                        max={100000}
-                        step={1}
-                        placeholder="Score"
-                        value={game[side]}
-                        aria-label={`Game ${index + 1} score for ${side === "scoreA" ? sideA : sideB}`}
-                        onChange={(event) =>
-                          changeScore(index, side, event.target.value)
-                        }
-                      />
-                    </label>
+                  {(["A", "B"] as const).map((side) => (
+                    <button
+                      key={side}
+                      type="button"
+                      className="score-entry-winner"
+                      aria-pressed={game.winner === side}
+                      aria-label={`Pick ${side === "A" ? sideA : sideB} as winner of Game ${index + 1}`}
+                      onClick={() => pickWinner(index, side)}
+                    >
+                      <span>{side === "A" ? sideA : sideB}</span>
+                      <small>
+                        {game.winner === side ? (
+                          <>
+                            <Check size={16} aria-hidden="true" /> Winner
+                          </>
+                        ) : (
+                          "Pick winner"
+                        )}
+                      </small>
+                    </button>
                   ))}
                 </div>
+                {game.winner && (
+                  <button
+                    type="button"
+                    className="score-entry-clear"
+                    aria-label={`Clear Game ${index + 1} and later games`}
+                    onClick={() => pickWinner(index, null)}
+                  >
+                    Clear this game & later games
+                  </button>
+                )}
               </fieldset>
             ))}
-            <div className="score-entry-actions">
-              {drafts.length < bestOf && !scores?.outcome && (
-                <button
-                  type="button"
-                  className="button small secondary"
-                  onClick={() => {
-                    setDrafts((current) => [
-                      ...current,
-                      { scoreA: "", scoreB: "" },
-                    ]);
-                    setFeedback(null);
-                  }}
-                >
-                  + Add Game {drafts.length + 1}
-                </button>
-              )}
-              {drafts.length > (resultType === "played" ? needed : 1) && (
-                <button
-                  type="button"
-                  className="button small secondary"
-                  onClick={() => {
-                    setDrafts((current) => current.slice(0, -1));
-                    setFeedback(null);
-                  }}
-                >
-                  Remove Game {drafts.length}
-                </button>
-              )}
-            </div>
           </div>
         )}
         <div
@@ -335,7 +319,7 @@ export function MatchResultForm({
                   ? "Draw — requires review."
                   : winner
                     ? `${winner} wins${resultType === "played" ? "." : " by forfeit."}`
-                    : `Enter scores until one player wins ${needed} games.`}
+                    : `Pick each game’s winner. First to ${needed} wins the match.`}
               </span>
             </>
           )}
@@ -352,12 +336,12 @@ export function MatchResultForm({
             placeholder={
               needsReason
                 ? "Explain what you are correcting."
-                : "For example: Scores checked against the match screenshot."
+                : "For example: Winners checked against the match screenshot."
             }
           />
         </label>
         <label htmlFor={`${uid}-screenshot`}>
-          Match screenshot (PNG, JPEG or WebP, up to 4 MB)
+          Match screenshot (optional · PNG, JPEG or WebP, up to 4 MB)
           <input
             id={`${uid}-screenshot`}
             type="file"
@@ -395,7 +379,7 @@ export function MatchResultForm({
               type="submit"
               value="confirm"
               className="button small"
-              disabled={busy || Boolean(unavailable) || !file}
+              disabled={busy || Boolean(unavailable)}
             >
               {busy ? "Saving…" : "Save & confirm"}
             </button>
@@ -412,8 +396,8 @@ export function MatchResultForm({
         </div>
       </DialogActions>
       <p className="muted text-xs">
-        Scores, evidence and staff decisions are recorded automatically. A saved
-        result remains available if an upload needs retrying.
+        Game winners, evidence and staff decisions are recorded automatically. A
+        saved result remains available if an upload needs retrying.
       </p>
     </form>
   );

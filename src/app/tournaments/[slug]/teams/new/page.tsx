@@ -38,7 +38,7 @@ export default async function NewTeam({
           {t("← Semua pasukan", "← All teams")}
         </Link>
         <div className="eyebrow">{event.name}</div>
-        <h1>{t("Bina pasukan kau.", "Build your team.")}</h1>
+        <h1>{t("Bina pasukan anda.", "Build your team.")}</h1>
         <nav
           aria-label={t(
             "Langkah pendaftaran pasukan",
@@ -88,12 +88,12 @@ export default async function NewTeam({
           <h2>{t("Semak permohonan pemain", "Review player applications")}</h2>
           <p className="muted">
             {t(
-              "Daftar pasukan kau dahulu. Permohonan pemain akan muncul di halaman pasukan kau untuk kau luluskan atau tolak.",
+              "Daftar pasukan anda dahulu. Permohonan pemain akan muncul di halaman pasukan anda untuk anda luluskan atau tolak.",
               "Register your team first. Player applications will appear on your team page, where you can approve or reject them.",
             )}
           </p>
           <Link className="text-link" href="#team-registration">
-            {t("Daftar pasukan kau ↑", "Register your team ↑")}
+            {t("Daftar pasukan anda ↑", "Register your team ↑")}
           </Link>
         </section>
       )}

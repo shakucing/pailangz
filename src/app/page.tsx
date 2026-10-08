@@ -7,7 +7,15 @@ import { HeroOrbit } from "@/components/hero-orbit";
 import { EventPresentation } from "@/components/event-presentation";
 import { eventPresentationData } from "@/lib/event-presentation-data";
 import { originalConfiguration } from "@/lib/tournament-config";
-import { publicTeams } from "@/lib/team-portal";
+import {
+  publicTeams,
+  publicTeamEvent,
+  teamRegistrationOpen,
+} from "@/lib/team-portal";
+import {
+  participationStatus,
+  registrationEvent,
+} from "@/lib/participation-status";
 import { TeamDirectory } from "@/components/team-directory";
 import { getLocale, translate } from "@/lib/i18n";
 import {
@@ -26,7 +34,14 @@ export default async function Home() {
   const featured = tournaments[0];
   const event = await eventPresentationData(featured?.slug);
   const teamSlug = event?.slug ?? featured?.slug ?? "pailangz-solo-team";
-  const teams = await publicTeams(teamSlug);
+  const [teams, registration, entryStatus, teamEvent] = await Promise.all([
+    publicTeams(teamSlug),
+    registrationEvent(teamSlug),
+    participationStatus(teamSlug),
+    publicTeamEvent(teamSlug),
+  ]);
+  const teamEntryOpen = teamEvent && teamRegistrationOpen(teamEvent);
+  const arena = registration ?? featured;
   const config =
     event?.configuration ?? featured?.configuration ?? originalConfiguration;
   return (
@@ -48,7 +63,16 @@ export default async function Home() {
             )}
           </p>
           <div className="actions">
-            <Link className="button" href="/tournaments">
+            {registration && (
+              <a className="button" href="#tournament-registration">
+                {t("Pendaftaran kejohanan", "Tournament registration")}
+                <ArrowUpRight size={15} aria-hidden="true" />
+              </a>
+            )}
+            <Link
+              className={`button${registration ? " secondary" : ""}`}
+              href="/tournaments"
+            >
               {t("Lihat kejohanan", "View tournaments")}
             </Link>
             <a className="button secondary" href="#tournament-format">
@@ -88,13 +112,13 @@ export default async function Home() {
         </div>
       </div>
       <FadeContent>
-        <section className="section">
+        <section className="section" id="tournament-registration">
           <div className="section-title">
             <div>
               <div className="eyebrow">
                 {t("Arena seterusnya", "The next arena")}
               </div>
-              <h2>{t("Skill kau. Pentas kita.", "Your skill. Our arena.")}</h2>
+              <h2>{t("Skill anda. Pentas kita.", "Your skill. Our arena.")}</h2>
             </div>
             <Link href="/tournaments" className="text-link">
               {t("Semua kejohanan ↗", "All tournaments ↗")}
@@ -102,28 +126,91 @@ export default async function Home() {
           </div>
           <div className="feature">
             <div className="feature-body">
-              <span className={`badge ${featured ? "" : "warning"}`}>
-                {featured
-                  ? t("Kejohanan diterbitkan", "Published tournament")
-                  : t("Dalam persediaan", "In preparation")}
+              <span
+                className={`badge ${registration ? (entryStatus === "OPEN" ? "success" : "warning") : featured ? "" : "warning"}`}
+              >
+                {registration
+                  ? entryStatus === "OPEN"
+                    ? t("Pendaftaran pemain dibuka", "Player registration open")
+                    : entryStatus === "FULL"
+                      ? t("Slot pemain penuh", "Player places full")
+                      : t(
+                          "Pendaftaran pemain ditutup",
+                          "Player registration closed",
+                        )
+                  : featured
+                    ? t("Kejohanan diterbitkan", "Published tournament")
+                    : t("Dalam persediaan", "In preparation")}
               </span>
               <h2 style={{ marginTop: 20 }}>
-                {featured?.name ?? "PAILANGZ & PAILANGZZ"}
+                {arena?.name ?? "PAILANGZ & PAILANGZZ"}
                 <br />
-                {!featured && (
+                {!arena && (
                   <span className="muted">Solo & Team Tournament</span>
                 )}
               </h2>
               <p className="muted">
-                {featured?.overview ??
+                {(registration
+                  ? locale === "en" && registration.overviewEn
+                    ? registration.overviewEn
+                    : registration.overview
+                  : featured?.overview) ??
                   t(
                     "Dari duel 1v1 ke kerjasama empat pemain. Kenali pemain solo dan pasukan terkuat dalam gang.",
                     "From 1v1 duels to four-player teamwork. Find the strongest solo players and teams in the gang.",
                   )}
               </p>
               <p className="text-sm">
-                {dateText(featured?.startsAt ?? null, locale)}
+                {dateText(arena?.startsAt ?? null, locale)}
               </p>
+              {registration && (
+                <div className="landing-registration">
+                  <p className="text-sm">
+                    {entryStatus === "FULL"
+                      ? t(
+                          `Semua ${registration.capacity} slot pemain telah diisi. Pemain yang diluluskan masih boleh membentuk pasukan semasa pendaftaran pasukan dibuka.`,
+                          `All ${registration.capacity} player places are filled. Approved players can still form teams while team registration is open.`,
+                        )
+                      : t(
+                          "Satu pendaftaran pemain untuk SOLO & TEAM. Selepas diluluskan, sertai pasukan atau daftar pasukan anda sebagai kapten.",
+                          "One player registration for SOLO & TEAM. Once approved, join a team or register your own as captain.",
+                        )}
+                  </p>
+                  {registration.registrationDeadline && (
+                    <p className="muted text-sm">
+                      {t("Pendaftaran ditutup", "Registration closes")}:{" "}
+                      {dateText(registration.registrationDeadline, locale)}
+                    </p>
+                  )}
+                  <div className="actions">
+                    <Link
+                      className={`button${entryStatus === "OPEN" ? "" : " secondary"}`}
+                      href={`/participate/${registration.slug}`}
+                    >
+                      {entryStatus === "OPEN"
+                        ? t(
+                            "Daftar pemain · SOLO & TEAM",
+                            "Register as a player · SOLO & TEAM",
+                          )
+                        : t(
+                            "Lihat status pendaftaran",
+                            "View registration status",
+                          )}
+                      <ArrowUpRight size={15} aria-hidden="true" />
+                    </Link>
+                    {teamEvent && (
+                      <Link
+                        className="button secondary"
+                        href={`/tournaments/${registration.slug}/teams${teamEntryOpen ? "/new" : ""}`}
+                      >
+                        {teamEntryOpen
+                          ? t("Daftar pasukan", "Register a team")
+                          : t("Lihat pasukan", "View teams")}
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
               {featured && (
                 <Link
                   className="button secondary"
@@ -192,7 +279,7 @@ export default async function Home() {
               },
               {
                 icon: Swords,
-                title: t("Buktikan skill kau.", "Show your skills."),
+                title: t("Buktikan skill anda.", "Show your skills."),
                 text: t(
                   "Persaingan sihat untuk kenali pemain solo dan team yang paling mantap.",
                   "Healthy competition to recognize strong solo players and teams.",

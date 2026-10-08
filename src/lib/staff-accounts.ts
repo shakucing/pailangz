@@ -7,19 +7,48 @@ import { DomainError } from "./domain";
 const name = z.string().trim().min(1).max(100);
 const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 const role = z.enum(["ADMIN", "MODERATOR"]);
+const password = z
+  .string()
+  .min(14)
+  .max(200)
+  .refine(
+    (value) =>
+      Buffer.byteLength(value, "utf8") <= 72 && !/[\r\n\u0000]/.test(value),
+    "Use a password of at least 14 characters and at most 72 UTF-8 bytes, without line breaks.",
+  );
 export const staffCreateSchema = z.object({
   name,
   email,
   role,
-  password: z
-    .string()
-    .min(14)
-    .max(200)
-    .refine(
-      (value) => Buffer.byteLength(value, "utf8") <= 72,
-      "Use a password of at least 14 characters and at most 72 UTF-8 bytes.",
-    ),
+  password,
 });
+export const staffResetPasswordSchema = z.object({
+  id: z.string().uuid(),
+  password,
+});
+export async function staffResetPassword(actor: Actor, value: unknown) {
+  adminOnly(actor);
+  const input = staffResetPasswordSchema.parse(value);
+  if (input.id === actor.id)
+    throw new DomainError(
+      "Ask another admin or the site operator to reset your password.",
+    );
+  await rateLimit(`staff-password-reset:${actor.id}`, 10, 60);
+  const passwordHash = await hash(input.password, 12);
+  return privateTx(actor, async (tx) => {
+    const target = await tx.staffUser.findUniqueOrThrow({
+      where: { id: input.id },
+      select: { name: true, role: true },
+    });
+    await tx.$executeRaw`SELECT app_reset_staff_password(${input.id},${passwordHash})`;
+    await audit(tx, actor, "STAFF_PASSWORD_RESET", "STAFF", input.id, {
+      name: target.name,
+      role: target.role,
+      sessionsRevoked: true,
+    });
+    return { id: input.id };
+  });
+}
 export const staffEditSchema = z.object({
   id: z.string().uuid(),
   name: name.optional(),

@@ -63,6 +63,7 @@ export function WorkspaceDialog({
   onClose,
   busy = false,
   dirty = false,
+  closeLabel = "Close",
 }: {
   title: string;
   description?: string;
@@ -70,6 +71,7 @@ export function WorkspaceDialog({
   onClose: () => void;
   busy?: boolean;
   dirty?: boolean;
+  closeLabel?: string;
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -156,7 +158,7 @@ export function WorkspaceDialog({
         <button
           type="button"
           className="button secondary"
-          aria-label="Close dialog"
+          aria-label={closeLabel === "Close" ? "Close dialog" : closeLabel}
           onClick={dismiss}
           disabled={busy}
         >
@@ -214,7 +216,7 @@ export function WorkspaceDialog({
               onClick={dismiss}
               disabled={busy}
             >
-              Close
+              {closeLabel}
             </button>
           </>
         )}

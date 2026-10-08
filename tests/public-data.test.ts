@@ -167,6 +167,8 @@ describe("public tournament player privacy", () => {
         b: "T02 · Team Beta",
       });
       const stage = tournament!.categories[0].stages[0];
+      expect(stage.rankingsFinalized).toBe(true);
+      expect(stage.rankingsStale).toBe(false);
       expect(stage.rounds[0].matches[0]).toMatchObject({ a: "P01", b: "P02" });
       expect(stage.standings[0]).toMatchObject({
         code: "P01",

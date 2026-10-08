@@ -30,7 +30,7 @@ export default async function Register() {
         <h1>{t("Permohonan ahli", "Member application")}</h1>
         <p className="muted">
           {t(
-            "Borang ini dikongsi secara individu dengan pemohon terpilih. Lengkapkan maklumat kau untuk semakan moderator.",
+            "Borang ini dikongsi secara individu dengan pemohon terpilih. Lengkapkan maklumat anda untuk semakan moderator.",
             "This form is shared individually with selected applicants. Complete your details for moderator review.",
           )}
         </p>
@@ -81,14 +81,14 @@ export default async function Register() {
           </ol>
           <h3 className="mt-5">
             {t(
-              "Maklumat pemain kekal sulit.",
-              "Player information stays private.",
+              "Maklumat pendaftaran anda",
+              "Your registration details",
             )}
           </h3>
           <p className="muted">
             {t(
-              "Nama dalam game SOLO bagi acara asal dipaparkan bersama kod peserta pada halaman utama dengan kebenaran pemain. Nombor WhatsApp, akaun sosial, lokasi dan jawapan pendaftaran hanya untuk moderator dan admin yang dibenarkan.",
-              "The original event’s SOLO in-game names appear alongside participant codes on the landing page with players’ permission. WhatsApp numbers, social accounts, location and registration answers are accessible only to authorized moderators and admins.",
+              "Nama dalam game anda akan dipaparkan kepada umum. Akaun media sosial, nombor WhatsApp dan maklumat pendaftaran lain kekal sulit dan hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
+              "Your in-game name will be displayed publicly. Your social media accounts, WhatsApp number and other registration details will stay confidential. Only authorized moderators and admins can view them.",
             )}
           </p>
         </aside>

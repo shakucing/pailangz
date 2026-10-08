@@ -84,7 +84,19 @@ The snapshot import above is only for an empty database. Once it has succeeded, 
 pnpm db:neon:migrate
 ```
 
-This reads the existing private `target.env` owner URL, requires the production database label and checks the completed Prisma migration history against this checkout. It refuses unfinished, altered, unknown or skipped migrations, applies only pending migrations and verifies completion. TLS uses `verify-full`. Credentials and row contents are not printed. Existing records, staff passwords and encryption keys are retained; neither snapshot import nor seeding runs.
+This reads the existing private `target.env` owner URL, requires the production table owner and database label, and checks the completed Prisma migration history against this checkout. It refuses unfinished, altered, unknown or skipped migrations, applies pending SQL migrations and verifies completion. TLS uses `verify-full`. Credentials and row contents are not printed.
+
+The command also applies the explicitly requested **one-time empty 32-player / eight-team reset** to the configured original tournament, even if migrations 001–020 were already run in the Neon SQL Editor. It removes that event's unplayed fixtures and tournament player assignments, archives its existing teams and deactivates their memberships, and installs the same 32-player, six-round configuration as the local reset. No new fixtures are generated. Member identities, private registration records, member applications, staff accounts/passwords, encryption keys and audit history are retained. The command does not copy the local database or reseed production.
+
+Before the reset, it verifies the saved production encryption settings from `.local/neon-transfer/vercel.env` match the selected Neon database and can decrypt existing records. It saves a private, uniquely named pre-reset snapshot under `.local/neon-transfer/tournament-reset/` (directory mode 0700; file mode 0600). `NEON_TRANSFER_DIR` changes the transfer directory for both configuration and backups. Preserve this backup locally. Missing/mismatched credentials, failed backups, published or started competition, retained results/history, pending configuration revisions, or more than 32 participation requests stop the reset; the reset transaction rolls back on failure. SQL migrations already completed remain applied, and the command can be retried after the cause is resolved.
+
+The reset and its permanent audit completion record commit in one transaction. **Later runs skip this reset**, preserving players, teams, fixtures and results added afterward. An already-empty 32-player tournament is recorded as complete without clearing anything again. The earlier SQL bundle applies schema migrations only; use this command for the one-time data reset.
+
+To check schema history and whether the reset is pending **without changing the database**, run:
+
+```sh
+pnpm db:neon:migrate --check
+```
 
 For this staff operations update, migration `202610070010_staff_management_performance` adds admin-only account functions and performance indexes and makes row-policy identity checks run once per statement. After the command succeeds, push the code and redeploy Vercel Production. The repository's function region is Singapore (`sin1`), matching the Neon database.
 

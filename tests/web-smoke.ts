@@ -173,6 +173,124 @@ try {
     },
   );
   await check(
+    "staff entry resumes valid admin and moderator sessions without another login",
+    async () => {
+      async function expectRedirect(response: Response, destination: string) {
+        if (response.status === 307) {
+          assert.equal(response.headers.get("location"), destination);
+        } else {
+          // The root loading boundary can start streaming before auth resolves.
+          // Next.js then sends the redirect in a meta tag for the browser.
+          assert.equal(response.status, 200);
+          const html = await response.text();
+          assert.ok(html.includes('id="__next-page-redirect"'));
+          assert.ok(html.includes(`content="1;url=${destination}"`));
+          assert.ok(!html.includes('name="password"'));
+        }
+      }
+      for (const [id, cookie, destination] of [
+        [adminId, admin.cookie, "/admin"],
+        [modId, mod.cookie, "/moderator"],
+      ]) {
+        const sessions = await owner.staffSession.findMany({
+          where: { userId: id },
+          orderBy: { id: "asc" },
+        });
+        for (let visit = 0; visit < 2; visit++) {
+          const response = await fetch(`${origin}/staff`, {
+            headers: { Cookie: cookie },
+            redirect: "manual",
+          });
+          await expectRedirect(response, destination);
+          assert.match(
+            response.headers.get("cache-control") ?? "",
+            /private.*no-store/,
+          );
+          assert.equal(response.headers.get("cdn-cache-control"), "no-store");
+          const legacy = await fetch(`${origin}/login`, {
+            headers: { Cookie: cookie },
+            redirect: "manual",
+          });
+          await expectRedirect(legacy, "/staff");
+        }
+        assert.deepEqual(
+          await owner.staffSession.findMany({
+            where: { userId: id },
+            orderBy: { id: "asc" },
+          }),
+          sessions,
+          "resuming staff access must not create or extend sessions",
+        );
+      }
+    },
+  );
+  await check(
+    "staff entry shows login for anonymous, expired, revoked and invalidated sessions",
+    async () => {
+      async function expectLogin(cookie = "") {
+        const response = await fetch(`${origin}/staff`, {
+          headers: { Cookie: cookie },
+          redirect: "manual",
+        });
+        assert.equal(response.status, 200);
+        assert.ok((await response.text()).includes('name="password"'));
+        assert.match(
+          response.headers.get("cache-control") ?? "",
+          /private.*no-store/,
+        );
+      }
+      await expectLogin();
+      await expectLogin("next-auth.session-token=invalid-token");
+      for (const [id, cookie] of [
+        [adminId, admin.cookie],
+        [modId, mod.cookie],
+      ]) {
+        const session = await owner.staffSession.findFirstOrThrow({
+          where: { userId: id },
+        });
+        const user = await owner.staffUser.findUniqueOrThrow({ where: { id } });
+        try {
+          await owner.staffSession.update({
+            where: { id: session.id },
+            data: { expiresAt: new Date(Date.now() - 60_000) },
+          });
+          await expectLogin(cookie);
+          await owner.staffSession.update({
+            where: { id: session.id },
+            data: { expiresAt: session.expiresAt, revoked: true },
+          });
+          await expectLogin(cookie);
+          await owner.staffSession.update({
+            where: { id: session.id },
+            data: { revoked: false },
+          });
+          await owner.staffUser.update({
+            where: { id },
+            data: { suspended: true },
+          });
+          await expectLogin(cookie);
+          await owner.staffUser.update({
+            where: { id },
+            data: { suspended: false, sessionVersion: user.sessionVersion + 1 },
+          });
+          await expectLogin(cookie);
+        } finally {
+          await owner.staffSession.update({
+            where: { id: session.id },
+            data: { expiresAt: session.expiresAt, revoked: session.revoked },
+          });
+          await owner.staffUser.update({
+            where: { id },
+            data: {
+              suspended: user.suspended,
+              sessionVersion: user.sessionVersion,
+            },
+          });
+        }
+      }
+    },
+  );
+  await check(
     "password-only logins create independent revocable sessions",
     async () => {
       const second = await login(email);
@@ -228,13 +346,13 @@ try {
         assert.match(response.headers.get("cache-control") ?? "", /no-store/);
         if (section === "/matches") {
           assert.equal(
-            (screenText.match(/Enter \/ correct score/g) ?? []).length,
+            (screenText.match(/Enter \/ correct result/g) ?? []).length,
             8,
-            "the fixture page must render only eight score dialog triggers",
+            "the fixture page must render only eight result dialog triggers",
           );
           assert.ok(
             !/<form[^>]*class="form match-result-form"/.test(html),
-            "score editors stay unmounted until opened",
+            "result editors stay unmounted until opened",
           );
           assert.ok(html.includes("Show fixtures"));
         }

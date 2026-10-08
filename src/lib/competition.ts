@@ -224,7 +224,6 @@ export async function reviewResult(
       where: { id: input.id },
       include: {
         games: true,
-        evidence: true,
         match: { include: { round: { include: { stage: true } } } },
       },
     });
@@ -244,8 +243,6 @@ export async function reviewResult(
         return { id: result.id };
       if (result.status !== "SUBMITTED")
         throw new DomainError("Only a submitted result can be accepted.");
-      if (!result.evidence.length)
-        throw new DomainError("Upload result evidence before acceptance.");
       validateSeries(
         m.bestOf,
         result.games,

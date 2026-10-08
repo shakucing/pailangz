@@ -207,7 +207,7 @@ export function TeamRosterForm({
           value={team?.memberIds}
           options={players}
           max={4}
-          help="Choose up to four approved players. Names already on another team are unavailable. Remove a selected name using the × button."
+          help="Choose up to four registered, eligible players from this tournament. Withdrawn players and members who have not entered this tournament are excluded. Names already on another team are unavailable. Remove a selected name using the × button."
         />
         {teamId && (
           <label className="choice-row">

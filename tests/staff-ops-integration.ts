@@ -9,12 +9,11 @@ export async function checkRoutineStaffOperations(
   mod: Actor,
   check: (name: string, fn: () => Promise<void>) => Promise<void>,
 ) {
-  const { privateTx } = await import("../src/lib/db");
   const { memberUpdate, privateDetails } =
     await import("../src/lib/operations");
   const { ingest, approveRegistrations, decideRegistration } =
     await import("../src/lib/imports");
-  const { submitResult, reviewResult, saveTournament } =
+  const { submitResult, reviewResult, saveTournament, advanceWinner } =
     await import("../src/lib/competition");
   const { decrypt, encrypt } = await import("../src/lib/crypto");
   const memberId = randomUUID(),
@@ -363,7 +362,7 @@ export async function checkRoutineStaffOperations(
   );
   let result = "";
   await check(
-    "normal scores submit without a note; evidence is still required to confirm",
+    "valid results can be confirmed without a note or screenshot",
     async () => {
       result = (
         await submitResult(mod, {
@@ -376,26 +375,38 @@ export async function checkRoutineStaffOperations(
           idempotencyKey: randomUUID(),
         })
       ).id;
-      await assert.rejects(
-        reviewResult(mod, { id: result, action: "ACCEPT", reason: "" }),
-        /evidence/i,
-      );
-      await privateTx(actor, (tx) =>
-        tx.evidence.create({
-          data: {
-            resultId: result,
-            storageKey: "synthetic-unused-object",
-            mime: "image/png",
-            size: 16,
-            uploadedBy: actor.id,
-          },
-        }),
-      );
+      await reviewResult(mod, { id: result, action: "ACCEPT", reason: "" });
       await reviewResult(mod, { id: result, action: "ACCEPT", reason: "" });
       assert.equal(
         (await owner.query('SELECT status FROM "Match" WHERE id=$1', [match]))
           .rows[0].status,
         "FINALIZED",
+      );
+      const accepted = (
+        await owner.query(
+          'SELECT status,"acceptedBy" FROM "ResultVersion" WHERE id=$1',
+          [result],
+        )
+      ).rows[0];
+      assert.equal(accepted.status, "ACCEPTED");
+      assert.equal(accepted.acceptedBy, mod.id);
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT count(*)::int n FROM "Evidence" WHERE "resultId"=$1',
+            [result],
+          )
+        ).rows[0].n,
+        0,
+      );
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT count(*)::int n FROM "AuditEvent" WHERE "entityId"=$1 AND action=\'RESULT_ACCEPT\'',
+            [match],
+          )
+        ).rows[0].n,
+        1,
       );
     },
   );
@@ -439,6 +450,71 @@ export async function checkRoutineStaffOperations(
         ])
       ).rows[0].reason;
       assert.equal(decrypt(reason, `match:${match}`), "");
+    },
+  );
+  await check(
+    "BO5 final winners save, confirm and complete without a screenshot",
+    async () => {
+      const knockout = (
+        await owner.query(
+          'SELECT s.id FROM "Stage" s JOIN "Category" c ON c.id=s."categoryId" WHERE c."tournamentId"=$1 AND c.kind=\'SOLO\' AND s.key=\'knockout\'',
+          [t.id],
+        )
+      ).rows[0];
+      await owner.query(
+        'UPDATE "Stage" SET rules=$2,"confirmedRules"=$3 WHERE id=$1',
+        [
+          knockout.id,
+          { seriesPoints: true, drawPolicy: "no_draws" },
+          ["seriesPoints", "drawPolicy"],
+        ],
+      );
+      const finalRound = randomUUID(),
+        finalMatch = randomUUID();
+      await owner.query(
+        'INSERT INTO "Round" (id,"stageId",number,name) VALUES ($1,$2,3,\'Final\')',
+        [finalRound, knockout.id],
+      );
+      await owner.query(
+        'INSERT INTO "Match" (id,"roundId","order","sideAId","sideBId","bestOf") VALUES ($1,$2,1,$3,$4,5)',
+        [finalMatch, finalRound, playerA, playerB],
+      );
+      const input = {
+        matchId: finalMatch,
+        outcome: "B_WIN",
+        games: [
+          { scoreA: 0, scoreB: 1 },
+          { scoreA: 1, scoreB: 0 },
+          { scoreA: 0, scoreB: 1 },
+          { scoreA: 0, scoreB: 1 },
+        ],
+        idempotencyKey: randomUUID(),
+      };
+      const saved = await submitResult(mod, input);
+      assert.deepEqual(await submitResult(mod, input), saved);
+      await reviewResult(mod, { id: saved.id, action: "ACCEPT", reason: "" });
+      assert.deepEqual(
+        await advanceWinner(mod, { matchId: finalMatch, reason: "" }),
+        { completed: true },
+      );
+      assert.deepEqual(
+        (
+          await owner.query(
+            'SELECT status,"currentResultId" FROM "Match" WHERE id=$1',
+            [finalMatch],
+          )
+        ).rows[0],
+        { status: "FINALIZED", currentResultId: saved.id },
+      );
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT count(*)::int n FROM "Evidence" WHERE "resultId"=$1',
+            [saved.id],
+          )
+        ).rows[0].n,
+        0,
+      );
     },
   );
 }

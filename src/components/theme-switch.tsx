@@ -1,6 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useState } from "react";
+import { Monitor, Sun, Moon } from "lucide-react";
 import type { Locale } from "@/lib/i18n";
 
 type Theme = "system" | "light" | "dark";
@@ -37,15 +38,22 @@ export function ThemeSwitch({ locale }: { locale: Locale }) {
     window.addEventListener("focus", sync);
     return () => window.removeEventListener("focus", sync);
   }, []);
+  const next: Theme =
+    theme === "system" ? "light" : theme === "light" ? "dark" : "system";
+  const labels =
+    locale === "en"
+      ? { system: "Device", light: "Light", dark: "Dark" }
+      : { system: "Peranti", light: "Cerah", dark: "Gelap" };
+  const label = `${locale === "en" ? "Theme" : "Tema"}: ${labels[theme]}. ${locale === "en" ? "Switch to" : "Tukar kepada"} ${labels[next]}`;
 
   return (
-    <label className="theme-select">
-      <span className="sr-only">{locale === "en" ? "Theme" : "Tema"}</span>
-      <select
-        aria-label={locale === "en" ? "Theme" : "Tema"}
-        value={theme}
-        onChange={(event) => {
-          const next = event.target.value as Theme;
+    <span className="theme-select">
+      <button
+        type="button"
+        className="preference-toggle theme-toggle"
+        aria-label={label}
+        title={label}
+        onClick={() => {
           setTheme(next);
           applyTheme(next);
           try {
@@ -55,10 +63,17 @@ export function ThemeSwitch({ locale }: { locale: Locale }) {
           }
         }}
       >
-        <option value="system">{locale === "en" ? "Device" : "Peranti"}</option>
-        <option value="light">{locale === "en" ? "Light" : "Cerah"}</option>
-        <option value="dark">{locale === "en" ? "Dark" : "Gelap"}</option>
-      </select>
-    </label>
+        {theme === "system" ? (
+          <Monitor size={19} aria-hidden="true" />
+        ) : theme === "light" ? (
+          <Sun size={19} aria-hidden="true" />
+        ) : (
+          <Moon size={19} aria-hidden="true" />
+        )}
+      </button>
+      <span className="sr-only" role="status">
+        {labels[theme]}
+      </span>
+    </span>
   );
 }

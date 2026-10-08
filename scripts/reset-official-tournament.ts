@@ -1,14 +1,16 @@
 import "dotenv/config";
-import { mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { PrismaClient, Prisma } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { audit } from "../src/lib/db";
-import { encrypt } from "../src/lib/crypto";
+import { decrypt, encrypt } from "../src/lib/crypto";
 import { createStages } from "../src/lib/configuration";
 import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { emptyTournamentUpgrade } from "./neon-data-upgrade";
 
 // Operator-only reset for the named, unplayed event. Member identities, private
 // registrations, applications and immutable audit history are never deleted.
@@ -16,9 +18,26 @@ export async function resetOfficialTournament(
   owner: PrismaClient,
   apply: boolean,
   backup: (snapshot: unknown) => Promise<void>,
+  options: { upgradeId?: string; production?: boolean } = {},
 ) {
   return owner.$transaction(
     async (tx) => {
+      if (options.production) {
+        const [environment] = await tx.$queryRaw<
+          { tier: string; owner: boolean }[]
+        >`SELECT tier, current_user=pg_get_userbyid(c.relowner) AS owner
+          FROM "DeploymentEnvironment", pg_class c WHERE c.oid='public."Tournament"'::regclass`;
+        if (environment?.tier !== "production" || !environment.owner)
+          throw new Error(
+            "Production reset requires the production table owner.",
+          );
+      }
+      if (options.upgradeId) {
+        const [lock] = await tx.$queryRaw<{ acquired: boolean }[]>`
+          SELECT pg_try_advisory_xact_lock(hashtextextended(${options.upgradeId},0)) AS acquired`;
+        if (!lock.acquired)
+          throw new Error("The tournament data upgrade is already running.");
+      }
       const setting = await tx.integrationSetting.findUniqueOrThrow({
         where: { key: "officialSeedTournament" },
       });
@@ -55,6 +74,29 @@ export async function resetOfficialTournament(
       });
       const stages = tournament.categories.flatMap((c) => c.stages);
       const matches = stages.flatMap((s) => s.rounds.flatMap((r) => r.matches));
+      const summary = {
+        players: tournament.participants.length,
+        fixtures: matches.length,
+        teams: tournament.categories
+          .flatMap((c) => c.teams)
+          .filter((t) => !t.archived).length,
+        applicationsRetained: tournament.participationRequests.length,
+        configuration: newTournamentConfiguration,
+      };
+      // Check the durable marker before reset guards: future migrations must
+      // leave new entrants, published events and played matches untouched.
+      if (
+        options.upgradeId &&
+        (await tx.auditEvent.findFirst({
+          where: {
+            action: "TOURNAMENT_APPLICATION_RESET",
+            source: "OPERATOR",
+            outcome: "SUCCESS",
+            changes: { path: ["upgradeId"], equals: options.upgradeId },
+          },
+        }))
+      )
+        return { applied: false, alreadyApplied: true, ...summary };
       if (
         tournament.slug !== "pailangz-solo-team" ||
         tournament.published ||
@@ -77,23 +119,43 @@ export async function resetOfficialTournament(
         throw new Error(
           "Reset requires the original unplayed event with no published or retained competition history, pending revision, or excess applications.",
         );
-      const summary = {
-        players: tournament.participants.length,
-        fixtures: matches.length,
-        teams: tournament.categories
-          .flatMap((c) => c.teams)
-          .filter((t) => !t.archived).length,
-        applicationsRetained: tournament.participationRequests.length,
-        configuration: newTournamentConfiguration,
-      };
+      if (options.production) {
+        // Never encrypt production revision notes with keys from the local DB.
+        // Verify the saved production keyring against existing ciphertext first.
+        encrypt("Key validation", `tournament:${id}`);
+        for (const revision of tournament.revisions)
+          decrypt(revision.reasonEncrypted, `tournament:${id}`);
+        const privateMember = await tx.memberPrivate.findFirst();
+        if (privateMember)
+          decrypt(
+            privateMember.registrationEncrypted,
+            `member:${privateMember.memberId}`,
+          );
+      }
       if (!apply) return { applied: false, ...summary };
       if (
         !summary.players &&
         !summary.fixtures &&
         !summary.teams &&
         isDeepStrictEqual(tournament.configuration, newTournamentConfiguration)
-      )
+      ) {
+        if (options.upgradeId)
+          await audit(
+            tx,
+            null,
+            "TOURNAMENT_APPLICATION_RESET",
+            "TOURNAMENT",
+            id,
+            {
+              upgradeId: options.upgradeId,
+              alreadyEmpty: true,
+              applicationLimit: 32,
+            },
+            "Recorded the existing empty 32-player draft as the completed one-time upgrade.",
+            { source: "OPERATOR", tournamentId: id },
+          );
         return { applied: false, ...summary };
+      }
 
       await backup(tournament);
       const stageIds = stages.map((s) => s.id);
@@ -157,6 +219,7 @@ export async function resetOfficialTournament(
         "TOURNAMENT",
         id,
         {
+          ...(options.upgradeId ? { upgradeId: options.upgradeId } : {}),
           revisionId: revision.id,
           version,
           removedFixtures: summary.fixtures,
@@ -193,14 +256,20 @@ if (
       owner,
       process.argv.includes("--apply"),
       async (snapshot) => {
-        const directory = path.resolve(".local/tournament-reset");
+        const directory = path.resolve(
+          process.env.TOURNAMENT_RESET_BACKUP_DIR ?? ".local/tournament-reset",
+        );
         await mkdir(directory, { recursive: true, mode: 0o700 });
+        await chmod(directory, 0o700);
         await writeFile(
-          path.join(directory, `pailangz-${Date.now()}.json`),
+          path.join(directory, `pailangz-${Date.now()}-${randomUUID()}.json`),
           JSON.stringify(snapshot, null, 2),
           { mode: 0o600, flag: "wx" },
         );
       },
+      process.argv.includes("--neon-upgrade")
+        ? { upgradeId: emptyTournamentUpgrade, production: true }
+        : {},
     );
     console.log(JSON.stringify(result));
   } catch {

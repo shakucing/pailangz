@@ -22,7 +22,7 @@ export async function TeamDirectory({
         <div className="section-title">
           <div>
             <div className="eyebrow">SOLO &amp; TEAM</div>
-            <h2>{t("Cari pasukan kau", "Find your team")}</h2>
+            <h2>{t("Cari pasukan anda", "Find your team")}</h2>
             <p className="muted">
               {t(
                 "Pemain yang diluluskan boleh cipta pasukan atau mohon untuk menyertai.",
@@ -71,7 +71,7 @@ export async function TeamDirectory({
         <div className="empty">
           <strong>
             {t(
-              "Pasukan pertama bermula dengan kau.",
+              "Pasukan pertama bermula dengan anda.",
               "The first team starts with you.",
             )}
           </strong>

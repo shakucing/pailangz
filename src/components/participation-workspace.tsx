@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Tx } from "@/lib/db";
 import { operationalTime } from "@/lib/public-data";
 import { SectionPages } from "./operations-sections";
+import { staffParticipation } from "@/lib/staff-participation";
 
 export async function renderParticipation(
   tx: Tx,
@@ -9,60 +10,21 @@ export async function renderParticipation(
   base: string,
 ) {
   const search = q.q?.slice(0, 100);
-  const page = Math.max(1, Math.min(10000, Number(q.page) || 1));
-  const where = search
-    ? {
-        member: {
-          displayIgn: { contains: search, mode: "insensitive" as const },
-        },
-      }
-    : {};
-  const [rows, total] = await Promise.all([
-    tx.participationRequest.findMany({
-      where,
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: 50,
-      skip: (page - 1) * 50,
-      include: {
-        tournament: { select: { id: true, name: true } },
-        member: {
-          select: {
-            displayIgn: true,
-            verified: true,
-            archived: true,
-            participants: {
-              select: {
-                tournamentId: true,
-                code: true,
-                eligible: true,
-                withdrawn: true,
-              },
-            },
-            memberships: {
-              where: { active: true, team: { archived: false } },
-              select: {
-                category: { select: { tournamentId: true } },
-                team: { select: { name: true } },
-              },
-            },
-          },
-        },
-      },
-    }),
-    tx.participationRequest.count({ where }),
-  ]);
+  const page = Math.max(1, Math.min(10000, Math.trunc(Number(q.page)) || 1));
+  const { rows, total } = await staffParticipation(tx, { search, page });
   return (
     <div className="stack">
       <p className="muted">
-        Player applications for both SOLO &amp; TEAM, using each tournament’s
-        configured capacity. Matching approved, active members receive a
-        tournament slot automatically. Approved players can register teams and
-        apply to join them; owners approve their applications. Staff can manage
-        assignments in Team rosters.
+        Players added from tournament drafts and player signups for both SOLO
+        &amp; TEAM, using each tournament’s configured capacity. Matching
+        approved, active members receive a tournament slot automatically.
+        Approved players can register teams and apply to join them; owners
+        approve their applications. Staff can manage assignments in Team
+        rosters.
       </p>
       <form className="filter" method="get">
         <label className="sr-only" htmlFor="participation-search">
-          Search participation requests
+          Search tournament players
         </label>
         <input
           id="participation-search"
@@ -74,7 +36,7 @@ export async function renderParticipation(
       </form>
       {!rows.length ? (
         <div className="panel">
-          <p className="muted mb-0">No participation requests found.</p>
+          <p className="muted mb-0">No tournament players or signups found.</p>
         </div>
       ) : (
         <div className="table-wrap">
@@ -86,6 +48,7 @@ export async function renderParticipation(
                 <th>Categories</th>
                 <th>SOLO slot</th>
                 <th>TEAM assignment</th>
+                <th>Added through</th>
                 <th>Received</th>
               </tr>
             </thead>
@@ -107,7 +70,7 @@ export async function renderParticipation(
                     </td>
                     <td>
                       <Link href={`${base}/tournaments?id=${row.tournamentId}`}>
-                        {row.tournament.name}
+                        {row.tournamentName}
                       </Link>
                     </td>
                     <td>SOLO &amp; TEAM</td>
@@ -121,7 +84,12 @@ export async function renderParticipation(
                         {team?.team.name ?? "Awaiting assignment"}
                       </Link>
                     </td>
-                    <td>{operationalTime(row.createdAt)}</td>
+                    <td>
+                      {row.receivedAt ? "Player signup" : "Staff assignment"}
+                    </td>
+                    <td>
+                      {row.receivedAt ? operationalTime(row.receivedAt) : "—"}
+                    </td>
                   </tr>
                 );
               })}

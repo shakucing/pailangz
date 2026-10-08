@@ -10,8 +10,11 @@ import {
   displayValue,
 } from "@/lib/staff-presentation";
 import { TournamentConfigForm } from "./tournament-config-form";
+import { TournamentWorkspace } from "./tournament-workspace";
+import { TournamentPlayerList } from "./tournament-player-list";
 import { TournamentProgression } from "./tournament-progression";
 import { FixtureBrowser } from "./fixture-browser";
+import { FixtureStageFields } from "./fixture-stage-fields";
 import { MatchResultForm } from "./match-result-form";
 import {
   configuration,
@@ -300,6 +303,10 @@ async function renderSection(
     const { t, checks } = await tournamentReadiness(tx, q.id);
     const stages = t.categories.flatMap((c) => c.stages);
     const config = configuration(t.configuration);
+    const remainingPlayerPlaces = Math.max(
+      0,
+      config.soloCapacity - t.participants.length,
+    );
     const qualification = stages.find((s) => s.key === "qualification");
     const revisions = await tx.configurationRevision.findMany({
       where: { tournamentId: t.id },
@@ -364,6 +371,16 @@ async function renderSection(
         c.teams.map((team) => ({ value: team.id, label: team.name })),
       ]),
     );
+    const readinessHref = (key: string) =>
+      key === "teams"
+        ? `${base}/teams`
+        : key === "mapping"
+          ? "#player-list-confirmation"
+          : ["eligibility", "schedule"].includes(key)
+            ? "#tournament-players"
+            : ["dates", "gameTitle"].includes(key)
+              ? "#tournament-overview"
+              : "#tournament-rules";
     return (
       <div className="stack">
         <Link className="text-link" href={`${base}/tournaments`}>
@@ -386,473 +403,664 @@ async function renderSection(
             />
           </div>
         </details>
-        <TaskDialog
-          label={`Change tournament sizes · update ${t.configurationVersion}`}
-          title={`Tournament sizes · ${t.name}`}
-        >
-          <TournamentConfigForm id={t.id} configuration={config} />
-        </TaskDialog>
-        {revisions.map((r) => (
-          <TaskDialog
-            key={r.id}
-            label={`Tournament update ${r.version} · ${friendlyLabel(r.status)}`}
-            title={`Review tournament update ${r.version}`}
-            description={t.name}
-          >
-            <p>{decrypt(r.reasonEncrypted, `tournament:${t.id}`)}</p>
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Setting</th>
-                    <th>Current</th>
-                    <th>Proposed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {configurationRows(r.configuration).map((row, i) => (
-                    <tr key={row.key}>
-                      <td>{row.label}</td>
-                      <td>
-                        {configurationRows(r.beforeConfiguration)[i]?.value}
-                      </td>
-                      <td>{row.value}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {r.status === "PENDING" && actor.role === "ADMIN" && (
-              <>
-                <div className="notice">
-                  Applying a controlled restart retains previous matches,
-                  scores, evidence and standings in archived stages. Previous
-                  results will not count toward the new revision. Resolve
-                  affected brackets by restarting stages and reconfirming rules;
-                  no entrants are removed.
+        <div className="panel tournament-summary">
+          <div>
+            <h3>
+              {friendlyLabel(t.status)} ·{" "}
+              {t.published ? "Public" : "Private draft"}
+            </h3>
+            <p className="muted text-sm">
+              {t.participants.length}/{config.soloCapacity} players ·{" "}
+              {
+                t.categories
+                  .flatMap((c) => c.teams)
+                  .filter((team) => !team.archived).length
+              }
+              /{config.teamCapacity} teams · Sizes update{" "}
+              {t.configurationVersion}
+            </p>
+          </div>
+          <div className="actions">
+            <Link
+              className="button secondary"
+              href={`${base}/matches?tournamentId=${t.id}`}
+            >
+              View fixtures & results ↗
+            </Link>
+          </div>
+        </div>
+        <TournamentWorkspace
+          readiness={
+            <>
+              {" "}
+              <div className="panel">
+                <h3>
+                  Ready to publish · {checks.filter((c) => c.done).length}/
+                  {checks.length}
+                </h3>
+                <progress
+                  className="readiness-meter"
+                  aria-label="Tournament readiness"
+                  value={checks.filter((c) => c.done).length}
+                  max={checks.length}
+                />
+                <p className="muted text-sm">
+                  {checks.length - checks.filter((c) => c.done).length} items
+                  still need attention.
+                </p>
+                <div className="checks">
+                  {checks
+                    .filter((c) => !c.done)
+                    .slice(0, 3)
+                    .map((c) => (
+                      <div className="check" key={c.key}>
+                        <span>○</span>
+                        <a className="text-link" href={readinessHref(c.key)}>
+                          {c.label} ↗
+                        </a>
+                      </div>
+                    ))}
                 </div>
+                <details>
+                  <summary>View readiness checklist</summary>
+                  <div className="checks">
+                    {checks.map((c) => (
+                      <div
+                        className={`check ${c.done ? "done" : ""}`}
+                        key={c.key}
+                      >
+                        <span>{c.done ? "✓" : "○"}</span>
+                        {c.done ? (
+                          c.label
+                        ) : (
+                          <a className="text-link" href={readinessHref(c.key)}>
+                            {c.label} ↗
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </>
+          }
+          overview={
+            <>
+              {" "}
+              <div className="panel" id="tournament-registration-links">
+                <h3>SOLO &amp; TEAM registration links</h3>
+                <p className="muted text-sm">
+                  {t.registrationEnabled ? "Links enabled" : "Links disabled"} ·
+                  One player registration for SOLO &amp; TEAM. Approved players
+                  can then create or join a team.
+                  {!t.registrationEnabled &&
+                    " Enable player registration in Overview & schedule to make these pages available."}
+                </p>
+                <div className="actions">
+                  <Link
+                    className="button secondary"
+                    href={`/participate/${t.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Player registration ↗
+                  </Link>
+                  <Link
+                    className="button secondary"
+                    href={`/tournaments/${t.slug}/teams/new`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Team registration ↗
+                  </Link>
+                </div>
+                <p className="muted text-sm mt-4 mb-0">
+                  Share /participate/{t.slug} with players. Enabled registration
+                  also appears on the landing page for its featured event.
+                  Player entry closes at the deadline, when all{" "}
+                  {config.soloCapacity} places are filled, or when registration
+                  closes or the tournament is published.
+                </p>
+              </div>
+              <div className="panel">
+                <h3>Overview & schedule</h3>
+                <p className="muted text-sm">
+                  Dates use Malaysia time. Registration can open before fixtures
+                  and results are public.
+                </p>
+                <dl className="tournament-dates">
+                  <div>
+                    <dt>Game</dt>
+                    <dd>{t.gameTitle || "Not set"}</dd>
+                  </div>
+                  <div>
+                    <dt>Tournament starts</dt>
+                    <dd>
+                      {t.startsAt ? operationalTime(t.startsAt) : "Not set"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Registration closes</dt>
+                    <dd>
+                      {t.registrationDeadline
+                        ? operationalTime(t.registrationDeadline)
+                        : "Not set"}
+                    </dd>
+                  </div>
+                </dl>
+                <TaskDialog
+                  id="tournament-overview"
+                  label="Edit overview & schedule"
+                  title={`Overview & schedule · ${t.name}`}
+                >
+                  <ActionForm
+                    action="tournament"
+                    fixed={{ id: t.id }}
+                    fields={[
+                      {
+                        name: "name",
+                        label: "Name",
+                        value: t.name,
+                        required: true,
+                      },
+                      {
+                        name: "overview",
+                        label: "Overview",
+                        type: "textarea",
+                        value: t.overview,
+                        required: true,
+                      },
+                      {
+                        name: "registrationEnabled",
+                        label:
+                          "Enable player registration and shareable team pages",
+                        type: "checkbox",
+                        value: t.registrationEnabled,
+                      },
+                      {
+                        name: "gameTitle",
+                        label: "Game title",
+                        value: t.gameTitle ?? "",
+                      },
+                      {
+                        name: "startsAt",
+                        label: "Tournament starts",
+                        type: "datetime-local",
+                        value: t.startsAt?.toISOString() ?? "",
+                      },
+                      {
+                        name: "registrationDeadline",
+                        label: "Registration closes",
+                        type: "datetime-local",
+                        value: t.registrationDeadline?.toISOString() ?? "",
+                      },
+                      {
+                        name: "status",
+                        required: true,
+                        label: "Tournament status",
+                        type: "select",
+                        value: t.status,
+                        options: [
+                          "DRAFT",
+                          "REGISTRATION_OPEN",
+                          "REGISTRATION_CLOSED",
+                          "IN_PROGRESS",
+                          "COMPLETED",
+                          "ARCHIVED",
+                        ].map((x) => ({ value: x, label: friendlyLabel(x) })),
+                      },
+                      {
+                        name: "overviewEn",
+                        label: "English overview",
+                        type: "textarea",
+                        value: t.overviewEn ?? "",
+                      },
+                      reason,
+                    ]}
+                  />
+                </TaskDialog>
+              </div>
+              <div className="panel">
+                <h3>Publication</h3>
+                <p className="muted text-sm">
+                  Publication is blocked until readiness is complete. Draft
+                  fixture previews are available in the staff workspace.
+                </p>
                 <ActionForm
-                  action="revisionApply"
-                  fixed={{
-                    id: r.id,
-                    acknowledgement: "RESTART_AND_RETAIN_HISTORY",
-                  }}
+                  action="publish"
+                  fixed={{ id: t.id, published: !t.published }}
+                  fields={[reason]}
+                  label={t.published ? "Unpublish" : "Publish tournament"}
+                />
+              </div>
+            </>
+          }
+          players={
+            <>
+              {" "}
+              <TaskDialog
+                id="tournament-players"
+                label="Choose players and create league matches"
+                title={`Assign players · ${t.name}`}
+              >
+                {remainingPlayerPlaces > 0 ? (
+                  <ActionForm
+                    key={t.id}
+                    action="assignParticipants"
+                    resetOnSuccess
+                    fixed={{ id: t.id }}
+                    fields={[
+                      {
+                        name: "memberIds",
+                        label: "Choose players to add",
+                        type: "members",
+                        options: approvedMembers.filter(
+                          (m) =>
+                            !t.participants.some((p) => p.memberId === m.value),
+                        ),
+                        max: remainingPlayerPlaces,
+                        required: true,
+                        help: "Search by name and select approved members for this tournament.",
+                      },
+                      {
+                        name: "eligible",
+                        label: "Confirm these players can compete",
+                        type: "checkbox",
+                      },
+                      reason,
+                    ]}
+                    label="Assign SOLO entrants"
+                  />
+                ) : (
+                  <p className="feedback" role="status">
+                    All {config.soloCapacity} player places are filled. Review
+                    the assigned player list below, or use “Withdraw or replace
+                    a player” to change an entrant.
+                  </p>
+                )}
+                <hr className="divider" />
+                <ActionForm
+                  action="generateLeague"
+                  fixed={{ id: t.id }}
+                  fields={[reason]}
+                  label="Create league matches"
+                />
+              </TaskDialog>
+              <TournamentPlayerList
+                key={t.id}
+                tournamentId={t.id}
+                participants={t.participants.map((p) => ({
+                  id: p.id,
+                  code: p.code,
+                  eligible: p.eligible,
+                  member: {
+                    displayIgn: p.member.displayIgn,
+                    verified: p.member.verified,
+                    archived: p.member.archived,
+                  },
+                }))}
+                capacity={config.soloCapacity}
+                mappingConfirmed={t.mappingConfirmed}
+                published={t.published}
+              />
+              <div className="panel">
+                <h3 id="player-list-confirmation">Player list confirmation</h3>
+                <p className="muted text-sm">
+                  Check that the player names and codes match your approved
+                  list. Approve registrations and confirm each player can
+                  compete before publishing.
+                </p>
+                <ActionForm
+                  action="mapping"
+                  fixed={{ id: t.id }}
+                  fields={[reason]}
+                  label="Confirm player list"
+                />
+              </div>
+              <TaskDialog
+                label="Withdraw or replace a player"
+                title="Withdraw or replace a player"
+                description={t.name}
+              >
+                <p className="muted">
+                  Choose an entrant and optionally a replacement. The previous
+                  entry stays in history. Unplayed draft fixtures are rebuilt,
+                  so check their schedule and confirm the player list again. A
+                  replacement inherits the team place and ownership, if any.
+                  Started competition requires an admin-controlled restart.
+                </p>
+                <ActionForm
+                  action="changeEntrant"
+                  label="Save player change"
                   fields={[
                     {
-                      name: "confirmRestart",
-                      label:
-                        "I understand this restarts the competition. Previous results stay in history and will not count in the new competition.",
-                      type: "checkbox",
+                      name: "id",
+                      label: "Current entrant",
+                      type: "select",
                       required: true,
+                      options: t.participants.map((p) => ({
+                        value: p.id,
+                        label: `${p.code} · ${p.member.displayIgn}`,
+                      })),
+                    },
+                    {
+                      name: "replacementMemberId",
+                      label: "Replacement (leave blank to withdraw)",
+                      type: "select",
+                      options: approvedMembers.filter(
+                        (m) =>
+                          !t.participants.some((p) => p.memberId === m.value),
+                      ),
                     },
                     requiredReason,
                   ]}
-                  label="Restart competition with these sizes"
                 />
-                <ActionForm
-                  action="revisionReject"
-                  fixed={{ id: r.id }}
-                  fields={[reason]}
-                  label="Reject proposal"
-                />
-              </>
-            )}
-            {r.resolutionEncrypted && (
-              <p>{decrypt(r.resolutionEncrypted, `revision:${r.id}`)}</p>
-            )}
-          </TaskDialog>
-        ))}
-        <TaskDialog
-          label="Choose players and create league matches"
-          title={`Assign players · ${t.name}`}
-        >
-          <ActionForm
-            action="assignParticipants"
-            fixed={{ id: t.id }}
-            fields={[
-              {
-                name: "memberIds",
-                label: "Choose players to add",
-                type: "members",
-                options: approvedMembers.filter(
-                  (m) => !t.participants.some((p) => p.memberId === m.value),
-                ),
-                max: Math.max(0, config.soloCapacity - t.participants.length),
-                required: true,
-                help: "Search by name and select approved members for this tournament.",
-              },
-              {
-                name: "eligible",
-                label: "Confirm these players can compete",
-                type: "checkbox",
-              },
-              reason,
-            ]}
-            label="Assign SOLO entrants"
-          />
-          <hr className="divider" />
-          <ActionForm
-            action="generateLeague"
-            fixed={{ id: t.id }}
-            fields={[reason]}
-            label="Create league matches"
-          />
-        </TaskDialog>
-        <div className="panel">
-          <h3>Player registration link</h3>
-          <p className="muted">
-            Enable registration in Overview &amp; schedule, then share this link
-            with players. Registration and team pages can open while fixtures
-            and results stay private. The configured SOLO capacity is the shared
-            player limit.
-          </p>
-          <Link className="text-link" href={`/participate/${t.slug}`}>
-            /participate/{t.slug} ↗
-          </Link>
-          <p className="text-sm">
-            {t.registrationEnabled ? "Link enabled" : "Link disabled"} ·{" "}
-            {config.soloCapacity} player places. Registration closes at the
-            deadline, when full, or when the tournament is published or
-            registration is closed.
-          </p>
-        </div>
-        <TaskDialog
-          label="Withdraw or replace a player"
-          title="Withdraw or replace a player"
-          description={t.name}
-        >
-          <p className="muted">
-            Choose an entrant and optionally a replacement. The previous entry
-            stays in history. Unplayed draft fixtures are rebuilt, so check
-            their schedule and confirm the player list again. A replacement
-            inherits the team place and ownership, if any. Started competition
-            requires an admin-controlled restart.
-          </p>
-          <ActionForm
-            action="changeEntrant"
-            label="Save player change"
-            fields={[
-              {
-                name: "id",
-                label: "Current entrant",
-                type: "select",
-                required: true,
-                options: t.participants.map((p) => ({
-                  value: p.id,
-                  label: `${p.code} · ${p.member.displayIgn}`,
-                })),
-              },
-              {
-                name: "replacementMemberId",
-                label: "Replacement (leave blank to withdraw)",
-                type: "select",
-                options: approvedMembers.filter(
-                  (m) => !t.participants.some((p) => p.memberId === m.value),
-                ),
-              },
-              requiredReason,
-            ]}
-          />
-        </TaskDialog>
-        <div className="grid2">
-          <div className="panel">
-            <h3>
-              Readiness · {checks.filter((c) => c.done).length}/{checks.length}
-            </h3>
-            <div className="checks">
-              {checks.map((c) => (
-                <div className={`check ${c.done ? "done" : ""}`} key={c.key}>
-                  <span>{c.done ? "✓" : "○"}</span>
-                  {c.done ? (
-                    c.label
-                  ) : (
-                    <a
-                      className="text-link"
-                      href={
-                        c.key === "teams"
-                          ? `${base}/teams`
-                          : c.key === "eligibility"
-                            ? `${base}/members`
-                            : c.key === "mapping"
-                              ? "#player-list-confirmation"
-                              : ["dates", "gameTitle"].includes(c.key)
-                                ? "#tournament-overview"
-                                : "#tournament-rules"
-                      }
+              </TaskDialog>
+              <Link className="button secondary" href={`${base}/teams`}>
+                Manage team rosters ↗
+              </Link>
+            </>
+          }
+          stages={
+            <>
+              {" "}
+              {stages.map((s) => (
+                <div className="panel" key={s.id}>
+                  <div className="row">
+                    <h3>{s.name}</h3>
+                    <span className="badge neutral ml-auto">
+                      Rules update {s.ruleVersion}
+                    </span>
+                  </div>
+                  <p className="muted text-sm">
+                    Confirmed:{" "}
+                    {s.confirmedRules.map(ruleLabel).join(", ") ||
+                      "No rules confirmed yet"}
+                  </p>
+                  <div className="tournament-stage-actions">
+                    <TaskDialog
+                      id={s === stages[0] ? "tournament-rules" : undefined}
+                      label="Edit tournament rules"
+                      title={`Tournament rules · ${s.name}`}
+                      description={t.name}
                     >
-                      {c.label} ↗
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="panel">
-            <h3 id="tournament-overview">Overview & schedule</h3>
-            <ActionForm
-              action="tournament"
-              fixed={{ id: t.id }}
-              fields={[
-                { name: "name", label: "Name", value: t.name, required: true },
-                {
-                  name: "overview",
-                  label: "Overview",
-                  type: "textarea",
-                  value: t.overview,
-                  required: true,
-                },
-                {
-                  name: "registrationEnabled",
-                  label: "Enable player registration and shareable team pages",
-                  type: "checkbox",
-                  value: t.registrationEnabled,
-                },
-                {
-                  name: "gameTitle",
-                  label: "Game title",
-                  value: t.gameTitle ?? "",
-                },
-                {
-                  name: "startsAt",
-                  label: "Tournament starts",
-                  type: "datetime-local",
-                  value: t.startsAt?.toISOString() ?? "",
-                },
-                {
-                  name: "registrationDeadline",
-                  label: "Registration closes",
-                  type: "datetime-local",
-                  value: t.registrationDeadline?.toISOString() ?? "",
-                },
-                {
-                  name: "status",
-                  required: true,
-                  label: "Tournament status",
-                  type: "select",
-                  value: t.status,
-                  options: [
-                    "DRAFT",
-                    "REGISTRATION_OPEN",
-                    "REGISTRATION_CLOSED",
-                    "IN_PROGRESS",
-                    "COMPLETED",
-                    "ARCHIVED",
-                  ].map((x) => ({ value: x, label: friendlyLabel(x) })),
-                },
-                {
-                  name: "overviewEn",
-                  label: "English overview",
-                  type: "textarea",
-                  value: t.overviewEn ?? "",
-                },
-                reason,
-              ]}
-            />
-          </div>
-        </div>
-        <div className="grid2">
-          <div className="panel">
-            <h3 id="player-list-confirmation">Player list confirmation</h3>
-            <p className="muted text-sm">
-              Check that the player names and codes match your approved list.
-              Approve registrations and confirm each player can compete before
-              publishing.
-            </p>
-            <ActionForm
-              action="mapping"
-              fixed={{ id: t.id }}
-              fields={[reason]}
-              label="Confirm player list"
-            />
-          </div>
-          <div className="panel">
-            <h3>Publication</h3>
-            <p className="muted text-sm">
-              Publication is blocked until readiness is complete. Draft fixture
-              previews are available in the staff workspace.
-            </p>
-            <ActionForm
-              action="publish"
-              fixed={{ id: t.id, published: !t.published }}
-              fields={[reason]}
-              label={t.published ? "Unpublish" : "Publish tournament"}
-            />
-          </div>
-        </div>
-        <Link
-          className="text-link"
-          href={`${base}/matches?history=${q.history === "true" ? "false" : "true"}`}
-        >
-          {q.history === "true"
-            ? "Show active stages"
-            : "Show retained stage / result history"}
-        </Link>
-        {stages.map((s) => (
-          <div className="panel" key={s.id}>
-            <div className="row">
-              <h3>{s.name}</h3>
-              <span className="badge neutral ml-auto">
-                Rules update {s.ruleVersion}
-              </span>
-            </div>
-            <p className="muted text-sm">
-              Confirmed:{" "}
-              {s.confirmedRules.map(ruleLabel).join(", ") ||
-                "No rules confirmed yet"}
-            </p>
-            <TaskDialog
-              id={s === stages[0] ? "tournament-rules" : undefined}
-              label="Edit tournament rules"
-              title={`Tournament rules · ${s.name}`}
-              description={t.name}
-            >
-              <ActionForm
-                action="rules"
-                fixed={{ stageId: s.id }}
-                label="Save rules"
-                fields={[
-                  {
-                    name: "rules",
-                    label: "Tournament rules",
-                    type: "rules",
-                    value: s.rules,
-                    confirmed: s.confirmedRules,
-                    stageKey: s.key,
-                    kind: t.categories.find((c) => c.id === s.categoryId)?.kind,
-                  },
-                  reason,
-                ]}
-              />
-            </TaskDialog>
-            <TaskDialog
-              label="Manage stage progression"
-              title={`Stage progression · ${s.name}`}
-              description={t.name}
-            >
-              {s.format === "LEAGUE" ? (
-                <>
-                  <ActionForm
-                    action="freeze"
-                    fixed={{ stageId: s.id }}
-                    label="Save final rankings"
-                    fields={[
-                      {
-                        name: "rankedIds",
-                        label: "Final player rankings",
-                        type: "ordered",
-                        options: rankingChoices.get(s.id) ?? [],
-                        value: (rankingChoices.get(s.id) ?? []).map(
-                          (p) => p.value,
-                        ),
-                        complete: true,
-                        min: (rankingChoices.get(s.id) ?? []).length,
-                        required: true,
-                        help: "The current standings appear below. Use the arrows to resolve tied players, then explain your decision. Points and confirmed tiebreakers still apply.",
-                      },
-                      (rankingChoices.get(s.id) ?? []).some((p) =>
-                        p.label.includes(" · Tied"),
-                      )
-                        ? requiredReason
-                        : reason,
-                    ]}
-                  />
-                  {s.key === "qualification" && (
-                    <>
-                      <hr className="divider" />
                       <ActionForm
-                        action="qualification"
+                        action="rules"
                         fixed={{ stageId: s.id }}
-                        label="Create qualification fixtures"
+                        label="Save rules"
                         fields={[
                           {
-                            name: "pairs",
-                            label: "Choose playoff opponents",
-                            type: "pairs",
-                            pairCount:
-                              (config.playoffEntrants *
-                                config.qualificationMatchesPerPlayer) /
-                              2,
-                            matchesPerPlayer:
-                              config.qualificationMatchesPerPlayer,
-                            options: playoffChoices,
-                            required: true,
+                            name: "rules",
+                            label: "Tournament rules",
+                            type: "rules",
+                            value: s.rules,
+                            confirmed: s.confirmedRules,
+                            stageKey: s.key,
+                            kind: t.categories.find(
+                              (c) => c.id === s.categoryId,
+                            )?.kind,
                           },
                           reason,
                         ]}
                       />
-                    </>
-                  )}
-                </>
-              ) : (
-                <ActionForm
-                  action={
-                    t.categories.find((c) => c.id === s.categoryId)?.kind ===
-                    "SOLO"
-                      ? "soloBracket"
-                      : "teamBracket"
-                  }
-                  fixed={{ categoryId: s.categoryId }}
-                  label="Create confirmed bracket"
-                  fields={
-                    t.categories.find((c) => c.id === s.categoryId)?.kind ===
-                    "SOLO"
-                      ? (s.rules as Rules).knockoutPairing === "manual"
-                        ? [
-                            {
-                              name: "rankedIds",
-                              label: "SOLO knockout starting order",
-                              type: "ordered",
-                              options: qualifiedChoices,
-                              value: qualifiedChoices.map((p) => p.value),
-                              complete: true,
-                              min: config.directSlots + config.playoffSlots,
-                              required: true,
-                            },
-                            reason,
-                          ]
-                        : [reason]
-                      : [
-                          {
-                            name: "teamIds",
-                            label: "Team starting order",
-                            type: "ordered",
-                            options: teamChoices.get(s.categoryId) ?? [],
-                            value: (teamChoices.get(s.categoryId) ?? []).map(
-                              (p) => p.value,
-                            ),
-                            complete: true,
-                            min: config.teamCapacity,
-                            required: true,
-                          },
-                          reason,
-                        ]
-                  }
-                />
-              )}
-            </TaskDialog>
-          </div>
-        ))}
-        <Link
-          className="button secondary"
-          href={`${base}/matches?tournamentId=${t.id}`}
-        >
-          Preview fixtures & results ↗
-        </Link>
+                    </TaskDialog>
+                    <TaskDialog
+                      label="Manage stage progression"
+                      title={`Stage progression · ${s.name}`}
+                      description={t.name}
+                    >
+                      {s.format === "LEAGUE" ? (
+                        <>
+                          <ActionForm
+                            action="freeze"
+                            fixed={{ stageId: s.id }}
+                            label="Save final rankings"
+                            fields={[
+                              {
+                                name: "rankedIds",
+                                label: "Final player rankings",
+                                type: "ordered",
+                                options: rankingChoices.get(s.id) ?? [],
+                                value: (rankingChoices.get(s.id) ?? []).map(
+                                  (p) => p.value,
+                                ),
+                                complete: true,
+                                min: (rankingChoices.get(s.id) ?? []).length,
+                                required: true,
+                                help: "The current standings appear below. Use the arrows to resolve tied players, then explain your decision. Points and confirmed tiebreakers still apply.",
+                              },
+                              (rankingChoices.get(s.id) ?? []).some((p) =>
+                                p.label.includes(" · Tied"),
+                              )
+                                ? requiredReason
+                                : reason,
+                            ]}
+                          />
+                          {s.key === "qualification" && (
+                            <>
+                              <hr className="divider" />
+                              <ActionForm
+                                action="qualification"
+                                fixed={{ stageId: s.id }}
+                                label="Create qualification fixtures"
+                                fields={[
+                                  {
+                                    name: "pairs",
+                                    label: "Choose playoff opponents",
+                                    type: "pairs",
+                                    pairCount:
+                                      (config.playoffEntrants *
+                                        config.qualificationMatchesPerPlayer) /
+                                      2,
+                                    matchesPerPlayer:
+                                      config.qualificationMatchesPerPlayer,
+                                    options: playoffChoices,
+                                    required: true,
+                                  },
+                                  reason,
+                                ]}
+                              />
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <ActionForm
+                          action={
+                            t.categories.find((c) => c.id === s.categoryId)
+                              ?.kind === "SOLO"
+                              ? "soloBracket"
+                              : "teamBracket"
+                          }
+                          fixed={{ categoryId: s.categoryId }}
+                          label="Create confirmed bracket"
+                          fields={
+                            t.categories.find((c) => c.id === s.categoryId)
+                              ?.kind === "SOLO"
+                              ? (s.rules as Rules).knockoutPairing === "manual"
+                                ? [
+                                    {
+                                      name: "rankedIds",
+                                      label: "SOLO knockout starting order",
+                                      type: "ordered",
+                                      options: qualifiedChoices,
+                                      value: qualifiedChoices.map(
+                                        (p) => p.value,
+                                      ),
+                                      complete: true,
+                                      min:
+                                        config.directSlots +
+                                        config.playoffSlots,
+                                      required: true,
+                                    },
+                                    reason,
+                                  ]
+                                : [reason]
+                              : [
+                                  {
+                                    name: "teamIds",
+                                    label: "Team starting order",
+                                    type: "ordered",
+                                    options:
+                                      teamChoices.get(s.categoryId) ?? [],
+                                    value: (
+                                      teamChoices.get(s.categoryId) ?? []
+                                    ).map((p) => p.value),
+                                    complete: true,
+                                    min: config.teamCapacity,
+                                    required: true,
+                                  },
+                                  reason,
+                                ]
+                          }
+                        />
+                      )}
+                    </TaskDialog>
+                  </div>
+                </div>
+              ))}
+              <Link
+                className="text-link"
+                href={`${base}/matches?tournamentId=${t.id}&history=${q.history === "true" ? "false" : "true"}`}
+              >
+                {q.history === "true"
+                  ? "Show active stages"
+                  : "Show retained stage / result history"}
+              </Link>
+            </>
+          }
+          updates={
+            <>
+              {" "}
+              <TaskDialog
+                label={`Change tournament sizes · update ${t.configurationVersion}`}
+                title={`Tournament sizes · ${t.name}`}
+              >
+                <TournamentConfigForm id={t.id} configuration={config} />
+              </TaskDialog>
+              <details
+                className="panel"
+                open={revisions.some((r) => r.status === "PENDING")}
+              >
+                <summary className="text-link cursor-pointer">
+                  Update history · {revisions.length}{" "}
+                  {revisions.some((r) => r.status === "PENDING")
+                    ? "· Review needed"
+                    : "· No pending updates"}
+                </summary>
+                <p className="muted text-sm mt-3">
+                  Applied updates are saved history. Only pending updates need a
+                  decision.
+                </p>
+                <div className="tournament-update-list">
+                  {revisions.map((r) => (
+                    <TaskDialog
+                      key={r.id}
+                      label={`Tournament update ${r.version} · ${friendlyLabel(r.status)}`}
+                      title={`Review tournament update ${r.version}`}
+                      description={t.name}
+                    >
+                      <p>{decrypt(r.reasonEncrypted, `tournament:${t.id}`)}</p>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Setting</th>
+                              <th>Before update</th>
+                              <th>New sizes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {configurationRows(r.configuration).map(
+                              (row, i) => (
+                                <tr key={row.key}>
+                                  <td>{row.label}</td>
+                                  <td>
+                                    {
+                                      configurationRows(r.beforeConfiguration)[
+                                        i
+                                      ]?.value
+                                    }
+                                  </td>
+                                  <td>{row.value}</td>
+                                </tr>
+                              ),
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      {r.status === "PENDING" && actor.role === "ADMIN" && (
+                        <>
+                          <div className="notice">
+                            Applying a controlled restart retains previous
+                            matches, scores, evidence and standings in archived
+                            stages. Previous results will not count toward the
+                            new revision. Resolve affected brackets by
+                            restarting stages and reconfirming rules; no
+                            entrants are removed.
+                          </div>
+                          <ActionForm
+                            action="revisionApply"
+                            fixed={{
+                              id: r.id,
+                              acknowledgement: "RESTART_AND_RETAIN_HISTORY",
+                            }}
+                            fields={[
+                              {
+                                name: "confirmRestart",
+                                label:
+                                  "I understand this restarts the competition. Previous results stay in history and will not count in the new competition.",
+                                type: "checkbox",
+                                required: true,
+                              },
+                              requiredReason,
+                            ]}
+                            label="Restart competition with these sizes"
+                          />
+                          <ActionForm
+                            action="revisionReject"
+                            fixed={{ id: r.id }}
+                            fields={[reason]}
+                            label="Reject proposal"
+                          />
+                        </>
+                      )}
+                      {r.resolutionEncrypted && (
+                        <p>
+                          {decrypt(r.resolutionEncrypted, `revision:${r.id}`)}
+                        </p>
+                      )}
+                    </TaskDialog>
+                  ))}
+                </div>
+              </details>
+            </>
+          }
+        />
       </div>
     );
   }
   if (section === "teams") {
-    const approvedMembers = (
-      await tx.member.findMany({
-        where: { verified: true, archived: false },
-        select: { id: true, displayIgn: true },
-        orderBy: { displayIgn: "asc" },
-      })
-    ).map((m) => ({ value: m.id, label: m.displayIgn }));
     const categories = await tx.category.findMany({
       where: { kind: "TEAM" },
       include: {
-        tournament: { select: { name: true } },
+        tournament: {
+          select: {
+            name: true,
+            participants: {
+              where: {
+                eligible: true,
+                withdrawn: false,
+                member: { verified: true, archived: false },
+              },
+              select: {
+                code: true,
+                memberId: true,
+                member: { select: { displayIgn: true } },
+              },
+              orderBy: { code: "asc" },
+            },
+          },
+        },
         teams: {
           include: {
             memberships: {
@@ -869,8 +1077,8 @@ async function renderSection(
           <div key={c.id}>
             <h3>{c.tournament.name}</h3>
             <p className="muted text-sm">
-              Exactly four approved players per team. Players may belong to only
-              one active team in this category.
+              Exactly four registered, eligible tournament players per team.
+              Players may belong to only one active team in this category.
             </p>
             <p className="muted text-sm">
               {c.teams.filter((t) => !t.archived).length}/{c.capacity} team
@@ -882,12 +1090,13 @@ async function renderSection(
             >
               <TeamRosterForm
                 categoryId={c.id}
-                players={approvedMembers.map((m) => ({
-                  ...m,
+                players={c.tournament.participants.map((p) => ({
+                  value: p.memberId,
+                  label: `${p.code} · ${p.member.displayIgn}`,
                   disabled: c.teams.some(
                     (t) =>
                       !t.archived &&
-                      t.memberships.some((p) => p.memberId === m.value),
+                      t.memberships.some((m) => m.memberId === p.memberId),
                   ),
                 }))}
               />
@@ -926,13 +1135,16 @@ async function renderSection(
                         archived: team.archived,
                         memberIds: team.memberships.map((m) => m.memberId),
                       }}
-                      players={approvedMembers.map((m) => ({
-                        ...m,
+                      players={c.tournament.participants.map((p) => ({
+                        value: p.memberId,
+                        label: `${p.code} · ${p.member.displayIgn}`,
                         disabled: c.teams.some(
                           (t) =>
                             t.id !== team.id &&
                             !t.archived &&
-                            t.memberships.some((p) => p.memberId === m.value),
+                            t.memberships.some(
+                              (m) => m.memberId === p.memberId,
+                            ),
                         ),
                       }))}
                     />
@@ -1133,36 +1345,19 @@ async function renderSection(
           {q.history === "true" && (
             <input type="hidden" name="history" value="true" />
           )}
-          <div className="grid2">
-            <label htmlFor="fixture-stage">
-              Tournament / stage
-              <select
-                id="fixture-stage"
-                name="stageId"
-                defaultValue={selectedStage.id}
-              >
-                {stageChoices.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.category.tournament.name} · {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label htmlFor="fixture-round">
-              Round
-              <select
-                id="fixture-round"
-                name="round"
-                defaultValue={String(selectedRound?.number ?? 1)}
-              >
-                {selectedStage.rounds.map((r) => (
-                  <option key={r.id} value={r.number}>
-                    {r.name} · {r._count.matches} series
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+          <FixtureStageFields
+            key={`${selectedStage.id}:${selectedRound?.number ?? ""}`}
+            selectedStageId={selectedStage.id}
+            selectedRound={selectedRound?.number}
+            stages={stageChoices.map((s) => ({
+              id: s.id,
+              label: `${s.category.tournament.name} · ${s.name}`,
+              rounds: s.rounds.map((r) => ({
+                number: r.number,
+                label: `${r.name} · ${r._count.matches} series`,
+              })),
+            }))}
+          />
           <div className="grid2">
             <label htmlFor="fixture-search">
               Player name, code or team
@@ -1318,7 +1513,10 @@ async function renderSection(
                             <p className="text-sm">
                               <strong>
                                 {m.results[0].games
-                                  .map((g) => `${g.scoreA}–${g.scoreB}`)
+                                  .map(
+                                    (g, index) =>
+                                      `Game ${index + 1}: ${names.get((g.scoreA > g.scoreB ? m.sideAId : m.sideBId) ?? "") ?? "Player"} wins`,
+                                  )
                                   .join(" / ") ||
                                   friendlyLabel(m.results[0].outcome)}
                               </strong>
@@ -1362,8 +1560,8 @@ async function renderSection(
                             </TaskDialog>
                           ))}
                           <TaskDialog
-                            label="Enter / correct score"
-                            title="Enter / correct score"
+                            label="Enter / correct result"
+                            title="Enter / correct result"
                             description={`Match ${m.order} · ${names.get(m.sideAId ?? "") ?? "Player A"} vs ${names.get(m.sideBId ?? "") ?? "Player B"}`}
                             readOnly={s.archived}
                           >
@@ -1384,7 +1582,7 @@ async function renderSection(
                                 s.archived
                                   ? "This match is retained history and cannot be edited."
                                   : m.status === "BYE"
-                                    ? "This is a bye; there are no game scores to enter."
+                                    ? "This is a bye; there are no game winners to pick."
                                     : m.status === "VOIDED"
                                       ? "This match has been voided and cannot receive a result."
                                       : !m.sideAId || !m.sideBId
@@ -1413,7 +1611,10 @@ async function renderSection(
                                     <p className="muted text-xs">
                                       {operationalTime(v.createdAt)} ·{" "}
                                       {v.games
-                                        .map((g) => `${g.scoreA}–${g.scoreB}`)
+                                        .map(
+                                          (g, index) =>
+                                            `Game ${index + 1}: ${names.get((g.scoreA > g.scoreB ? m.sideAId : m.sideBId) ?? "") ?? "Player"} wins`,
+                                        )
                                         .join(" / ")}
                                     </p>
                                     {v.evidence.map((e) => (

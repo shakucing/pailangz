@@ -53,7 +53,7 @@ export function RegistrationForm({
         </h2>
         <p className="muted">
           {t(
-            "Moderator akan menyemak maklumat kau. Kelulusan ahli dan penyertaan kejohanan diproses secara berasingan.",
+            "Moderator akan menyemak maklumat anda. Kelulusan ahli dan penyertaan kejohanan diproses secara berasingan.",
             "A moderator will review your details. Membership approval and tournament entry are handled separately.",
           )}
         </p>
@@ -167,7 +167,7 @@ export function RegistrationForm({
                       "Too many attempts. Please try again later.",
                     )
                   : t(
-                      "Permohonan belum dapat dihantar. Maklumat kau masih di sini; sila cuba lagi.",
+                      "Permohonan belum dapat dihantar. Maklumat anda masih di sini; sila cuba lagi.",
                       "Your application could not be submitted. Your details are still here; please try again.",
                     ),
               );
@@ -178,7 +178,7 @@ export function RegistrationForm({
         } catch {
           setError(
             t(
-              "Sambungan terputus. Maklumat kau masih di sini; sila cuba lagi.",
+              "Sambungan terputus. Maklumat anda masih di sini; sila cuba lagi.",
               "The connection was interrupted. Your details are still here; please try again.",
             ),
           );
@@ -195,7 +195,7 @@ export function RegistrationForm({
         <h2>Pailangz Member</h2>
         <p className="muted">
           {t(
-            "Kongsi maklumat permainan dan profil sosial kau.",
+            "Kongsi maklumat permainan dan profil sosial anda.",
             "Share your gaming and social profile details.",
           )}
         </p>
@@ -216,7 +216,7 @@ export function RegistrationForm({
           {field("ign", t("Nama dalam game (IGN)", "In-game name (IGN)"), {
             required: true,
             maxLength: 80,
-            placeholder: t("Nama kau dalam game", "Your name in game"),
+            placeholder: t("Nama anda dalam game", "Your name in game"),
             help: t(
               "Gunakan ejaan dan simbol yang sama seperti dalam game.",
               "Use the same spelling and symbols as in game.",
@@ -256,7 +256,7 @@ export function RegistrationForm({
               required: true,
               placeholder: "Nur Athirah",
               help: t(
-                "Nama yang dipaparkan di bahagian atas profil TikTok kau.",
+                "Nama yang dipaparkan di bahagian atas profil TikTok anda.",
                 "The display name at the top of your TikTok profile.",
               ),
             },
@@ -266,7 +266,7 @@ export function RegistrationForm({
             maxLength: 80,
             placeholder: "@atrhh_98",
             help: t(
-              "ID / handle di bawah nama profil kau, bermula dengan @.",
+              "ID / handle di bawah nama profil anda, bermula dengan @.",
               "The ID / handle below your profile name, starting with @.",
             ),
           })}
@@ -281,7 +281,7 @@ export function RegistrationForm({
           {field("discordName", t("Nama Discord", "Discord name"), {
             placeholder: "Atrh ✨",
             help: t(
-              "Nama paparan kau. Contoh: Atrh ✨.",
+              "Nama paparan anda. Contoh: Atrh ✨.",
               "Your display name. Example: Atrh ✨.",
             ),
           })}
@@ -330,7 +330,7 @@ export function RegistrationForm({
               }
             >
               <option value="" disabled>
-                {t("Pilih negara kau", "Select your country")}
+                {t("Pilih negara anda", "Select your country")}
               </option>
               {countries.map(({ code, name }) => (
                 <option key={code} value={code}>
@@ -340,7 +340,7 @@ export function RegistrationForm({
             </select>
             {invalidFields.includes("country") && (
               <p id="registration-country-help" className={styles.fieldError}>
-                {t("Sila pilih negara kau.", "Please select your country.")}
+                {t("Sila pilih negara anda.", "Please select your country.")}
               </p>
             )}
           </div>
@@ -351,7 +351,7 @@ export function RegistrationForm({
         <p className={styles.privacy}>
           <ShieldCheck size={18} aria-hidden="true" />{" "}
           {t(
-            "Maklumat hubungan, sosial dan lokasi kau hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
+            "Maklumat hubungan, sosial dan lokasi anda hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
             "Your contact, social and location details are visible only to authorized moderators and admins.",
           )}
         </p>

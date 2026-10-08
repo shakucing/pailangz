@@ -5,6 +5,10 @@ import { spawnSync } from "node:child_process";
 import { parse } from "dotenv";
 import pg from "pg";
 import { migrations, neonUrl } from "./neon-transfer";
+import {
+  applyNeonDataUpgrade,
+  dataUpgradeCompleted,
+} from "./neon-data-upgrade";
 
 class UpgradeError extends Error {}
 type Migration = { name: string; checksum: string };
@@ -65,12 +69,14 @@ async function upgradeNeon() {
   await client.connect();
   try {
     const environment = await client.query(
-      'SELECT current_user AS role, tier FROM "DeploymentEnvironment"',
+      `SELECT current_user AS role, tier, current_user=pg_get_userbyid(c.relowner) AS owner
+       FROM "DeploymentEnvironment", pg_class c WHERE c.oid='public."Tournament"'::regclass`,
     );
     if (
       environment.rows.length !== 1 ||
       environment.rows[0].tier !== "production" ||
-      environment.rows[0].role === "pailangz_app"
+      environment.rows[0].role === "pailangz_app" ||
+      !environment.rows[0].owner
     )
       throw new UpgradeError(
         "Upgrade requires the owner connection to the existing production database.",
@@ -83,32 +89,61 @@ async function upgradeNeon() {
         )
       ).rows;
     const pending = upgradePlan(await history(), expected);
-    if (!pending.length) {
-      console.log("Neon database migrations are already current.");
+    if (process.argv.includes("--check")) {
+      console.log(
+        `Verified migration checksums. Pending SQL migrations: ${pending.length}.`,
+      );
+      console.log(
+        (await dataUpgradeCompleted(client.query.bind(client)))
+          ? "The one-time 32-player reset is complete."
+          : "Pending data upgrade: empty 32-player / eight-team tournament reset.",
+      );
       return;
     }
-    console.log(`Applying ${pending.length} pending Neon migration(s)...`);
-    const result = spawnSync(
-      process.execPath,
-      [path.resolve("node_modules/prisma/build/index.js"), "migrate", "deploy"],
-      {
-        env: {
-          ...process.env,
-          MIGRATION_DATABASE_URL: url.toString(),
-          DATABASE_URL: url.toString(),
+    if (!pending.length) {
+      console.log("Neon database migrations are already current.");
+    } else {
+      console.log(`Applying ${pending.length} pending Neon migration(s)...`);
+      const result = spawnSync(
+        process.execPath,
+        [
+          path.resolve("node_modules/prisma/build/index.js"),
+          "migrate",
+          "deploy",
+        ],
+        {
+          env: {
+            ...process.env,
+            MIGRATION_DATABASE_URL: url.toString(),
+            DATABASE_URL: url.toString(),
+          },
+          encoding: "utf8",
         },
-        encoding: "utf8",
-      },
-    );
-    if (result.status !== 0)
-      throw new UpgradeError(
-        "Prisma migration failed. Check migration status with the owner connection before retrying. No import or seed was run.",
       );
-    if (upgradePlan(await history(), expected).length)
-      throw new UpgradeError("Neon migration verification failed.");
-    console.log(
-      "Verified Neon schema upgrade. Existing records were retained.",
-    );
+      if (result.status !== 0)
+        throw new UpgradeError(
+          "Prisma migration failed. Check migration status with the owner connection before retrying. No import or seed was run.",
+        );
+      if (upgradePlan(await history(), expected).length)
+        throw new UpgradeError("Neon migration verification failed.");
+      console.log("Verified Neon schema upgrade.");
+    }
+    try {
+      await applyNeonDataUpgrade(
+        client.query.bind(client),
+        url.toString(),
+        directory,
+      );
+    } catch (error) {
+      throw new UpgradeError(
+        error instanceof Error &&
+          (error.message.startsWith("The tournament reset") ||
+            error.message.startsWith("Production environment") ||
+            error.message.startsWith("Could not generate"))
+          ? error.message
+          : "The data upgrade did not complete. Check the matching private vercel.env encryption settings and backup permissions; schema migrations remain applied. Retry this command after resolving the issue.",
+      );
+    }
     console.log("Push the app changes and redeploy Vercel Production next.");
   } finally {
     await client.end();

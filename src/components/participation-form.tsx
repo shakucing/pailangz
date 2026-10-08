@@ -78,7 +78,7 @@ export function ParticipationForm({ slug }: { slug: string }) {
         </h2>
         <p className="muted">
           {t(
-            "IGN dan ID TikTok kau sepadan dengan rekod ahli aktif. Slot kejohanan SOLO & TEAM kau telah diluluskan secara automatik. Kau boleh terus daftar pasukan atau mohon sertai pasukan.",
+            "IGN dan ID TikTok anda sepadan dengan rekod ahli aktif. Slot kejohanan SOLO & TEAM anda telah diluluskan secara automatik. Anda boleh terus daftar pasukan atau mohon sertai pasukan.",
             "Your IGN and TikTok ID match your active member record. Your SOLO & TEAM tournament slot is automatically approved. You can now register a team or apply to join one.",
           )}
         </p>
@@ -126,12 +126,12 @@ export function ParticipationForm({ slug }: { slug: string }) {
           setError(
             data.error === "WITHDRAWN"
               ? t(
-                  "Penyertaan kau telah ditarik balik. Hubungi moderator untuk menyertai semula.",
+                  "Penyertaan anda telah ditarik balik. Hubungi moderator untuk menyertai semula.",
                   "Your entry was withdrawn. Contact a moderator to rejoin.",
                 )
               : data.error === "VERIFICATION_FAILED"
                 ? t(
-                    "Maklumat tidak sepadan dengan rekod ahli yang diluluskan. Semak IGN dan ID TikTok kau, atau hubungi moderator.",
+                    "Maklumat tidak sepadan dengan rekod ahli yang diluluskan. Semak IGN dan ID TikTok anda, atau hubungi moderator.",
                     "The details do not match an approved member record. Check your IGN and TikTok ID, or contact a moderator.",
                   )
                 : data.error === "RATE_LIMIT"
@@ -182,7 +182,7 @@ export function ParticipationForm({ slug }: { slug: string }) {
               "tiktokId",
               t("ID TikTok", "TikTok ID"),
               t(
-                "Masukkan ID TikTok yang disimpan, contohnya @namakau. Jangan gunakan nama paparan.",
+                "Masukkan ID TikTok yang disimpan, contohnya @namaanda. Jangan gunakan nama paparan.",
                 "Enter your saved TikTok ID, e.g. @yourname. Use your ID rather than your display name.",
               ),
             ],

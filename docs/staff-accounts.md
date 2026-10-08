@@ -64,3 +64,13 @@ You can also run the cleanup with **--local --apply** to remove the old test acc
 ## Deploy the interface and login fix
 
 Review, commit and push the changed source files to the Git-connected Vercel project. A new production deployment includes `/staff`, the logo shortcut, the eye button and the corrected authentication audit writes. Password updates and QA cleanup change Neon immediately and require no redeploy.
+
+## Reset another staff member's password in the portal
+
+An admin can use **Staff accounts → Reset password** beside any other admin or moderator. Enter and confirm a new password of at least 14 characters and at most 72 UTF-8 bytes. Existing sessions are revoked, session version advances and the target email's login throttle is cleared. A suspended account remains suspended. Share the new password privately; it is never included in activity history or returned by the API. An admin cannot reset their own password through this control; ask another admin or the site operator.
+
+Migration `202610080021_staff_password_reset` independently checks the current admin session inside the database. The interface requires the updated application deployment.
+
+## Production activity history
+
+Migrations 022–023 exclude explicitly marked development events and activity associated with verified disposable QA identities from production staff lists, counts, previews and exports. The database retains all original append-only audit records. Development history stays visible locally. Verified identities are stored separately so deleting a QA staff account does not make its old events reappear. Ordinary accounts are not classified from a name fragment or email domain alone; real/system events and maintenance affecting both real and QA accounts stay visible.
