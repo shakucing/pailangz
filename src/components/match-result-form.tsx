@@ -1,6 +1,7 @@
 "use client";
 import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DialogActions, useDialogForm } from "./workspace-dialog";
 import { validateSeries, type Rules } from "@/lib/domain";
 import { friendlyError } from "@/lib/staff-presentation";
 import { staffRequest } from "@/lib/staff-request";
@@ -61,6 +62,7 @@ export function MatchResultForm({
     text: string;
     error: boolean;
   } | null>(null);
+  const dialogForm = useDialogForm(busy);
   const submission = useRef<{
     signature: string;
     key: string;
@@ -115,7 +117,10 @@ export function MatchResultForm({
   }
   return (
     <form
+      id={uid}
       className="form match-result-form"
+      onChange={dialogForm.onChange}
+      onClick={dialogForm.onClick}
       onSubmit={async (event) => {
         event.preventDefault();
         setFeedback(null);
@@ -193,6 +198,7 @@ export function MatchResultForm({
               : "Result saved for review.",
             error: false,
           });
+          dialogForm.onSaved();
           router.refresh();
         } catch (error) {
           setFeedback({
@@ -373,32 +379,38 @@ export function MatchResultForm({
           </label>
         )}
       </fieldset>
-      {feedback && (
-        <div
-          role={feedback.error ? "alert" : "status"}
-          className={`feedback ${feedback.error ? "error" : ""}`}
-        >
-          {feedback.text}
+      <DialogActions>
+        <div>
+          {feedback && (
+            <div
+              role={feedback.error ? "alert" : "status"}
+              className={`feedback ${feedback.error ? "error" : ""}`}
+            >
+              {feedback.text}
+            </div>
+          )}
+          <div className="row">
+            <button
+              form={uid}
+              type="submit"
+              value="confirm"
+              className="button small"
+              disabled={busy || Boolean(unavailable) || !file}
+            >
+              {busy ? "Saving…" : "Save & confirm"}
+            </button>
+            <button
+              form={uid}
+              type="submit"
+              value="review"
+              className="button secondary small"
+              disabled={busy || Boolean(unavailable)}
+            >
+              {busy ? "Saving…" : "Save for review"}
+            </button>
+          </div>
         </div>
-      )}
-      <div className="row">
-        <button
-          type="submit"
-          value="confirm"
-          className="button"
-          disabled={busy || Boolean(unavailable) || !file}
-        >
-          {busy ? "Saving…" : "Save & confirm"}
-        </button>
-        <button
-          type="submit"
-          value="review"
-          className="button secondary"
-          disabled={busy || Boolean(unavailable)}
-        >
-          {busy ? "Saving…" : "Save for review"}
-        </button>
-      </div>
+      </DialogActions>
       <p className="muted text-xs">
         Scores, evidence and staff decisions are recorded automatically. A saved
         result remains available if an upload needs retrying.

@@ -4,19 +4,7 @@ import { usePathname } from "next/navigation";
 import { NavigationLink } from "./navigation-link";
 import { Menu, X } from "lucide-react";
 
-export const staffNavigation = [
-  ["overview", "Overview"],
-  ["registrations", "Registration inbox"],
-  ["members", "Members"],
-  ["tournaments", "Tournaments & rules"],
-  ["teams", "Team rosters"],
-  ["matches", "Fixtures & results"],
-  ["content", "Announcements"],
-  ["imports", "Registration uploads"],
-  ["audit", "Activity history"],
-  ["settings", "Registration settings"],
-  ["staff", "Staff accounts"],
-] as const;
+import { staffNavigation } from "@/lib/staff-navigation";
 export function StaffNavigation({
   base,
   admin,
@@ -26,17 +14,15 @@ export function StaffNavigation({
 }) {
   const pathname = usePathname(),
     [open, setOpen] = useState(false),
-    links = useRef<HTMLElement>(null);
+    toggle = useRef<HTMLButtonElement>(null);
   const section = pathname.split("/")[2] ?? "overview";
   useEffect(() => {
     setOpen(false);
-    links.current
-      ?.querySelector('[aria-current="page"]')
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [pathname]);
   return (
     <>
       <button
+        ref={toggle}
         className="staff-menu-toggle"
         type="button"
         aria-expanded={open}
@@ -50,10 +36,15 @@ export function StaffNavigation({
         <span className="muted">Menu</span>
       </button>
       <nav
-        ref={links}
         id="staff-navigation"
         aria-label="Staff workspace"
         className={open ? "is-open" : ""}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && open) {
+            setOpen(false);
+            toggle.current?.focus();
+          }
+        }}
       >
         {staffNavigation
           .filter(([key]) => admin || !["settings", "staff"].includes(key))

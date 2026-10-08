@@ -89,7 +89,7 @@ try {
     `ALTER ROLE pailangz_app LOGIN PASSWORD '${runtimePassword}'`,
   );
   const { seed } = await import("../prisma/seed");
-  await seed();
+  await seed({ legacyFixtures: true });
   await seed();
   const { db, privateTx, audit, ensureRuntime } = await import("../src/lib/db");
   const { ingest, decideRegistration } = await import("../src/lib/imports");
@@ -233,6 +233,72 @@ try {
           (await owner.query('SELECT id FROM "Participant"')).rows.length,
           0,
           "Anonymous role still cannot read the underlying draft participants",
+        );
+      } finally {
+        await owner.query("ROLLBACK");
+      }
+    },
+  );
+  await check(
+    "landing name view exposes only original SOLO roster names and excludes archived members",
+    async () => {
+      await owner.query("BEGIN");
+      try {
+        const saved = (
+          await owner.query(
+            'SELECT p.code,m.id AS "memberId",m."displayIgn" AS ign FROM "Participant" p JOIN "Member" m ON m.id=p."memberId" WHERE p."tournamentId"=$1 ORDER BY p.code',
+            [tournament.id],
+          )
+        ).rows;
+        await owner.query(
+          'INSERT INTO "Tournament"(id,slug,name,overview) VALUES($1,$2,$3,$4)',
+          ["other-name-event", "other-name-event", "Other event", "Test"],
+        );
+        await owner.query(
+          'INSERT INTO "Participant"(id,"tournamentId","memberId",code) VALUES($1,$2,$3,$4)',
+          ["other-name-player", "other-name-event", saved[0].memberId, "P99"],
+        );
+        await owner.query("SET LOCAL ROLE pailangz_app");
+        const names = (
+          await owner.query(
+            'SELECT * FROM "PublicEventPlayerName" ORDER BY code',
+          )
+        ).rows;
+        assert.equal(names.length, saved.length);
+        assert.deepEqual(
+          names.map(({ code, ign }) => ({ code, ign })),
+          saved.map(({ code, ign }) => ({ code, ign })),
+        );
+        assert.deepEqual(Object.keys(names[0]).sort(), ["code", "ign", "slug"]);
+        assert.ok(names.every((p) => p.slug === "pailangz-solo-team"));
+        assert.equal(
+          (await owner.query('SELECT id FROM "Member"')).rows.length,
+          0,
+        );
+        await owner.query("RESET ROLE");
+        await owner.query('UPDATE "Member" SET archived=true WHERE id=$1', [
+          saved[0].memberId,
+        ]);
+        await owner.query("SET LOCAL ROLE pailangz_app");
+        assert.equal(
+          (
+            await owner.query(
+              'SELECT code FROM "PublicEventPlayerName" WHERE code=$1',
+              [saved[0].code],
+            )
+          ).rows.length,
+          0,
+        );
+        await owner.query("RESET ROLE");
+        await owner.query(
+          "UPDATE \"Tournament\" SET status='ARCHIVED' WHERE id=$1",
+          [tournament.id],
+        );
+        await owner.query("SET LOCAL ROLE pailangz_app");
+        assert.equal(
+          (await owner.query('SELECT * FROM "PublicEventPlayerName"')).rows
+            .length,
+          0,
         );
       } finally {
         await owner.query("ROLLBACK");
@@ -756,6 +822,14 @@ try {
   const { checkRoutineStaffOperations } =
     await import("./staff-ops-integration");
   await checkRoutineStaffOperations(owner, actor, mod, check);
+  const { checkWebRegistration } = await import("./registration-integration");
+  await checkWebRegistration(owner, actor, check);
+  const { checkModeratorSetup } = await import("./moderator-setup-integration");
+  await checkModeratorSetup(owner, mod, check);
+  const { checkParticipation } = await import("./participation-integration");
+  await checkParticipation(owner, actor, check);
+  const { checkTeamPortal } = await import("./team-portal-integration");
+  await checkTeamPortal(owner, check);
   await check(
     "suspension and demotion revoke current private-data access",
     async () => {

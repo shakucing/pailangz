@@ -1,0 +1,204 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  align-items: start;
+  gap: 32px;
+  padding-bottom: 64px;
+}
+.aside {
+  position: sticky;
+  top: 28px;
+}
+.aside > h3:first-child {
+  margin-top: 0;
+}
+.form {
+  min-width: 0;
+  padding: 32px;
+  border-top: 3px solid var(--accent);
+}
+.intro h2 {
+  margin: 16px 0 4px;
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.intro p {
+  margin: 0 0 14px;
+}
+.group {
+  margin: 30px 0 0;
+  padding: 24px 0 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  min-width: 0;
+}
+.group legend {
+  padding: 0 12px 0 0;
+  font-weight: 700;
+  font-size: 15px;
+}
+.group legend > span {
+  margin-right: 8px;
+  color: var(--accent);
+  font-size: 12px;
+}
+.group legend small {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 8px;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+.field {
+  min-width: 0;
+}
+.field label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.field input,
+.field select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  background: var(--field-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 11px 12px;
+  color: var(--text);
+  font-size: 16px;
+}
+.field input::placeholder {
+  color: var(--text-faint);
+}
+.field input:focus,
+.field select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.field [aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.required {
+  color: var(--accent);
+}
+.optional {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+.help,
+.fieldError {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+.fieldError,
+.error {
+  color: var(--danger);
+}
+.example {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--field-bg);
+}
+.exampleLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.example > div {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.example strong {
+  font-size: 20px;
+}
+.example div > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.example code {
+  color: var(--accent);
+  font-size: 13px;
+}
+.footer {
+  border-top: 1px solid var(--border);
+  margin-top: 28px;
+  padding-top: 20px;
+}
+.privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 20px;
+}
+.privacy svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.footer button {
+  width: 100%;
+}
+.footer > .help {
+  margin-top: 12px;
+  text-align: center;
+}
+.error {
+  border: 1px solid var(--danger-border);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+}
+.success {
+  display: grid;
+  justify-items: start;
+  gap: 16px;
+  padding: 40px 32px;
+}
+.success > svg {
+  color: var(--accent);
+}
+.success h2,
+.success p {
+  margin: 0;
+}
+@media (max-width: 850px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  .aside {
+    position: static;
+    order: 2;
+  }
+}
+@media (max-width: 540px) {
+  .form {
+    padding: 24px 18px;
+  }
+  .fields {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+  .intro h2 {
+    font-size: 24px;
+  }
+}

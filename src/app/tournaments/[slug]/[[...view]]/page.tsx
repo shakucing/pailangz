@@ -4,7 +4,24 @@ import { getLocale, translate } from "@/lib/i18n";
 import { publicTournament, dateText } from "@/lib/public-data";
 import { TournamentProgression } from "@/components/tournament-progression";
 import { FixtureBrowser } from "@/components/fixture-browser";
+import { InteractiveBracket } from "@/components/interactive-bracket";
 export const dynamic = "force-dynamic";
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string; view?: string[] }>;
+}) {
+  const { view } = await params;
+  const locale = await getLocale();
+  const titles: Record<string, [string, string]> = {
+    overview: ["Ringkasan kejohanan", "Tournament overview"],
+    standings: ["Kedudukan kejohanan", "Tournament standings"],
+    fixtures: ["Perlawanan kejohanan", "Tournament fixtures"],
+    brackets: ["Bracket kejohanan", "Tournament brackets"],
+  };
+  const [ms, en] = titles[view?.[0] ?? "overview"] ?? titles.overview;
+  return { title: translate(locale, ms, en) };
+}
 export default async function Tournament({
   params,
 }: {
@@ -40,10 +57,12 @@ export default async function Tournament({
           ["standings", copy("Kedudukan", "Standings")],
           ["fixtures", copy("Perlawanan", "Fixtures")],
           ["brackets", copy("Bracket", "Brackets")],
+          ["teams", copy("Pasukan", "Teams")],
         ].map(([key, label]) => (
           <Link
             key={key}
             className={section === key ? "active" : ""}
+            aria-current={section === key ? "page" : undefined}
             href={`/tournaments/${slug}${key === "overview" ? "" : `/${key}`}`}
           >
             {label}
@@ -94,8 +113,8 @@ export default async function Tournament({
                 </div>
                 <p className="muted text-sm mt-4 mb-0">
                   {copy(
-                    "Nama dalam game pemain adalah sulit. Paparan awam menggunakan kod peserta.",
-                    "Players’ in-game names are confidential. Public views use participant codes.",
+                    "Halaman kejohanan ini menggunakan kod peserta untuk mengenal pasti pemain.",
+                    "This tournament page identifies players by their participant codes.",
                   )}
                 </p>
                 {!t.participants.length && (
@@ -272,66 +291,13 @@ export default async function Tournament({
         ) : (
           <div className="stack">
             {t.categories.map((c) => (
-              <div key={c.kind}>
-                <h3>{c.kind} Knockout</h3>
-                {c.stages
-                  .filter((s) => s.format === "KNOCKOUT")
-                  .some((s) => s.rounds.length) ? (
-                  <div className="bracket">
-                    {c.stages
-                      .filter((s) => s.format === "KNOCKOUT")
-                      .flatMap((s) =>
-                        s.rounds.map((r) => (
-                          <div className="bracket-column" key={r.number}>
-                            <p className="eyebrow">{r.name}</p>
-                            {r.matches.map((m) => (
-                              <div className="fixture" key={m.id}>
-                                <span className="badge neutral">
-                                  BO{m.bestOf}
-                                </span>
-                                <strong>
-                                  {copy(
-                                    m.a,
-                                    m.a === "Menunggu peserta"
-                                      ? "Awaiting participant"
-                                      : m.a,
-                                  )}
-                                </strong>
-                                <strong>
-                                  {copy(
-                                    m.b,
-                                    m.b === "Menunggu peserta"
-                                      ? "Awaiting participant"
-                                      : m.b,
-                                  )}
-                                </strong>
-                                <small>
-                                  {m.result?.outcome ??
-                                    copy(
-                                      "Menunggu keputusan",
-                                      "Awaiting result",
-                                    )}
-                                </small>
-                              </div>
-                            ))}
-                          </div>
-                        )),
-                      )}
-                  </div>
-                ) : (
-                  <div className="empty">
-                    <strong>
-                      {copy(
-                        "Bracket belum dimuktamadkan.",
-                        "The bracket is not finalized yet.",
-                      )}
-                    </strong>
-                    {copy(
-                      "Bracket akan disediakan selepas peserta dan peraturan disahkan.",
-                      "The bracket will be prepared after participants and rules are confirmed.",
-                    )}
-                  </div>
-                )}
+              <div key={c.kind} className="panel">
+                <InteractiveBracket
+                  configuration={t.configuration}
+                  category={c.kind === "TEAM" ? "TEAM" : "SOLO"}
+                  storageScope={t.slug}
+                  rounds={c.stages.find((s) => s.format === "KNOCKOUT")?.rounds}
+                />
               </div>
             ))}
           </div>

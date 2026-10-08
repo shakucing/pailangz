@@ -63,7 +63,11 @@ export async function publicTournament(slug: string) {
       gameTitle: true,
       configuration: true,
       participants: {
-        where: { eligible: true, member: { verified: true, archived: false } },
+        where: {
+          withdrawn: false,
+          eligible: true,
+          member: { verified: true, archived: false },
+        },
         select: {
           id: true,
           code: true,

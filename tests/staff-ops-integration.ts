@@ -16,7 +16,7 @@ export async function checkRoutineStaffOperations(
     await import("../src/lib/imports");
   const { submitResult, reviewResult, saveTournament } =
     await import("../src/lib/competition");
-  const { decrypt } = await import("../src/lib/crypto");
+  const { decrypt, encrypt } = await import("../src/lib/crypto");
   const memberId = randomUUID(),
     otherId = randomUUID();
   await owner.query(
@@ -97,6 +97,162 @@ export async function checkRoutineStaffOperations(
           reason: "x".repeat(1001),
         }),
       );
+    },
+  );
+  await check(
+    "member dropdown edits normalize countries and statuses without changing membership privileges",
+    async () => {
+      const before = (
+        await owner.query('SELECT * FROM "Member" WHERE id=$1', [otherId])
+      ).rows[0];
+      await memberUpdate(mod, {
+        id: otherId,
+        phone: "081234567890",
+        registrationFields: { Country: "Malaysia", status: " INACTIVE " },
+      });
+      assert.equal(
+        (await privateDetails(mod, "member", otherId)).fields?.Country,
+        "MY",
+      );
+      // Changing only the country must revalidate the saved national number.
+      await memberUpdate(mod, {
+        id: otherId,
+        registrationFields: { Country: "Indonesia" },
+      });
+      const details = await privateDetails(mod, "member", otherId);
+      assert.equal(details.countryField, "Country");
+      assert.equal(details.fields?.Country, "ID");
+      assert.equal(details.fields?.status, "inactive");
+      assert.equal(details.phone, "081234567890");
+      const stored = (
+        await owner.query(
+          'SELECT "phoneIssue" FROM "MemberPrivate" WHERE "memberId"=$1',
+          [otherId],
+        )
+      ).rows[0];
+      assert.equal(stored.phoneIssue, null);
+      const after = (
+        await owner.query('SELECT * FROM "Member" WHERE id=$1', [otherId])
+      ).rows[0];
+      assert.equal(after.verified, before.verified);
+      assert.equal(after.archived, before.archived);
+    },
+  );
+  await check(
+    "invalid dropdown values roll back all member edits, including through configured country columns",
+    async () => {
+      const before = (
+        await owner.query('SELECT * FROM "MemberPrivate" WHERE "memberId"=$1', [
+          otherId,
+        ])
+      ).rows[0];
+      const invalidFields: Record<string, string>[] = [
+        { Country: "Atlantis" },
+        { status: "ADMIN" },
+        { Status: "APPROVED" },
+      ];
+      for (const registrationFields of invalidFields) {
+        await assert.rejects(
+          memberUpdate(mod, {
+            id: otherId,
+            ign: "Should roll back",
+            phone: "+60129999999",
+            registrationFields,
+          }),
+          /Select/,
+        );
+      }
+      assert.deepEqual(
+        (
+          await owner.query(
+            'SELECT * FROM "MemberPrivate" WHERE "memberId"=$1',
+            [otherId],
+          )
+        ).rows[0],
+        before,
+      );
+      assert.equal(
+        (
+          await owner.query('SELECT "displayIgn" FROM "Member" WHERE id=$1', [
+            otherId,
+          ])
+        ).rows[0].displayIgn,
+        "Ops duplicate",
+      );
+      const mapping = (
+        await owner.query(
+          'SELECT value FROM "IntegrationSetting" WHERE key=$1',
+          ["formMapping"],
+        )
+      ).rows[0].value;
+      try {
+        await owner.query(
+          'UPDATE "IntegrationSetting" SET value=$1 WHERE key=$2',
+          [{ ...mapping, country: "Residence" }, "formMapping"],
+        );
+        assert.equal(
+          (await privateDetails(mod, "member", otherId)).countryField,
+          "Residence",
+        );
+        await assert.rejects(
+          memberUpdate(mod, {
+            id: otherId,
+            registrationFields: { Residence: "ZZ" },
+          }),
+          /Select a country/,
+        );
+        await memberUpdate(mod, {
+          id: otherId,
+          registrationFields: { Residence: " id " },
+        });
+        assert.equal(
+          (await privateDetails(mod, "member", otherId)).fields?.Residence,
+          "ID",
+        );
+      } finally {
+        await owner.query(
+          'UPDATE "IntegrationSetting" SET value=$1 WHERE key=$2',
+          [mapping, "formMapping"],
+        );
+      }
+    },
+  );
+  await check(
+    "legacy dropdown values survive unrelated edits and can be replaced or cleared",
+    async () => {
+      await owner.query(
+        'UPDATE "MemberPrivate" SET "registrationEncrypted"=$1 WHERE "memberId"=$2',
+        [
+          encrypt(
+            JSON.stringify({ Country: "Unknown location", status: "ADMIN" }),
+            `member:${otherId}`,
+          ),
+          otherId,
+        ],
+      );
+      await memberUpdate(mod, {
+        id: otherId,
+        registrationFields: {
+          Country: "Unknown location",
+          status: "ADMIN",
+          "Discord Name": "Updated handle",
+        },
+      });
+      const details = await privateDetails(mod, "member", otherId);
+      assert.equal(details.fields?.Country, "Unknown location");
+      assert.equal(details.fields?.status, "ADMIN");
+      assert.equal(details.fields?.["Discord Name"], "Updated handle");
+      await memberUpdate(mod, {
+        id: otherId,
+        registrationFields: { Country: "SG", status: "active" },
+      });
+      await memberUpdate(mod, {
+        id: otherId,
+        registrationFields: { Country: "", status: "" },
+      });
+      const cleared = await privateDetails(mod, "member", otherId);
+      assert.equal(cleared.fields?.Country, "");
+      assert.equal(cleared.fields?.status, "");
     },
   );
   let ids: string[] = [];

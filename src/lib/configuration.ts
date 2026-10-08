@@ -67,11 +67,24 @@ async function checkCapacity(
   tournamentId: string,
   config: TournamentConfiguration,
 ) {
-  const players = await tx.participant.count({ where: { tournamentId } }),
+  const players = await tx.participant.count({
+      where: { tournamentId, withdrawn: false },
+    }),
     teams = await tx.team.count({
       where: { category: { tournamentId, kind: "TEAM" }, archived: false },
     });
-  if (config.soloCapacity < players || config.teamCapacity < teams)
+  const [pool] = await tx.$queryRaw<
+    { count: bigint }[]
+  >`SELECT count(*) AS count FROM (
+      SELECT p."memberId" FROM "Participant" p WHERE p."tournamentId"=${tournamentId} AND NOT p.withdrawn
+      UNION
+      SELECT a."memberId" FROM "ParticipationRequest" a WHERE a."tournamentId"=${tournamentId}
+        AND NOT EXISTS(SELECT FROM "Participant" p WHERE p."tournamentId"=${tournamentId} AND p."memberId"=a."memberId" AND p.withdrawn)
+    ) active_players`;
+  if (
+    config.soloCapacity < Math.max(players, Number(pool.count)) ||
+    config.teamCapacity < teams
+  )
     throw new DomainError(
       `Capacity must retain all ${players} assigned SOLO entrants and ${teams} active teams. No records can be silently removed.`,
     );
@@ -90,6 +103,7 @@ async function apply(
   actor: Actor,
   revisionId: string,
   resolution: string,
+  generate = true,
 ) {
   const revision = await tx.configurationRevision.findUniqueOrThrow({
     where: { id: revisionId },
@@ -165,6 +179,7 @@ async function apply(
       configurationVersion: revision.version,
       published: false,
       status: "DRAFT",
+      registrationEnabled: false,
     },
   });
   await createStages(tx, revision.tournamentId, config);
@@ -178,10 +193,10 @@ async function apply(
     },
   });
   const players = await tx.participant.findMany({
-    where: { tournamentId: revision.tournamentId },
+    where: { tournamentId: revision.tournamentId, withdrawn: false },
     orderBy: { code: "asc" },
   });
-  if (players.length === config.soloCapacity)
+  if (generate && players.length === config.soloCapacity)
     await generateFixtures(
       tx,
       actor,
@@ -403,13 +418,20 @@ export async function assignParticipants(
   input: { id: string; memberIds: string[]; eligible: boolean; reason: string },
 ) {
   return privateTx(actor, async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Tournament" WHERE id=${input.id} FOR UPDATE`;
     const t = await tx.tournament.findUniqueOrThrow({
-        where: { id: input.id },
-      }),
-      config = configuration(t.configuration);
-    if (t.published || (await activeResults(tx, t.id)))
+      where: { id: input.id },
+    });
+    const config = configuration(t.configuration);
+    if (
+      t.published ||
+      !["DRAFT", "REGISTRATION_OPEN", "REGISTRATION_CLOSED"].includes(
+        t.status,
+      ) ||
+      (await activeResults(tx, t.id))
+    )
       throw new DomainError(
-        "Entrant changes require an unpublished configuration without active results.",
+        "Entrant changes require an unpublished tournament that has not started.",
       );
     const ids = z
       .array(z.string().uuid())
@@ -424,23 +446,48 @@ export async function assignParticipants(
     if (members.length !== ids.length)
       throw new DomainError("Only approved active members may be assigned.");
     const existing = await tx.participant.findMany({
-        where: { tournamentId: t.id },
-      }),
-      newIds = ids.filter((id) => !existing.some((p) => p.memberId === id));
-    if (existing.length + newIds.length > config.soloCapacity)
+      where: { tournamentId: t.id },
+    });
+    const newIds = ids.filter(
+      (id) => !existing.some((p) => p.memberId === id && !p.withdrawn),
+    );
+    const requests = await tx.participationRequest.findMany({
+      where: { tournamentId: t.id },
+      select: { memberId: true },
+    });
+    const reserved = new Set([
+      ...existing.filter((p) => !p.withdrawn).map((p) => p.memberId),
+      ...requests
+        .filter(
+          (a) =>
+            !existing.some((p) => p.memberId === a.memberId && p.withdrawn),
+        )
+        .map((a) => a.memberId),
+      ...newIds,
+    ]);
+    if (reserved.size > config.soloCapacity)
       throw new DomainError("Configured SOLO capacity is full.");
     let next =
       Math.max(0, ...existing.map((p) => Number(p.code.slice(1)) || 0)) + 1;
-    for (const memberId of newIds)
-      await tx.participant.create({
-        data: {
-          tournamentId: t.id,
-          memberId,
-          code: `P${String(next++).padStart(2, "0")}`,
-          eligible: input.eligible,
-          provisional: !t.mappingConfirmed,
-        },
-      });
+    for (const memberId of newIds) {
+      const previous = existing.find((p) => p.memberId === memberId);
+      const data = {
+        eligible: input.eligible,
+        provisional: !t.mappingConfirmed,
+        withdrawn: false,
+      };
+      if (previous)
+        await tx.participant.update({ where: { id: previous.id }, data });
+      else
+        await tx.participant.create({
+          data: {
+            tournamentId: t.id,
+            memberId,
+            code: `P${String(next++).padStart(2, "0")}`,
+            ...data,
+          },
+        });
+    }
     await audit(
       tx,
       actor,
@@ -453,6 +500,233 @@ export async function assignParticipants(
     return { created: newIds.length };
   });
 }
+
+/** Retain old identities and fixtures; rebuild only an unplayed private draft. */
+export async function changeEntrant(
+  actor: Actor,
+  input: { id: string; replacementMemberId?: string; reason: string },
+) {
+  const reason = requireReason(input.reason);
+  return privateTx(actor, async (tx) => {
+    const p = await tx.participant.findUniqueOrThrow({
+      where: { id: input.id },
+    });
+    await tx.$queryRaw`SELECT id FROM "Tournament" WHERE id=${p.tournamentId} FOR UPDATE`;
+    const t = await tx.tournament.findUniqueOrThrow({
+      where: { id: p.tournamentId },
+    });
+    const activeStage = { archived: false, category: { tournamentId: t.id } };
+    if (p.withdrawn)
+      throw new DomainError("This player has already withdrawn.");
+    if (
+      t.published ||
+      !["DRAFT", "REGISTRATION_OPEN", "REGISTRATION_CLOSED"].includes(
+        t.status,
+      ) ||
+      (await activeResults(tx, t.id)) ||
+      (await tx.match.count({
+        where: {
+          round: { stage: activeStage },
+          status: { notIn: ["SCHEDULED", "BYE"] },
+        },
+      }))
+    )
+      throw new DomainError(
+        "Unpublish before changing entrants. Started matches and results require an admin-controlled restart.",
+      );
+    if (
+      await tx.configurationRevision.count({
+        where: { tournamentId: t.id, status: "PENDING" },
+      })
+    )
+      throw new DomainError("Resolve the pending tournament revision first.");
+    const memberships = await tx.teamMembership.findMany({
+      where: {
+        memberId: p.memberId,
+        active: true,
+        category: { tournamentId: t.id },
+      },
+      include: { team: true },
+    });
+    const replacement = input.replacementMemberId;
+    if (replacement) {
+      const member = await tx.member.findUniqueOrThrow({
+        where: { id: replacement },
+      });
+      if (!member.verified || member.archived || replacement === p.memberId)
+        throw new DomainError("Choose a different approved, active member.");
+      if (
+        await tx.participant.count({
+          where: {
+            tournamentId: t.id,
+            memberId: replacement,
+            withdrawn: false,
+          },
+        })
+      )
+        throw new DomainError(
+          "The replacement already has a tournament place.",
+        );
+      if (
+        await tx.teamMembership.count({
+          where: {
+            memberId: replacement,
+            active: true,
+            category: { tournamentId: t.id },
+          },
+        })
+      )
+        throw new DomainError(
+          "Remove the replacement from their existing team first.",
+        );
+    } else if (memberships.some((m) => m.team.ownerId === p.memberId)) {
+      throw new DomainError(
+        "This player owns a team. Choose a replacement to transfer ownership, or archive their team before withdrawing them.",
+      );
+    }
+    const config = configuration(t.configuration);
+    const hadFixtures = !!(await tx.round.count({
+      where: { stage: activeStage },
+    }));
+    if (hadFixtures) {
+      const stages = await tx.stage.findMany({ where: activeStage });
+      const latest = await tx.configurationRevision.findFirst({
+        where: { tournamentId: t.id },
+        orderBy: { version: "desc" },
+      });
+      const revision = await tx.configurationRevision.create({
+        data: {
+          tournamentId: t.id,
+          version: Math.max(t.configurationVersion, latest?.version ?? 0) + 1,
+          beforeConfiguration: config,
+          configuration: { ...config, scheduleSource: "generated" },
+          requiresAdmin: false,
+          reasonEncrypted: encrypt(reason, `tournament:${t.id}`),
+          createdBy: actor.id,
+        },
+      });
+      await apply(tx, actor, revision.id, reason, false);
+      // Roster changes do not change the format or confirmed scoring rules.
+      for (const stage of stages)
+        await tx.stage.updateMany({
+          where: {
+            categoryId: stage.categoryId,
+            key: stage.key,
+            archived: false,
+          },
+          data: {
+            rules: stage.rules as Prisma.InputJsonValue,
+            confirmedRules: stage.confirmedRules,
+            ruleVersion: stage.ruleVersion,
+          },
+        });
+    }
+    await tx.participant.update({
+      where: { id: p.id },
+      data: { withdrawn: true, eligible: false },
+    });
+    let replacementId: string | undefined;
+    if (replacement) {
+      const previous = await tx.participant.findUnique({
+        where: {
+          tournamentId_memberId: { tournamentId: t.id, memberId: replacement },
+        },
+      });
+      if (previous) {
+        replacementId = previous.id;
+        await tx.participant.update({
+          where: { id: previous.id },
+          data: { withdrawn: false, eligible: true, provisional: true },
+        });
+      } else {
+        const all = await tx.participant.findMany({
+          where: { tournamentId: t.id },
+          select: { code: true },
+        });
+        const next =
+          Math.max(0, ...all.map((p) => Number(p.code.slice(1)) || 0)) + 1;
+        replacementId = (
+          await tx.participant.create({
+            data: {
+              tournamentId: t.id,
+              memberId: replacement,
+              code: `P${String(next).padStart(2, "0")}`,
+              eligible: true,
+              provisional: true,
+            },
+          })
+        ).id;
+      }
+    }
+    for (const membership of memberships) {
+      await tx.teamMembership.update({
+        where: { id: membership.id },
+        data: { active: false },
+      });
+      if (replacement) {
+        await tx.teamMembership.create({
+          data: {
+            teamId: membership.teamId,
+            categoryId: membership.categoryId,
+            memberId: replacement,
+          },
+        });
+        if (membership.team.ownerId === p.memberId)
+          await tx.team.update({
+            where: { id: membership.teamId },
+            data: { ownerId: replacement },
+          });
+      }
+    }
+    await tx.teamApplication.updateMany({
+      where: {
+        memberId: p.memberId,
+        team: { category: { tournamentId: t.id } },
+        status: "PENDING",
+      },
+      data: { status: "REJECTED", decidedAt: new Date() },
+    });
+    await tx.tournament.update({
+      where: { id: t.id },
+      data: {
+        mappingConfirmed: false,
+        status: t.status,
+        registrationEnabled: t.registrationEnabled,
+      },
+    });
+    const players = await tx.participant.findMany({
+      where: { tournamentId: t.id, withdrawn: false },
+      orderBy: { code: "asc" },
+    });
+    if (hadFixtures && players.length === config.soloCapacity)
+      await generateFixtures(
+        tx,
+        actor,
+        t.id,
+        { ...config, scheduleSource: "generated" },
+        players.map((p) => p.id),
+        reason,
+      );
+    await audit(
+      tx,
+      actor,
+      replacement ? "PARTICIPANT_REPLACE" : "PARTICIPANT_WITHDRAW",
+      "PARTICIPANT",
+      p.id,
+      {
+        previousMemberId: p.memberId,
+        replacementMemberId: replacement,
+        replacementId,
+        rebuiltFixtures: hadFixtures,
+        teamIds: memberships.map((m) => m.teamId),
+      },
+      reason,
+      { tournamentId: t.id },
+    );
+    return { id: p.id, replacementId };
+  });
+}
+
 export async function generateTournamentLeague(
   actor: Actor,
   input: { id: string; reason: string },
@@ -466,7 +740,7 @@ export async function generateTournamentLeague(
         "Use a controlled revision after publication or results.",
       );
     const players = await tx.participant.findMany({
-      where: { tournamentId: t.id },
+      where: { tournamentId: t.id, withdrawn: false },
       orderBy: { code: "asc" },
     });
     await generateFixtures(

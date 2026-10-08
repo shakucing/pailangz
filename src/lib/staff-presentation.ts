@@ -226,6 +226,10 @@ export function malaysiaDateSubmission(value: string) {
 }
 
 export function friendlyError(message: string) {
+  if (message === "IMAGE_TOO_LARGE")
+    return "The image is too large. Choose a PNG, JPEG or WebP up to 4 MB.";
+  if (message === "INVALID_IMAGE")
+    return "Choose a valid, non-animated PNG, JPEG or WebP image.";
   if (
     /JSON|Unexpected token|Failed to fetch|fetch failed|SyntaxError/i.test(
       message,
@@ -268,8 +272,10 @@ export function privateFieldLabel(key: string) {
   const names: Record<string, string> = {
     IGN: "Player name",
     Timestamp: "Submitted on",
-    "Tiktok ID": "TikTok account number",
-    "Discord ID": "Discord account number",
+    "Tiktok username": "TikTok username (display name)",
+    "Tiktok ID": "TikTok ID (@handle)",
+    "Discord Name": "Discord name",
+    "Discord ID": "Discord ID (username)",
     response_id: "Registration reference",
   };
   return names[key] ?? key;
@@ -294,8 +300,13 @@ const auditLabels: Record<string, string> = {
   AUDIT_EXPORT: "Activity history downloaded",
   OPERATION_FAILED: "An action could not be completed",
   PLAYER_MAPPING_CONFIRM: "Player list confirmed",
+  PARTICIPANT_REPLACE: "Tournament player replaced",
+  PARTICIPANT_WITHDRAW: "Tournament player withdrawn",
   PARTICIPANT_ELIGIBILITY: "Player eligibility updated",
   MEMBER_UPDATE: "Member updated",
+  REGISTRATION_SUBMIT: "Web registration submitted",
+  PARTICIPATION_SUBMIT: "Tournament participation submitted",
+  PARTICIPATION_AUTO_APPROVE: "Tournament participation automatically approved",
   STAFF_CREATE: "Staff account created",
   STAFF_DELETE: "Staff account removed",
   STAFF_PERMISSION_CHANGE: "Staff account updated",

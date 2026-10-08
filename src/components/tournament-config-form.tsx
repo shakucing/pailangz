@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useDialogForm } from "./workspace-dialog";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
 import { SizesFields } from "./guided-fields";
 import { staffFormData } from "@/lib/staff-form";
@@ -13,15 +14,19 @@ export function TournamentConfigForm({
   configuration: TournamentConfiguration;
 }) {
   const router = useRouter();
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
+  const dialogForm = useDialogForm(busy);
   return (
     <form
       className="form"
+      onChange={dialogForm.onChange}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
         setMessage("");
+        setFailed(false);
         try {
           const form = new FormData(e.currentTarget);
           const config = staffFormData(
@@ -54,8 +59,10 @@ export function TournamentConfigForm({
               ? "Update proposed. An admin needs to review how to restart the existing competition."
               : "Tournament sizes updated. Earlier matches stay in history. Confirm the rules for the new competition.",
           );
+          dialogForm.onSaved();
           router.refresh();
         } catch (e) {
+          setFailed(true);
           setMessage(
             e instanceof Error
               ? friendlyError(e.message)
@@ -83,7 +90,10 @@ export function TournamentConfigForm({
         {busy ? "Saving…" : "Save tournament sizes"}
       </button>
       {message && (
-        <p className="feedback" role="status">
+        <p
+          className={`feedback ${failed ? "error" : ""}`}
+          role={failed ? "alert" : "status"}
+        >
           {message}
         </p>
       )}

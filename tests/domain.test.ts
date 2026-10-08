@@ -242,6 +242,16 @@ describe("private data and authorization", () => {
       "INVALID_REQUIRES_REVIEW",
     );
   });
+  it("validates national phone numbers using country names as well as codes", () => {
+    const raw = "081234567890";
+    expect(phoneInfo(raw, "Indonesia")).toEqual(phoneInfo(raw, "ID"));
+    expect(phoneInfo(raw, "Indonesia")).toEqual({
+      phone: raw,
+      issue: null,
+      lastFour: "7890",
+    });
+    expect(phoneInfo(raw, "MY").issue).toBe("INVALID_REQUIRES_REVIEW");
+  });
   it("parses the confirmed private headers without interpreting status as a role", () => {
     const row = csvRows(
       "IGN,Whatsapp Number,status\nExample,0123456789,ADMIN",

@@ -1,35 +1,43 @@
-import { db } from "@/lib/db";
-import { validResponder } from "@/lib/operations";
+import type { Metadata } from "next";
 import { getLocale, translate } from "@/lib/i18n";
+import { RegistrationForm } from "@/components/registration-form";
+import styles from "@/components/registration-form.module.css";
+import { COUNTRY_CODES } from "@/lib/registration-form";
 export const dynamic = "force-dynamic";
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return {
+    title: translate(locale, "Pendaftaran ahli", "Member registration"),
+    robots: { index: false, follow: false },
+  };
+}
 export default async function Register() {
   const locale = await getLocale();
   const t = (ms: string, en: string) => translate(locale, ms, en);
-  const setting = process.env.DATABASE_URL
-    ? await db.integrationSetting.findUnique({
-        where: { key: "responderUrl" },
-        select: { value: true },
-      })
-    : null;
-  const url =
-    typeof setting?.value === "string"
-      ? setting.value
-      : process.env.GOOGLE_FORM_RESPONDER_URL;
+  // Send one country list to the client: browser and Node ICU versions can
+  // otherwise produce different names/order during hydration.
+  const countryNames = new Intl.DisplayNames([locale], { type: "region" });
+  const countries = COUNTRY_CODES.map((code) => ({
+    code,
+    name: countryNames.of(code) ?? code,
+  })).sort((a, b) => a.name.localeCompare(b.name, locale));
   return (
     <div className="wrap">
       <div className="page-heading">
-        <div className="eyebrow">Welcome to the gang</div>
-        <h1>{t("Sertai komuniti.", "Join the community.")}</h1>
+        <div className="eyebrow">
+          {t("Pemohon terpilih", "Selected applicants")}
+        </div>
+        <h1>{t("Permohonan ahli", "Member application")}</h1>
         <p className="muted">
           {t(
-            "Daftar IGN kau. Moderator akan semak permohonan sebelum pengesahan.",
-            "Register your IGN. A moderator will review your submission before approval.",
+            "Borang ini dikongsi secara individu dengan pemohon terpilih. Lengkapkan maklumat kau untuk semakan moderator.",
+            "This form is shared individually with selected applicants. Complete your details for moderator review.",
           )}
         </p>
       </div>
-      <section className="grid2 section" style={{ paddingTop: 0 }}>
-        <div className="panel prose">
-          <h3>{t("Tiga langkah untuk mula", "Three steps to get started")}</h3>
+      <section className={styles.layout}>
+        <aside className={`panel prose ${styles.aside}`}>
+          <h3>{t("Proses permohonan", "Application process")}</h3>
           <ol className="space-y-5 pl-5">
             <li>
               <strong>
@@ -71,11 +79,6 @@ export default async function Register() {
               </p>
             </li>
           </ol>
-        </div>
-        <div className="panel">
-          <span className="badge neutral">
-            {t("Pendaftaran ahli", "Member registration")}
-          </span>
           <h3 className="mt-5">
             {t(
               "Maklumat pemain kekal sulit.",
@@ -84,34 +87,12 @@ export default async function Register() {
           </h3>
           <p className="muted">
             {t(
-              "Nama dalam game, nombor WhatsApp, akaun sosial, lokasi dan jawapan pendaftaran hanya untuk moderator dan admin yang dibenarkan. Paparan awam menggunakan kod peserta.",
-              "In-game names, WhatsApp numbers, social accounts, location and registration answers are accessible only to authorized moderators and admins. Public views use participant codes.",
+              "Nama dalam game SOLO bagi acara asal dipaparkan bersama kod peserta pada halaman utama dengan kebenaran pemain. Nombor WhatsApp, akaun sosial, lokasi dan jawapan pendaftaran hanya untuk moderator dan admin yang dibenarkan.",
+              "The original event’s SOLO in-game names appear alongside participant codes on the landing page with players’ permission. WhatsApp numbers, social accounts, location and registration answers are accessible only to authorized moderators and admins.",
             )}
           </p>
-          {url && validResponder(url) ? (
-            <a
-              href={url}
-              className="button"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {t("Buka borang pendaftaran ↗", "Open registration form ↗")}
-            </a>
-          ) : (
-            <div className="notice">
-              {t(
-                "Borang pendaftaran belum disambungkan. Pautan rasmi akan dipaparkan selepas disahkan oleh admin.",
-                "The registration form is not connected yet. The official link will appear after admin verification.",
-              )}
-            </div>
-          )}
-          <p className="muted text-xs mt-6">
-            {t(
-              "Pendaftaran tidak mencipta akaun staff atau memberikan akses moderator.",
-              "Registration does not create a staff account or grant moderator access.",
-            )}
-          </p>
-        </div>
+        </aside>
+        <RegistrationForm countries={countries} />
       </section>
     </div>
   );

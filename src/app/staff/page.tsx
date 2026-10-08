@@ -3,6 +3,10 @@ import { getLocale, translate } from "@/lib/i18n";
 import { Wordmark } from "@/components/wordmark";
 
 export const dynamic = "force-dynamic";
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: translate(locale, "Log masuk staff", "Staff sign in") };
+}
 export default async function StaffLogin() {
   const locale = await getLocale();
   const t = (ms: string, en: string) => translate(locale, ms, en);
@@ -10,7 +14,7 @@ export default async function StaffLogin() {
     <div className="wrap">
       <section className="login-card panel">
         <Wordmark />
-        <div className="eyebrow mt-4">Staff access</div>
+        <div className="eyebrow mt-4">{t("Akses staff", "Staff access")}</div>
         <h1 className="mt-5">
           {t("Jaga gang.", "Care for the gang.")}
           <br />

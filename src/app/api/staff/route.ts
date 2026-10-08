@@ -65,6 +65,8 @@ export async function POST(request: Request) {
     const actor = await getActor();
     requestActor = actor;
     await rateLimit(`mutations:${actor.id}`, 100, 60);
+    let payload: unknown;
+    let teamImage: File | undefined;
     if (request.headers.get("content-type")?.includes("multipart/form-data")) {
       if (
         Number(request.headers.get("content-length") ?? 0) >
@@ -72,33 +74,51 @@ export async function POST(request: Request) {
       )
         throw new DomainError("Upload is too large.", 413);
       const form = await boundedFormData(request, MAX_UPLOAD_REQUEST_BYTES);
-      const file = form.get("file");
-      if (!(file instanceof File)) throw new DomainError("Select a file.");
       const action = form.get("action");
-      operation = action === "evidence" ? "EVIDENCE_UPLOAD" : "IMPORT";
-      if (action === "import") {
-        if (!file.name.toLowerCase().endsWith(".csv"))
-          throw new DomainError("Select a CSV file.");
-        return json(
-          await ingest(actor, csvRows(await file.text()), "CSV", file.name),
-        );
+      if (action === "team") {
+        operation = "team";
+        const data = z
+          .string()
+          .max(16 * 1024)
+          .parse(form.get("data"));
+        try {
+          payload = { action, data: JSON.parse(data) };
+        } catch {
+          throw new DomainError("Please send valid team details.", 400);
+        }
+        const image = form.get("image");
+        if (image instanceof File) {
+          if (image.name || image.size) teamImage = image;
+        } else if (image !== null) throw new DomainError("INVALID_IMAGE", 400);
+      } else {
+        const file = form.get("file");
+        if (!(file instanceof File)) throw new DomainError("Select a file.");
+        operation = action === "evidence" ? "EVIDENCE_UPLOAD" : "IMPORT";
+        if (action === "import") {
+          if (!file.name.toLowerCase().endsWith(".csv"))
+            throw new DomainError("Select a CSV file.");
+          return json(
+            await ingest(actor, csvRows(await file.text()), "CSV", file.name),
+          );
+        }
+        if (action === "evidence")
+          return json(
+            await putEvidence(actor, id.parse(form.get("resultId")), file),
+          );
+        throw new DomainError("Unknown upload action.");
       }
-      if (action === "evidence")
-        return json(
-          await putEvidence(actor, id.parse(form.get("resultId")), file),
-        );
-      throw new DomainError("Unknown upload action.");
+    } else {
+      payload = await boundedJson(request, 2_000_000);
     }
-    if (Number(request.headers.get("content-length") ?? 0) > 2_000_000)
-      throw new DomainError("Request is too large.", 413);
     const { action, data } = z
       .object({ action: z.string(), data: z.record(z.string(), z.unknown()) })
-      .parse(await boundedJson(request, 2_000_000));
+      .parse(payload);
     operation = [
       "configure",
       "revisionApply",
       "revisionReject",
       "assignParticipants",
+      "changeEntrant",
       "generateLeague",
       "review",
       "approveRegistrations",
@@ -134,6 +154,14 @@ export async function POST(request: Request) {
       : "UNKNOWN";
     let value: unknown;
     switch (action) {
+      case "changeEntrant":
+        value = await configurationActions.changeEntrant(
+          actor,
+          z
+            .object({ id, replacementMemberId: id.optional(), reason })
+            .parse(data),
+        );
+        break;
       case "configure":
         value = await configurationActions.configureTournament(
           actor,
@@ -258,9 +286,11 @@ export async function POST(request: Request) {
               name: z.string(),
               memberIds: z.array(id),
               archived: z.boolean().optional(),
+              removeImage: z.boolean().optional(),
               reason,
             })
             .parse(data),
+          teamImage,
         );
         break;
       case "staffCreate":

@@ -2,6 +2,10 @@ import { NavigationLink as Link } from "@/components/navigation-link";
 import { publishedTournaments, dateText } from "@/lib/public-data";
 import { getLocale, translate } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
+export async function generateMetadata() {
+  const locale = await getLocale();
+  return { title: translate(locale, "Kejohanan", "Tournaments") };
+}
 export default async function Tournaments() {
   const locale = await getLocale();
   const t = (ms: string, en: string) => translate(locale, ms, en);
@@ -54,6 +58,11 @@ export default async function Tournaments() {
               "Tiada kejohanan diterbitkan buat masa ini. Tarikh akan diumumkan.",
               "No tournaments have been published yet. Dates will be announced.",
             )}
+            <div className="actions justify-center">
+              <Link href="/#tournament-format" className="button secondary">
+                {t("Lihat pratonton acara", "Explore the event preview")}
+              </Link>
+            </div>
           </div>
         )}
       </section>

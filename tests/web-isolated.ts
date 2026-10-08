@@ -21,12 +21,20 @@ async function freePort() {
   );
   return port;
 }
-function run(script: string, env: NodeJS.ProcessEnv): Promise<void> {
+function run(
+  script: string,
+  env: NodeJS.ProcessEnv,
+  args: string[] = [],
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", "tsx", script], {
-      env,
-      stdio: "inherit",
-    });
+    const child = spawn(
+      process.execPath,
+      ["--import", "tsx", script, ...args],
+      {
+        env,
+        stdio: "inherit",
+      },
+    );
     child.on("error", reject);
     child.on("exit", (code) =>
       code === 0
@@ -125,11 +133,15 @@ try {
   // Empty markers override any developer .env rather than selecting cloud mode.
   Object.assign(env, { VERCEL: "", VERCEL_ENV: "" });
   // Seed in its own process as the synthetic database owner, never runtime.
-  await run("prisma/seed.ts", {
-    ...env,
-    DATABASE_URL: ownerUrl,
-    LOCAL_PGLITE: "true",
-  });
+  await run(
+    "prisma/seed.ts",
+    {
+      ...env,
+      DATABASE_URL: ownerUrl,
+      LOCAL_PGLITE: "true",
+    },
+    ["--legacy-test-fixtures"],
+  );
   web = spawn(
     process.execPath,
     [

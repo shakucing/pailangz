@@ -23,7 +23,7 @@ export async function StaffShell({
   if (area === "admin" && actor.role !== "ADMIN") redirect("/moderator");
   const base = actor.role === "ADMIN" ? "/admin" : "/moderator";
   return (
-    <div className="wrap staff-layout">
+    <div className="wrap staff-layout" lang="en">
       <aside className="sidebar">
         <div className="staff-meta">
           <Wordmark />

@@ -42,7 +42,7 @@ export async function standingsFor(
     },
   });
   let participants = await tx.participant.findMany({
-    where: { tournamentId: stage.category.tournamentId },
+    where: { tournamentId: stage.category.tournamentId, withdrawn: false },
     include: { member: true },
   });
   let baseRanking: Standing[] = [];
@@ -369,6 +369,7 @@ export async function saveTournament(
         gameTitle: z.string().max(100).optional(),
         startsAt: z.string().optional(),
         registrationDeadline: z.string().optional(),
+        registrationEnabled: z.boolean().optional(),
         status: z.enum([
           "DRAFT",
           "REGISTRATION_OPEN",
@@ -447,8 +448,6 @@ export async function confirmRules(
     reason: string;
   },
 ) {
-  if (actor.role !== "ADMIN")
-    throw new DomainError("Admin permission is required.", 403);
   return privateTx(actor, async (tx) => {
     const schema = z
       .object({
@@ -519,7 +518,7 @@ export async function tournamentReadiness(tx: Tx, id: string) {
   const t = await tx.tournament.findUniqueOrThrow({
     where: { id },
     include: {
-      participants: { include: { member: true } },
+      participants: { where: { withdrawn: false }, include: { member: true } },
       categories: {
         include: {
           stages: { where: { archived: false } },
@@ -615,8 +614,6 @@ export async function publishTournament(
   actor: Actor,
   input: { id: string; published: boolean; reason: string },
 ) {
-  if (actor.role !== "ADMIN")
-    throw new DomainError("Publication requires admin approval.", 403);
   return privateTx(actor, async (tx) => {
     const { t, checks } = await tournamentReadiness(tx, input.id);
     if (input.published) {
@@ -654,8 +651,6 @@ export async function freezeRankings(
   actor: Actor,
   input: { stageId: string; rankedIds: string[]; reason: string },
 ) {
-  if (actor.role !== "ADMIN")
-    throw new DomainError("Admin permission is required.", 403);
   return privateTx(actor, async (tx) => {
     const { stage, rows } = await standingsFor(tx, input.stageId);
     if (!stage || !["league", "qualification"].includes(stage.key))
@@ -673,6 +668,7 @@ export async function freezeRankings(
       where: {
         tournamentId: category.tournamentId,
         eligible: true,
+        withdrawn: false,
         member: { verified: true, archived: false },
       },
     });

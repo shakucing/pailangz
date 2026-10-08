@@ -1,15 +1,9 @@
 "use client";
 
 import { useId, useState } from "react";
-import {
-  ArrowRight,
-  GitBranch,
-  ShieldCheck,
-  Swords,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { ArrowRight, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { useLocale } from "./locale-context";
+import { InteractiveBracket, type BracketTeam } from "./interactive-bracket";
 import {
   configuredByes,
   progressionRounds,
@@ -25,9 +19,11 @@ import styles from "./event-presentation.module.css";
 export function EventPresentation({
   data,
   configuration: config,
+  teams,
 }: {
   data: EventPresentationData | null;
   configuration: TournamentConfiguration;
+  teams?: BracketTeam[];
 }) {
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
@@ -58,6 +54,10 @@ export function EventPresentation({
   const teamNames = new Map(
     categoryData?.teams.map((team) => [team.code, team.name]) ?? [],
   );
+  const playerNames = new Map(
+    data?.participants.filter((p) => p.ign).map((p) => [p.code, p.ign]) ?? [],
+  );
+  const hasPlayerNames = playerNames.size > 0;
   const rounds = progressionRounds(config, category);
   const range = qualificationRange(config);
   const byes = configuredByes(config, category);
@@ -124,13 +124,15 @@ export function EventPresentation({
         </div>
         <span className="badge warning">{status}</span>
       </div>
-      <div className={styles.privacy}>
-        <ShieldCheck size={15} aria-hidden="true" />
-        {t(
-          "Nama dalam game dirahsiakan. Ikuti pemain melalui kod dan pasukan melalui nama.",
-          "In-game names stay private. Follow players by code and teams by name.",
-        )}
-      </div>
+      {!hasPlayerNames && (
+        <div className={styles.privacy}>
+          <ShieldCheck size={15} aria-hidden="true" />
+          {t(
+            "Ikuti pemain melalui kod dan pasukan melalui nama.",
+            "Follow players by code and teams by name.",
+          )}
+        </div>
+      )}
       <div
         className={styles.categorySwitch}
         role="group"
@@ -172,7 +174,7 @@ export function EventPresentation({
           </strong>
           <span>
             {solo
-              ? t("Kod pemain berdaftar", "Registered player codes")
+              ? t("Pemain berdaftar", "Registered players")
               : t("Kod pasukan berdaftar", "Registered team codes")}
           </span>
         </div>
@@ -381,58 +383,22 @@ export function EventPresentation({
         )}
 
         {view === "bracket" ? (
-          knockout?.rounds.length ? (
-            <div
-              className={styles.bracketScroll}
-              tabIndex={0}
-              role="region"
-              aria-label={t("Bracket knockout", "Knockout bracket")}
-            >
-              <div className={styles.bracketColumns}>
-                {knockout.rounds.map((r) => (
-                  <div key={r.number} className={styles.bracketColumn}>
-                    <h4>{r.name}</h4>
-                    <div>
-                      {r.matches.map((m) => (
-                        <article className={styles.bracketMatch} key={m.id}>
-                          <span>
-                            BO{m.bestOf} · {matchStatus(m.status)}
-                          </span>
-                          <strong>{code(m.a)}</strong>
-                          <strong>{code(m.b)}</strong>
-                          <small>{score(m)}</small>
-                        </article>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className={styles.empty}>
-              <GitBranch size={26} aria-hidden="true" />
-              <strong>
-                {t(
-                  "Bracket menunggu pengesahan",
-                  "Bracket awaiting confirmation",
-                )}
-              </strong>
-              <p>
-                {solo
-                  ? t(
-                      "Pairing knockout akan muncul selepas kedudukan liga dan kelayakan disahkan.",
-                      "Knockout pairings will appear after league and qualification rankings are confirmed.",
-                    )
-                  : t(
-                      "Nama pasukan dan kod T01, T02 dan seterusnya akan muncul apabila pasukan didaftarkan. Bracket menunggu roster dan seed disahkan.",
-                      "Team names and T01, T02 codes appear when teams are registered. The bracket awaits confirmed rosters and seeding.",
-                    )}
-              </p>
-            </div>
-          )
+          <InteractiveBracket
+            key={category}
+            configuration={config}
+            category={category}
+            rounds={knockout?.rounds}
+            storageScope={data?.slug}
+            teams={teams}
+          />
         ) : view === "standings" ? (
           stage?.standings.length ? (
-            <div className={styles.tableScroll}>
+            <div
+              className={styles.tableScroll}
+              tabIndex={0}
+              role="region"
+              aria-label={`${category} ${name(stageKey)} ${t("kedudukan", "standings")}`}
+            >
               <table>
                 <caption className="sr-only">
                   {category} {name(stageKey)} {t("kedudukan", "standings")}
@@ -441,7 +407,7 @@ export function EventPresentation({
                   <tr>
                     {[
                       t("Kedudukan", "Rank"),
-                      t("Kod", "Code"),
+                      t("Pemain", "Player"),
                       "P",
                       "W",
                       "D",
@@ -458,7 +424,11 @@ export function EventPresentation({
                   {stage.standings.map((r) => (
                     <tr key={r.code}>
                       <td>{r.rank ?? t("Seri", "Tied")}</td>
-                      <th scope="row">{r.code}</th>
+                      <th scope="row">
+                        {r.code}
+                        {playerNames.get(r.code) &&
+                          ` · ${playerNames.get(r.code)}`}
+                      </th>
                       <td>{r.played}</td>
                       <td>{r.wins}</td>
                       <td>{r.draws}</td>
@@ -507,7 +477,13 @@ export function EventPresentation({
               </div>
             )}
             {round?.matches.length ? (
-              <div className={styles.tableScroll} id={`${id}-fixtures`}>
+              <div
+                className={styles.tableScroll}
+                id={`${id}-fixtures`}
+                tabIndex={0}
+                role="region"
+                aria-label={`${name(stageKey)} · ${t(`Pusingan ${round.number}`, `Round ${round.number}`)}`}
+              >
                 <table>
                   <caption>
                     {name(stageKey)} ·{" "}
@@ -574,7 +550,9 @@ export function EventPresentation({
           <div>
             <h4>
               {solo
-                ? t("Kod pemain", "Player codes")
+                ? hasPlayerNames
+                  ? t("Pemain & nama dalam game", "Players & in-game names")
+                  : t("Kod pemain", "Player codes")
                 : t("Pasukan & kod", "Teams & codes")}
             </h4>
             <span>
@@ -586,6 +564,9 @@ export function EventPresentation({
               {entrants.map((entrant) => (
                 <li key={entrant.code}>
                   {entrant.code}
+                  {solo && playerNames.get(entrant.code) && (
+                    <span> · {playerNames.get(entrant.code)}</span>
+                  )}
                   {!solo && <span> · {teamNames.get(entrant.code)}</span>}
                 </li>
               ))}
@@ -594,8 +575,8 @@ export function EventPresentation({
             <p>
               {solo
                 ? t(
-                    "Pemain belum didaftarkan. Kod akan dipaparkan selepas rekod peserta diwujudkan.",
-                    "Players have not been registered. Codes will appear after participant records are created.",
+                    "Pemain belum didaftarkan. Roster akan dipaparkan selepas rekod peserta diwujudkan.",
+                    "Players have not been registered. The roster will appear after participant records are created.",
                   )
                 : t(
                     "Pasukan belum didaftarkan. Nama dan kod akan dipaparkan selepas rekod pasukan diwujudkan.",

@@ -8,7 +8,7 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
   if (
-    /^\/(admin|moderator|api\/staff|api\/auth)(\/|$)/.test(
+    /^\/(admin|moderator|api\/staff|api\/auth|api\/member-access|api\/teams|tournaments\/[^/]+\/teams)(\/|$)/.test(
       request.nextUrl.pathname,
     )
   ) {

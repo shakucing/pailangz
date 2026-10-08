@@ -1,3 +1,4 @@
+import { TaskDialog } from "./workspace-dialog";
 import Link from "next/link";
 import type { Actor, Tx } from "@/lib/db";
 import {
@@ -213,8 +214,11 @@ export async function renderActivityHistory(
                       </p>
                     )}
                   {!!activityDetails(e.changes).length && (
-                    <details className="details">
-                      <summary>Change details</summary>
+                    <TaskDialog
+                      label="Change details"
+                      title={activityLabel(e.action)}
+                      description={operationalTime(e.createdAt)}
+                    >
                       <dl className="readable-details">
                         {activityDetails(e.changes).map((d) => (
                           <div key={d.label}>
@@ -223,7 +227,7 @@ export async function renderActivityHistory(
                           </div>
                         ))}
                       </dl>
-                    </details>
+                    </TaskDialog>
                   )}
                   {e.reason && <p className={styles.meta}>{e.reason}</p>}
                 </div>
@@ -236,10 +240,12 @@ export async function renderActivityHistory(
         <p className="empty">No activity matches these filters.</p>
       )}
       <SectionPages q={q} total={total} base={`${base}/audit`} />
-      <details className="panel">
-        <summary>Download activity history</summary>
+      <TaskDialog
+        label="Download activity history"
+        title="Download activity history"
+      >
         <AuditExport />
-      </details>
+      </TaskDialog>
     </div>
   );
 }

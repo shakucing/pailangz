@@ -1,4 +1,8 @@
-import { originalConfiguration } from "../src/lib/tournament-config";
+import {
+  newTournamentConfiguration,
+  originalConfiguration,
+} from "../src/lib/tournament-config";
+import { createStages } from "../src/lib/configuration";
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
 import { playerIGNs, fixtureTokens } from "../src/lib/seed-data";
@@ -6,7 +10,7 @@ import { validateFixtures } from "../src/lib/fixture-validation";
 import { canonicalIgn } from "../src/lib/domain";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-export async function seed() {
+export async function seed({ legacyFixtures = false } = {}) {
   validateFixtures(playerIGNs, fixtureTokens);
   const { audit } = await import("../src/lib/db");
   const db = new PrismaClient({
@@ -18,6 +22,7 @@ export async function seed() {
     }),
   });
   let revised = false;
+  let emptyDraft = false;
   await db.$transaction(
     async (tx) => {
       const provenance = await tx.integrationSetting.findUnique({
@@ -35,7 +40,10 @@ export async function seed() {
           data: {
             slug: "pailangz-solo-team",
             name: "PAILANGZ & PAILANGZZ — Solo & Team Tournament",
-            configuration: originalConfiguration,
+            registrationEnabled: true,
+            configuration: legacyFixtures
+              ? originalConfiguration
+              : newTournamentConfiguration,
             overview:
               "Aktiviti bersama dan persaingan sihat untuk mengenal pasti pemain solo serta pasukan terkuat PAILANGZ dan PAILANGZZ. Pemain bebas memilih weapons dan weapon modes.",
           },
@@ -58,6 +66,27 @@ export async function seed() {
       });
       if (tournament.configurationVersion > 1) {
         revised = true;
+        return;
+      }
+      if (
+        (tournament.configuration as { scheduleSource?: string })
+          .scheduleSource === "generated"
+      ) {
+        emptyDraft = true;
+        if (
+          !(await tx.stage.count({
+            where: { category: { tournamentId: tournament.id } },
+          }))
+        )
+          await createStages(tx, tournament.id, newTournamentConfiguration);
+        await tx.integrationSetting.upsert({
+          where: { key: "formMapping" },
+          update: {},
+          create: {
+            key: "formMapping",
+            value: { ign: "IGN", phone: "Whatsapp Number", country: "Country" },
+          },
+        });
         return;
       }
       const solo = await tx.category.upsert({
@@ -207,11 +236,17 @@ export async function seed() {
   console.log(
     revised
       ? "Official seed retained; applied configuration revisions were not changed."
-      : "Official draft seed verified: 64 provisional players; 6 rounds; 192 distinct series. No results or staff credentials seeded.",
+      : emptyDraft
+        ? "Official draft ready: 32 SOLO players / eight teams of four; no assignments or fixtures generated."
+        : "Official draft seed verified: 64 provisional players; 6 rounds; 192 distinct series. No results or staff credentials seeded.",
   );
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href)
-  seed().catch(() => {
+  seed({
+    legacyFixtures:
+      process.env.APP_ENV === "development" &&
+      process.argv.includes("--legacy-test-fixtures"),
+  }).catch(() => {
     console.error(
       "Seed failed. Check migrations and the owner connection; no personal data is printed.",
     );

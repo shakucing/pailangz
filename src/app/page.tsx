@@ -3,9 +3,12 @@ import { ArrowUpRight, Swords, Users, Trophy } from "lucide-react";
 import { FadeContent } from "@/components/react-bits/fade-content";
 import { SpotlightCard } from "@/components/react-bits/spotlight-card";
 import { Wordmark } from "@/components/wordmark";
+import { HeroOrbit } from "@/components/hero-orbit";
 import { EventPresentation } from "@/components/event-presentation";
 import { eventPresentationData } from "@/lib/event-presentation-data";
 import { originalConfiguration } from "@/lib/tournament-config";
+import { publicTeams } from "@/lib/team-portal";
+import { TeamDirectory } from "@/components/team-directory";
 import { getLocale, translate } from "@/lib/i18n";
 import {
   publishedTournaments,
@@ -22,6 +25,8 @@ export default async function Home() {
   ]);
   const featured = tournaments[0];
   const event = await eventPresentationData(featured?.slug);
+  const teamSlug = event?.slug ?? featured?.slug ?? "pailangz-solo-team";
+  const teams = await publicTeams(teamSlug);
   const config =
     event?.configuration ?? featured?.configuration ?? originalConfiguration;
   return (
@@ -55,6 +60,7 @@ export default async function Home() {
           </p>
         </FadeContent>
         <div className="hero-visual" aria-hidden="true">
+          <HeroOrbit />
           <span className="hud tl">PZ / COMMUNITY SIGNAL</span>
           <div className="orbit" />
           <div className="orbit two" />
@@ -148,8 +154,17 @@ export default async function Home() {
         style={{ paddingTop: 0 }}
         id="tournament-format"
       >
-        <EventPresentation data={event} configuration={config} />
+        <EventPresentation
+          data={event}
+          configuration={config}
+          teams={teams.map(({ code, name, avatarImage }) => ({
+            code,
+            name,
+            avatarImage,
+          }))}
+        />
       </section>
+      <TeamDirectory teams={teams} slug={teamSlug} />
       <FadeContent>
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="section-title">

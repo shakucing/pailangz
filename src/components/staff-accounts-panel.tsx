@@ -2,6 +2,7 @@
 import { useId, useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, UserPlus, Trash2 } from "lucide-react";
+import { TaskDialog, WorkspaceDialog, useDialogForm } from "./workspace-dialog";
 
 type StaffAccount = {
   id: string;
@@ -21,6 +22,21 @@ async function save(action: string, data: Record<string, unknown>) {
 }
 
 export function AddStaffAccount() {
+  return (
+    <TaskDialog
+      label={
+        <>
+          <UserPlus size={18} aria-hidden="true" /> Add staff account
+        </>
+      }
+      title="Add staff account"
+    >
+      <CreateStaffForm />
+    </TaskDialog>
+  );
+}
+
+function CreateStaffForm() {
   const uid = useId(),
     router = useRouter();
   const [busy, setBusy] = useState(false),
@@ -28,17 +44,16 @@ export function AddStaffAccount() {
   const [show, setShow] = useState(false),
     [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const dialogForm = useDialogForm(busy || refreshing);
   return (
-    <details className="panel account-create">
-      <summary>
-        <UserPlus size={18} aria-hidden="true" /> Add staff account
-      </summary>
+    <div>
       <p className="muted text-sm">
         Create an admin or moderator. Every account change is recorded
         automatically.
       </p>
       <form
         className="form"
+        onChange={dialogForm.onChange}
         onSubmit={async (event) => {
           event.preventDefault();
           const form = event.currentTarget,
@@ -63,6 +78,7 @@ export function AddStaffAccount() {
               password,
             });
             form.reset();
+            dialogForm.onSaved();
             setShow(false);
             setSuccess(
               "Staff account created. They can now sign in at /staff.",
@@ -168,7 +184,7 @@ export function AddStaffAccount() {
           </p>
         )}
       </form>
-    </details>
+    </div>
   );
 }
 
@@ -182,6 +198,8 @@ export function StaffAccountRow({
   const uid = useId(),
     router = useRouter(),
     dialog = useRef<HTMLDialogElement>(null);
+  const [editing, setEditing] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false),
     [refreshing, startTransition] = useTransition();
   const [feedback, setFeedback] = useState<{
@@ -194,6 +212,8 @@ export function StaffAccountRow({
     try {
       await save(action, data);
       dialog.current?.close();
+      setEditing(false);
+      setDirty(false);
       setFeedback({
         error: false,
         text:
@@ -231,86 +251,118 @@ export function StaffAccountRow({
         </div>
       </div>
       {!current && (
-        <details className="details account-edit">
-          <summary>Edit account</summary>
-          <form
-            className="form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const data = new FormData(event.currentTarget);
-              void submit("staffEdit", {
-                id: account.id,
-                name: data.get("name"),
-                email: data.get("email"),
-                role: data.get("role"),
-                suspended: data.has("suspended"),
-              });
+        <>
+          <button
+            type="button"
+            className="button secondary small"
+            aria-haspopup="dialog"
+            onClick={() => {
+              setFeedback(null);
+              setEditing(true);
             }}
           >
-            <fieldset className="form-fields" disabled={busy || refreshing}>
-              <div className="grid2">
-                <label htmlFor={`${uid}-name`}>
-                  Display name
-                  <input
-                    id={`${uid}-name`}
-                    name="name"
-                    defaultValue={account.name}
-                    maxLength={100}
-                    required
-                  />
-                </label>
-                <label htmlFor={`${uid}-email`}>
-                  Email
-                  <input
-                    id={`${uid}-email`}
-                    name="email"
-                    type="email"
-                    defaultValue={account.email}
-                    maxLength={254}
-                    required
-                  />
-                </label>
-              </div>
-              <label htmlFor={`${uid}-role`}>
-                Role
-                <select
-                  id={`${uid}-role`}
-                  name="role"
-                  defaultValue={account.role}
-                >
-                  <option value="MODERATOR">Moderator</option>
-                  <option value="ADMIN">Admin</option>
-                </select>
-              </label>
-              <label className="choice-row">
-                <input
-                  name="suspended"
-                  type="checkbox"
-                  defaultChecked={account.suspended}
-                />
-                Suspended
-              </label>
-              <p className="muted text-xs mb-0">
-                Saving signs out this staff member. The change goes straight to
-                activity history.
-              </p>
-              <div className="account-actions">
-                <button className="button" type="submit">
-                  {busy ? "Saving…" : refreshing ? "Updating…" : "Save account"}
-                </button>
-                <button
-                  className="button danger"
-                  type="button"
-                  onClick={() => dialog.current?.showModal()}
-                >
-                  <Trash2 size={16} aria-hidden="true" /> Delete account
-                </button>
-              </div>
-            </fieldset>
-          </form>
-        </details>
+            Edit account
+          </button>
+          {editing && (
+            <WorkspaceDialog
+              title={`Edit account · ${account.name}`}
+              busy={busy || refreshing}
+              dirty={dirty}
+              onClose={() => {
+                setEditing(false);
+                setDirty(false);
+              }}
+            >
+              {feedback?.error && (
+                <p className="feedback error" role="alert">
+                  {feedback.text}
+                </p>
+              )}
+              <form
+                className="form"
+                onChange={() => setDirty(true)}
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const data = new FormData(event.currentTarget);
+                  void submit("staffEdit", {
+                    id: account.id,
+                    name: data.get("name"),
+                    email: data.get("email"),
+                    role: data.get("role"),
+                    suspended: data.has("suspended"),
+                  });
+                }}
+              >
+                <fieldset className="form-fields" disabled={busy || refreshing}>
+                  <div className="grid2">
+                    <label htmlFor={`${uid}-name`}>
+                      Display name
+                      <input
+                        id={`${uid}-name`}
+                        name="name"
+                        defaultValue={account.name}
+                        maxLength={100}
+                        required
+                      />
+                    </label>
+                    <label htmlFor={`${uid}-email`}>
+                      Email
+                      <input
+                        id={`${uid}-email`}
+                        name="email"
+                        type="email"
+                        defaultValue={account.email}
+                        maxLength={254}
+                        required
+                      />
+                    </label>
+                  </div>
+                  <label htmlFor={`${uid}-role`}>
+                    Role
+                    <select
+                      id={`${uid}-role`}
+                      name="role"
+                      defaultValue={account.role}
+                    >
+                      <option value="MODERATOR">Moderator</option>
+                      <option value="ADMIN">Admin</option>
+                    </select>
+                  </label>
+                  <label className="choice-row">
+                    <input
+                      name="suspended"
+                      type="checkbox"
+                      defaultChecked={account.suspended}
+                    />
+                    Suspended
+                  </label>
+                  <p className="muted text-xs mb-0">
+                    Saving signs out this staff member. The change goes straight
+                    to activity history.
+                  </p>
+                  <div className="account-actions">
+                    <button className="button" type="submit">
+                      {busy
+                        ? "Saving…"
+                        : refreshing
+                          ? "Updating…"
+                          : "Save account"}
+                    </button>
+                    <button
+                      className="button danger"
+                      type="button"
+                      onClick={() => dialog.current?.showModal()}
+                    >
+                      <Trash2 size={16} aria-hidden="true" /> Delete account
+                    </button>
+                  </div>
+                </fieldset>
+              </form>
+            </WorkspaceDialog>
+          )}
+        </>
       )}
-      {feedback && (
+      {feedback && !editing && (
         <p
           className={`feedback ${feedback.error ? "error" : ""}`}
           role={feedback.error ? "alert" : "status"}
@@ -320,6 +372,9 @@ export function StaffAccountRow({
       )}
       <dialog
         ref={dialog}
+        onCancel={(event) => {
+          if (busy || refreshing) event.preventDefault();
+        }}
         className="account-dialog"
         aria-labelledby={`${uid}-delete-heading`}
       >

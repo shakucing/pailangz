@@ -1,0 +1,350 @@
+.bracket {
+  min-width: 0;
+  padding: 24px;
+  color: var(--text);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+  font-size: 10px;
+}
+.heading h4 {
+  margin: 6px 0 2px;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+}
+.heading p,
+.instructions p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.previewBadge {
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 5px 10px;
+  color: var(--accent-muted);
+  font-size: 11px;
+}
+.mode {
+  display: flex;
+  padding: 4px;
+  background: var(--page-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+}
+.mode button {
+  min-height: 38px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12px;
+}
+.mode button[aria-pressed="true"] {
+  background: var(--accent-fill);
+  color: #11140c;
+  font-weight: 700;
+}
+.instructions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 16px 0 20px;
+}
+.instructions p {
+  flex: 1;
+  max-width: 690px;
+}
+.reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.reset:disabled {
+  cursor: default;
+}
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.progress strong {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 500;
+}
+.progress > div {
+  width: 100%;
+  height: 3px;
+  background: var(--surface-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress > div > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-fill);
+}
+.podium {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 18px;
+  margin: 20px 0 24px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.podium > div {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.podium svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.podium small {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.podium strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.decided {
+  border-color: var(--accent-line);
+  background: linear-gradient(110deg, var(--accent-bg), var(--surface) 65%);
+}
+.decided > div:first-child svg,
+.decided > div:first-child strong {
+  color: var(--accent);
+}
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding: 0 2px 16px;
+  scrollbar-color: var(--accent-line) var(--panel);
+}
+.columns {
+  display: flex;
+  width: max-content;
+  gap: 40px;
+  padding-right: 2px;
+}
+.column {
+  width: 224px;
+}
+.roundHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 64px;
+  border-bottom: 1px solid var(--surface-hover);
+}
+.roundHeading > span {
+  font-size: 22px;
+  color: var(--text-faint);
+  font-weight: 700;
+}
+.roundHeading h5 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+}
+.roundHeading small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.matches {
+  display: grid;
+  height: var(--bracket-height);
+}
+.slot {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+.outgoing::after,
+.connector::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  border-top: 1px solid var(--accent-line);
+}
+.outgoing::after {
+  right: -20px;
+}
+.connector::after {
+  left: -20px;
+}
+.connector::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 25%;
+  height: 50%;
+  border-left: 1px solid var(--accent-line);
+}
+.match {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.complete {
+  border-color: var(--accent-line);
+}
+.matchHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 7px;
+  font-size: 10px;
+}
+.matchHeading strong {
+  letter-spacing: 0.6px;
+  color: var(--text-soft);
+}
+.matchHeading > span {
+  color: var(--muted);
+  font-size: 9px;
+}
+.entrant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  width: 100%;
+  margin: 3px 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface-soft);
+  color: var(--text-soft);
+  text-align: left;
+  font-size: 12px;
+}
+button.entrant:disabled {
+  cursor: default;
+  opacity: 1;
+}
+button.entrant:not(:disabled):hover {
+  border-color: #a3bd55;
+  background: var(--surface-soft);
+}
+.seed {
+  flex-shrink: 0;
+  width: 18px;
+  color: var(--text-faint);
+  font:
+    10px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+}
+.entrant .avatar {
+  width: 24px;
+  height: 24px;
+  flex-basis: 24px;
+  font-size: 10px;
+}
+.podium .avatar {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  font-size: 12px;
+}
+.podium > div > span {
+  min-width: 0;
+}
+.entrantName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.winner {
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-color: var(--accent-line);
+  font-weight: 700;
+}
+.winner .seed {
+  color: var(--accent);
+}
+.matchFooter {
+  min-height: 17px;
+  margin-top: 7px;
+  font-size: 9px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scrollHint {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+@media (max-width: 600px) {
+  .bracket {
+    padding: 16px 12px;
+  }
+  .instructions {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .instructions p {
+    flex-basis: 100%;
+  }
+  .podium {
+    padding: 14px;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .entrant,
+  .mode button,
+  .reset {
+    min-height: 44px;
+  }
+  .matches {
+    height: calc(var(--bracket-height) * 1.12);
+  }
+}

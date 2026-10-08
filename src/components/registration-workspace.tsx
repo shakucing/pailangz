@@ -1,10 +1,11 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActionForm, PrivateDetails } from "./action-form";
 import { staffRequest } from "@/lib/staff-request";
 import { friendlyLabel } from "@/lib/staff-presentation";
 import styles from "./ops-workspace.module.css";
+import { WorkspaceDialog } from "./workspace-dialog";
 export type RegistrationRow = {
   id: string;
   displayIgn: string;
@@ -36,7 +37,15 @@ export function RegistrationWorkspace({
       ["PENDING", "NEEDS_CLARIFICATION"].includes(r.status) &&
       !r.conflicts.some((c) => !c.resolved),
   );
+  const selectedIds = selected.filter((id) => clean.some((r) => r.id === id));
+  const selectAll = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (selectAll.current)
+      selectAll.current.indeterminate =
+        selectedIds.length > 0 && selectedIds.length < clean.length;
+  }, [selectedIds.length, clean.length]);
   async function approve(ids: string[]) {
+    if (busy || !ids.length) return;
     setBusy(true);
     setError("");
     setMessage("");
@@ -61,6 +70,7 @@ export function RegistrationWorkspace({
         <div className={styles.toolbar}>
           <label className={styles.selection}>
             <input
+              ref={selectAll}
               type="checkbox"
               checked={clean.every((r) => selected.includes(r.id))}
               disabled={busy}
@@ -68,14 +78,14 @@ export function RegistrationWorkspace({
                 setSelected(e.target.checked ? clean.map((r) => r.id) : [])
               }
             />
-            Select registrations without conflicts
+            Select eligible registrations on this page
           </label>
           <button
             className="button small"
-            disabled={busy || !selected.length}
-            onClick={() => approve(selected)}
+            disabled={busy || !selectedIds.length}
+            onClick={() => approve(selectedIds)}
           >
-            {busy ? "Approving…" : `Approve selected (${selected.length})`}
+            {busy ? "Approving…" : `Approve selected (${selectedIds.length})`}
           </button>
         </div>
       )}
@@ -104,6 +114,7 @@ export function RegistrationWorkspace({
             )
           }
           approve={() => approve([r.id])}
+          reviewed={() => setMessage(`Decision saved for ${r.displayIgn}.`)}
         />
       ))}
       {!rows.length && (
@@ -122,6 +133,7 @@ function RegistrationItem({
   selected,
   select,
   approve,
+  reviewed,
 }: {
   row: RegistrationRow;
   members: { value: string; label: string }[];
@@ -129,9 +141,9 @@ function RegistrationItem({
   selected: boolean;
   select: (value: boolean) => void;
   approve: () => void;
+  reviewed: () => void;
 }) {
-  const [details, setDetails] = useState(false),
-    [review, setReview] = useState(false);
+  const [review, setReview] = useState(false);
   const conflicts = r.conflicts.filter((c) => !c.resolved),
     pending = ["PENDING", "NEEDS_CLARIFICATION"].includes(r.status);
   return (
@@ -156,18 +168,16 @@ function RegistrationItem({
           )}
           <button
             className="button small secondary"
-            onClick={() => setDetails(!details)}
+            aria-haspopup="dialog"
+            disabled={busy}
+            onClick={() => setReview(true)}
           >
-            {details ? "Hide details" : "View details"}
+            {r.status === "APPROVED"
+              ? "View details"
+              : conflicts.length
+                ? "Resolve duplicate"
+                : "Review registration"}
           </button>
-          {r.status !== "APPROVED" && (
-            <button
-              className="button small secondary"
-              onClick={() => setReview(!review)}
-            >
-              {conflicts.length ? "Resolve duplicate" : "Review"}
-            </button>
-          )}
         </div>
       </div>
       <p className={styles.meta}>
@@ -175,67 +185,85 @@ function RegistrationItem({
         {r.phoneLastFour ? `•••• ${r.phoneLastFour}` : "not supplied"}
         {r.phoneIssue === "INVALID_REQUIRES_REVIEW" ? " · Needs checking" : ""}
       </p>
-      {conflicts.map((c, i) => (
-        <p className="notice" key={i}>
-          {c.reason}
-          {c.existingMemberId && (
-            <>
-              {" "}
-              · Existing member:{" "}
-              {members.find((m) => m.value === c.existingMemberId)?.label ??
-                "Member unavailable"}
-            </>
-          )}
+      {!!conflicts.length && (
+        <p className={styles.meta}>
+          {conflicts.length} duplicate check{conflicts.length === 1 ? "" : "s"}{" "}
+          to resolve
         </p>
-      ))}
-      {details && <PrivateDetails kind="submission" id={r.id} autoLoad />}
-      {review && (
-        <div className={styles.editor}>
-          <ActionForm
-            action="review"
-            fixed={{ id: r.id }}
-            label="Save decision"
-            fields={[
-              {
-                name: "action",
-                label: "Decision",
-                type: "select",
-                required: true,
-                options: [
-                  { value: "APPROVE", label: "Approve" },
-                  { value: "REJECT", label: "Reject" },
-                  { value: "CLARIFY", label: "Needs clarification" },
-                ],
-              },
-              ...(conflicts.length
-                ? [
-                    {
-                      name: "memberId",
-                      label: "Link to existing member",
-                      type: "select" as const,
-                      options: members,
-                    },
-                  ]
-                : []),
-              {
-                name: "ign",
-                label: "Corrected player name",
-                value: r.displayIgn,
-              },
-              { name: "reason", label: "Note", type: "textarea" },
-            ]}
-          />
-        </div>
       )}
-      {!!r.decisions.length && (
-        <details className="details">
-          <summary>Past decisions ({r.decisions.length})</summary>
-          {r.decisions.map((d, i) => (
-            <p key={i} className={styles.meta}>
-              {d.createdAt} · {friendlyLabel(d.action)}
+      {review && (
+        <WorkspaceDialog
+          title={`${r.status === "APPROVED" ? "Registration details" : "Review registration"} · ${r.displayIgn}`}
+          description={`${friendlyLabel(r.status)} · Received ${r.ingestedAt}`}
+          onClose={() => setReview(false)}
+        >
+          {conflicts.map((c, i) => (
+            <p className="notice" key={i}>
+              {c.reason}
+              {c.existingMemberId &&
+                ` · Existing member: ${members.find((m) => m.value === c.existingMemberId)?.label ?? "Member unavailable"}`}
             </p>
           ))}
-        </details>
+          <div className={styles.reviewGrid}>
+            <section>
+              <h3>Player details</h3>
+              <PrivateDetails kind="submission" id={r.id} autoLoad />
+              {!!r.decisions.length && (
+                <section className={styles.editor}>
+                  <h3>Past decisions</h3>
+                  {r.decisions.map((d, i) => (
+                    <p key={i} className={styles.meta}>
+                      {d.createdAt} · {friendlyLabel(d.action)}
+                    </p>
+                  ))}
+                </section>
+              )}
+            </section>
+            {r.status !== "APPROVED" && (
+              <section>
+                <h3>Review decision</h3>
+                <ActionForm
+                  action="review"
+                  onSuccess={() => {
+                    reviewed();
+                    setReview(false);
+                  }}
+                  fixed={{ id: r.id }}
+                  label="Save decision"
+                  fields={[
+                    {
+                      name: "action",
+                      label: "Decision",
+                      type: "select",
+                      required: true,
+                      options: [
+                        { value: "APPROVE", label: "Approve" },
+                        { value: "REJECT", label: "Reject" },
+                        { value: "CLARIFY", label: "Needs clarification" },
+                      ],
+                    },
+                    ...(conflicts.length
+                      ? [
+                          {
+                            name: "memberId",
+                            label: "Link to existing member",
+                            type: "select" as const,
+                            options: members,
+                          },
+                        ]
+                      : []),
+                    {
+                      name: "ign",
+                      label: "Corrected player name",
+                      value: r.displayIgn,
+                    },
+                    { name: "reason", label: "Note", type: "textarea" },
+                  ]}
+                />
+              </section>
+            )}
+          </div>
+        </WorkspaceDialog>
       )}
     </article>
   );

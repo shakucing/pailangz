@@ -1,9 +1,13 @@
+import { TaskDialog } from "./workspace-dialog";
 import Link from "next/link";
 import type { Actor, Tx } from "@/lib/db";
 import { MemberWorkspace } from "./member-workspace";
 import { RegistrationWorkspace } from "./registration-workspace";
 import { UploadForm } from "./action-form";
 import { operationalTime } from "@/lib/public-data";
+import { countryCode } from "@/lib/countries";
+import { decrypt } from "@/lib/crypto";
+import { DEFAULT_MAPPING } from "@/lib/imports";
 export { renderActivityHistory } from "./activity-history";
 type Query = Record<string, string | undefined>;
 function pageNumber(q: Query) {
@@ -49,7 +53,11 @@ export async function renderMembers(
   base: string,
 ) {
   const state = q.state ?? "active",
-    search = q.q?.slice(0, 100);
+    search = q.q?.slice(0, 100),
+    country =
+      q.country === "unspecified"
+        ? "unspecified"
+        : (countryCode(q.country ?? "") ?? "");
   const where = {
     ...(state === "archived"
       ? { archived: true }
@@ -73,9 +81,47 @@ export async function renderMembers(
         }
       : {}),
   };
+  let countryIds: string[] | undefined;
+  if (country) {
+    // Country answers are encrypted. Match the full candidate set on the
+    // server before applying pagination, including imported country names.
+    const [candidates, setting] = await Promise.all([
+      tx.member.findMany({
+        where,
+        select: {
+          id: true,
+          privateData: { select: { registrationEncrypted: true } },
+        },
+      }),
+      tx.integrationSetting.findUnique({ where: { key: "formMapping" } }),
+    ]);
+    const countryField =
+      (setting?.value as { country?: string } | undefined)?.country ??
+      DEFAULT_MAPPING.country;
+    countryIds = candidates
+      .filter((member) => {
+        const fields = member.privateData
+          ? (JSON.parse(
+              decrypt(
+                member.privateData.registrationEncrypted,
+                `member:${member.id}`,
+              ),
+            ) as Record<string, string>)
+          : {};
+        const value = fields[countryField] ?? fields.Country ?? "";
+        return country === "unspecified"
+          ? !value.trim()
+          : countryCode(value) === country;
+      })
+      .map((member) => member.id);
+  }
+  const filteredWhere = {
+    ...where,
+    ...(countryIds ? { id: { in: countryIds } } : {}),
+  };
   const [members, total] = await Promise.all([
     tx.member.findMany({
-      where,
+      where: filteredWhere,
       skip: (pageNumber(q) - 1) * 50,
       take: 50,
       orderBy: { displayIgn: "asc" },
@@ -86,6 +132,7 @@ export async function renderMembers(
         archived: true,
         privateData: { select: { phoneLastFour: true, phoneIssue: true } },
         participants: {
+          where: { withdrawn: false },
           select: {
             id: true,
             code: true,
@@ -95,15 +142,16 @@ export async function renderMembers(
         },
       },
     }),
-    tx.member.count({ where }),
+    tx.member.count({ where: filteredWhere }),
   ]);
   return (
     <div className="stack">
       <MemberWorkspace
-        key={search ?? state}
+        key={JSON.stringify([search, state, country, pageNumber(q)])}
         members={members}
         initialQuery={search ?? ""}
         state={state}
+        country={country}
         basePath={`${base}/members`}
         total={total}
       />
@@ -200,6 +248,7 @@ export async function renderRegistrations(
         <button className="button small secondary">Filter</button>
       </form>
       <RegistrationWorkspace
+        key={JSON.stringify([search, status, pageNumber(q)])}
         rows={rows.map((r) => ({
           ...r,
           ingestedAt: operationalTime(r.ingestedAt),
@@ -211,8 +260,7 @@ export async function renderRegistrations(
         members={members.map((m) => ({ value: m.id, label: m.displayIgn }))}
       />
       <SectionPages q={q} total={total} base={`${base}/registrations`} />
-      <details className="panel">
-        <summary>Upload registrations</summary>
+      <TaskDialog label="Upload registrations" title="Upload registrations">
         <p className="muted text-sm">
           Upload the CSV downloaded from your registration spreadsheet.
         </p>
@@ -220,7 +268,7 @@ export async function renderRegistrations(
         <Link className="text-link" href={`${base}/imports`}>
           View import history ↗
         </Link>
-      </details>
+      </TaskDialog>
     </div>
   );
 }

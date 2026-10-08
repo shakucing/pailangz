@@ -6,9 +6,9 @@ export default async function NotFound() {
   return (
     <div className="wrap section">
       <div className="empty">
-        <strong>
+        <h1>
           {t("Halaman belum tersedia.", "This page is not available yet.")}
-        </strong>
+        </h1>
         {t(
           "Kandungan ini belum diterbitkan atau tidak ditemui.",
           "This content is unpublished or could not be found.",

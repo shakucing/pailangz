@@ -13,6 +13,8 @@ import {
 } from "./domain";
 import { decrypt, encrypt } from "./crypto";
 import { DEFAULT_MAPPING, phoneInfo } from "./imports";
+import { memberFieldKind, normalizeMemberField } from "./member-fields";
+import { resizeTeamAvatar } from "./team-avatar";
 export async function memberUpdate(
   actor: Actor,
   input: {
@@ -84,11 +86,27 @@ export async function memberUpdate(
             decrypt(stored.registrationEncrypted, `member:${old.id}`),
           ) as Record<string, string>)
         : {};
-      for (const [key, value] of Object.entries(fields)) {
+      for (const [key, submitted] of Object.entries(fields)) {
+        const kind = memberFieldKind(key, mapping.country);
+        // Historical imports can contain arbitrary answers. Preserve those
+        // on unrelated edits, but enforce the dropdown choices on changes.
+        const value =
+          kind && submitted !== payload[key]
+            ? normalizeMemberField(kind, submitted)
+            : submitted;
+        if (value === undefined)
+          throw new DomainError(
+            kind === "country"
+              ? "Select a country from the list, or choose Not specified."
+              : "Select Active, Inactive or Not specified for status.",
+          );
         if (payload[key] !== value) changedFields.push(key);
         payload[key] = value;
       }
-      if (ign !== undefined) payload[mapping.ign] = ign;
+      if (ign !== undefined) {
+        payload[mapping.ign] = ign;
+        if ("IGN" in payload) payload.IGN = ign;
+      }
       const previousPhone = stored?.phoneEncrypted
         ? decrypt(stored.phoneEncrypted, `member-phone:${old.id}`)
         : "";
@@ -99,7 +117,10 @@ export async function memberUpdate(
         for (const key of Object.keys(payload))
           if (/phone|whatsapp/i.test(key)) payload[key] = phone;
       }
-      const normalized = phoneInfo(phone, payload[mapping.country] ?? "");
+      const normalized = phoneInfo(
+        phone,
+        payload[mapping.country] ?? payload.Country ?? "",
+      );
       await tx.memberPrivate.upsert({
         where: { memberId: old.id },
         create: {
@@ -163,6 +184,10 @@ export async function participantUpdate(
       throw new DomainError(
         "Approve and verify the member registration first.",
       );
+    if (p.withdrawn)
+      throw new DomainError(
+        "Restore this player from tournament setup before changing eligibility.",
+      );
     if (p.tournament.published)
       throw new DomainError(
         "Unpublish before changing participant eligibility.",
@@ -190,8 +215,6 @@ export async function confirmMapping(
   actor: Actor,
   input: { id: string; reason: string },
 ) {
-  if (actor.role !== "ADMIN")
-    throw new DomainError("Admin confirmation is required.", 403);
   return privateTx(actor, async (tx) => {
     await tx.tournament.update({
       where: { id: input.id },
@@ -221,9 +244,20 @@ export async function teamUpdate(
     name: string;
     memberIds: string[];
     archived?: boolean;
+    removeImage?: boolean;
     reason: string;
   },
+  image?: File,
 ) {
+  if (image && input.removeImage)
+    throw new DomainError(
+      "Choose a replacement image or remove the current image, not both.",
+    );
+  const avatarImage = image
+    ? await resizeTeamAvatar(image)
+    : input.removeImage
+      ? null
+      : undefined;
   return privateTx(actor, async (tx) => {
     const category = await tx.category.findUniqueOrThrow({
       where: { id: input.categoryId },
@@ -260,11 +294,33 @@ export async function teamUpdate(
         });
     if (team.categoryId !== category.id)
       throw new DomainError("Team category mismatch.");
+    if (
+      team.ownerId &&
+      !input.archived &&
+      !input.memberIds.includes(team.ownerId)
+    )
+      throw new DomainError(
+        "Keep the team owner in the roster, or archive the team.",
+      );
+    if (team.ownerId && !input.archived) {
+      const approved = await tx.participant.count({
+        where: {
+          tournamentId: category.tournamentId,
+          memberId: { in: input.memberIds },
+          eligible: true,
+        },
+      });
+      if (approved !== input.memberIds.length)
+        throw new DomainError(
+          "Team players must have approved tournament participation.",
+        );
+    }
     await tx.team.update({
       where: { id: team.id },
       data: {
         name: z.string().min(1).max(100).parse(input.name),
         archived: input.archived ?? false,
+        ...(avatarImage === undefined ? {} : { avatarImage }),
       },
     });
     await tx.teamMembership.updateMany({
@@ -282,10 +338,26 @@ export async function teamUpdate(
       "TEAM_ROSTER_UPDATE",
       "TEAM",
       team.id,
-      { memberIds: input.memberIds, archived: input.archived ?? false },
+      {
+        memberIds: input.memberIds,
+        archived: input.archived ?? false,
+        ...(avatarImage !== undefined && avatarImage !== team.avatarImage
+          ? {
+              imageChange:
+                avatarImage === null
+                  ? "removed"
+                  : team.avatarImage
+                    ? "replaced"
+                    : "added",
+            }
+          : {}),
+      },
       optionalNote(input.reason),
     );
-    return { id: team.id };
+    return {
+      id: team.id,
+      avatarImage: avatarImage === undefined ? team.avatarImage : avatarImage,
+    };
   });
 }
 export async function staffUpdate(
@@ -343,8 +415,6 @@ export async function announcementUpdate(
     reason: string;
   },
 ) {
-  if (input.published && actor.role !== "ADMIN")
-    throw new DomainError("Publishing content requires admin approval.", 403);
   return privateTx(actor, async (tx) => {
     const data = {
       title: z.string().min(3).max(150).parse(input.title),
@@ -494,12 +564,19 @@ export async function privateDetails(
         key !==
           ((mapping?.value as typeof DEFAULT_MAPPING | undefined)?.ign ??
             DEFAULT_MAPPING.ign) &&
-        !/^(timestamp|response[_ ]?id|__proto__|constructor|prototype)$/i.test(
+        !/^(timestamp|ign|response[_ ]?id|__proto__|constructor|prototype)$/i.test(
           key,
         ) &&
         !/phone|whatsapp/i.test(key),
     );
-    return { fields: raw, phone: plainPhone, editableFields };
+    return {
+      fields: raw,
+      phone: plainPhone,
+      editableFields,
+      countryField:
+        (mapping?.value as typeof DEFAULT_MAPPING | undefined)?.country ??
+        DEFAULT_MAPPING.country,
+    };
   });
 }
 export async function resolveDependency(

@@ -2,21 +2,32 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.65rem;
-  align-items: center;
+  align-items: end;
   margin-bottom: 1rem;
 }
 .search {
-  flex: 1;
-  min-width: 180px;
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.toolbar > label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.toolbar input:not([type="checkbox"]),
+.toolbar select {
+  width: 100%;
 }
 .list {
   display: grid;
   gap: 0.65rem;
 }
 .item {
-  border: 1px solid var(--border, #303638);
+  border: 1px solid var(--border, var(--border));
   border-radius: 12px;
-  background: var(--panel, #141918);
+  background: var(--panel, var(--surface));
   padding: 1rem;
 }
 .row {
@@ -32,7 +43,7 @@
   overflow-wrap: anywhere;
 }
 .meta {
-  color: var(--muted, #a5aaa7);
+  color: var(--muted, var(--muted));
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
@@ -43,7 +54,7 @@
   align-items: center;
 }
 .editor {
-  border-top: 1px solid var(--border, #303638);
+  border-top: 1px solid var(--border, var(--border));
   margin-top: 1rem;
   padding-top: 1rem;
   display: grid;
@@ -78,14 +89,14 @@
   font-size: 0.75rem;
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
-  background: #26352c;
+  background: var(--accent-bg);
 }
 .error {
-  color: #fca5a5;
+  color: var(--danger);
   font-size: 0.875rem;
 }
 .success {
-  color: #9be6ad;
+  color: var(--accent);
   font-size: 0.875rem;
 }
 .history {
@@ -95,16 +106,32 @@
   align-items: start;
 }
 .history small {
-  color: var(--muted, #a5aaa7);
+  color: var(--muted, var(--muted));
 }
 .history p {
   margin: 0;
+}
+.history > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .selection {
   display: flex;
   gap: 0.5rem;
   align-items: center;
   font-size: 0.85rem;
+  min-height: 44px;
+  cursor: pointer;
+}
+.toolbar > .selection {
+  display: flex;
+  align-items: center;
+}
+.item input[type="checkbox"],
+.selection input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
 }
 @media (max-width: 640px) {
   .fields {
@@ -118,16 +145,36 @@
     align-items: stretch;
   }
   .toolbar input,
-  .toolbar select {
+  .toolbar select,
+  .toolbar > label {
     width: 100%;
   }
   .actions button {
-    min-height: 40px;
+    min-height: 44px;
   }
   .row {
     align-items: flex-start;
   }
   .item {
     padding: 0.85rem;
+  }
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
+  align-items: start;
+}
+.reviewGrid > section {
+  min-width: 0;
+}
+.reviewGrid > section:only-child {
+  grid-column: 1 / -1;
+}
+@media (max-width: 640px) {
+  .reviewGrid {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 }

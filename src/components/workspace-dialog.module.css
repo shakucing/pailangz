@@ -1,0 +1,114 @@
+.dialog {
+  margin: auto;
+  padding: 0;
+  width: min(780px, calc(100vw - 40px));
+  max-width: none;
+  max-height: calc(100dvh - 40px);
+  border: 1px solid var(--line, var(--border));
+  border-radius: 18px;
+  color: var(--text, var(--text));
+  background: var(--panel, var(--panel));
+  box-shadow: 0 24px 90px #0009;
+  overflow: hidden;
+}
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.dialog::backdrop {
+  background: var(--overlay);
+  backdrop-filter: blur(4px);
+}
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 22px 24px;
+  border-bottom: 1px solid var(--line, var(--border));
+  flex-shrink: 0;
+}
+.header > div {
+  flex: 1;
+  min-width: 0;
+}
+.header h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.header p {
+  margin: 6px 0 0;
+  color: var(--muted, var(--muted));
+  font-size: 13px;
+}
+.header button {
+  padding: 10px;
+  flex-shrink: 0;
+}
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+}
+.body > :first-child {
+  margin-top: 0;
+}
+.body > :last-child {
+  margin-bottom: 0;
+}
+.dialog :is(input, select, textarea, button) {
+  scroll-margin: 20px;
+}
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line, var(--border));
+  flex-shrink: 0;
+}
+.footer p {
+  flex: 1 1 180px;
+  margin: 0;
+  font-size: 13px;
+}
+.actions:not(:empty) {
+  margin-right: auto;
+}
+.actions[hidden] {
+  display: none;
+}
+.trigger {
+  display: inline-block;
+  max-width: 100%;
+  margin: 6px 8px 6px 0;
+  vertical-align: top;
+}
+@media (max-width: 600px) {
+  .dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 14px;
+  }
+  .header {
+    padding: 16px;
+    gap: 12px;
+  }
+  .header h2 {
+    font-size: 18px;
+  }
+  .body {
+    padding: 16px;
+  }
+  .footer {
+    padding: 12px 16px;
+  }
+}
+
+.actions :global(.feedback) {
+  margin-bottom: 10px;
+}

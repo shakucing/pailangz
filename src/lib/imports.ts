@@ -8,6 +8,7 @@ import { z } from "zod";
 import { canonicalIgn, ignSchema, DomainError, optionalNote } from "./domain";
 import { encrypt, decrypt } from "./crypto";
 import { privateTx, audit, type Actor, type Tx } from "./db";
+import { countryCode } from "./countries";
 export const FORM_HEADERS = [
   "Timestamp",
   "IGN",
@@ -28,11 +29,7 @@ export const DEFAULT_MAPPING = {
 export function phoneInfo(raw: string, country: string) {
   if (!raw.trim()) return { issue: "MISSING", phone: null, lastFour: null };
   const policy = (process.env.PHONE_DEFAULT_COUNTRY ?? "MY") as CountryCode;
-  const code = /^[A-Z]{2}$/.test(country)
-    ? (country as CountryCode)
-    : country.toLowerCase() === "malaysia"
-      ? "MY"
-      : policy;
+  const code = (countryCode(country) as CountryCode | undefined) ?? policy;
   const phone = parsePhoneNumberFromString(raw, code);
   return {
     issue: phone?.isValid() ? null : "INVALID_REQUIRES_REVIEW",

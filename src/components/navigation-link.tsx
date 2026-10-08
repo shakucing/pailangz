@@ -1,15 +1,17 @@
 "use client";
 import Link, { useLinkStatus } from "next/link";
 import type { ComponentProps } from "react";
+import { useLocale } from "./locale-context";
 
 function PendingHint() {
   const { pending } = useLinkStatus();
+  const locale = useLocale();
+  if (!pending) return null;
   return (
-    <span
-      className={`navigation-hint ${pending ? "is-pending" : ""}`}
-      role="status"
-    >
-      {pending && <span className="sr-only">Opening page…</span>}
+    <span className="navigation-hint is-pending" role="status">
+      <span className="sr-only">
+        {locale === "en" ? "Opening page…" : "Membuka halaman…"}
+      </span>
     </span>
   );
 }

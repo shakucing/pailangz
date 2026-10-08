@@ -13,8 +13,10 @@ export function LoginForm({ locale = "ms" }: { locale?: Locale }) {
   return (
     <form
       className="form"
+      aria-busy={busy}
       onSubmit={async (e) => {
         e.preventDefault();
+        if (busy) return;
         setBusy(true);
         setError("");
         const f = new FormData(e.currentTarget);
@@ -24,7 +26,7 @@ export function LoginForm({ locale = "ms" }: { locale?: Locale }) {
             password: f.get("password"),
             redirect: false,
           });
-          if (result?.error) {
+          if (!result?.ok || result.error) {
             setError(
               t(
                 "Email atau password tidak sah. Sila cuba lagi.",
@@ -49,7 +51,15 @@ export function LoginForm({ locale = "ms" }: { locale?: Locale }) {
     >
       <label>
         {t("Email staff", "Staff email")}
-        <input name="email" type="email" autoComplete="username" required />
+        <input
+          name="email"
+          type="email"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          required
+          disabled={busy}
+        />
       </label>
       <div className="password-control">
         <label htmlFor="staff-password">Password</label>
@@ -60,10 +70,12 @@ export function LoginForm({ locale = "ms" }: { locale?: Locale }) {
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
             required
+            disabled={busy}
           />
           <button
             className="password-toggle"
             type="button"
+            disabled={busy}
             aria-label={
               showPassword
                 ? t("Sembunyikan password", "Hide password")

@@ -69,6 +69,18 @@ model Member {
   privateData MemberPrivate?
   participants Participant[]
   memberships TeamMembership[]
+  participationRequests ParticipationRequest[]
+  ownedTeams Team[] @relation("TeamOwner")
+  teamApplications TeamApplication[]
+  accessSessions MemberAccessSession[]
+}
+model MemberAccessSession {
+  tokenHash String @id
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  verifiedRecord String
+  expiresAt DateTime @db.Timestamptz(3)
+  @@index([memberId, expiresAt])
 }
 model MemberPrivate {
   memberId String @id
@@ -151,6 +163,7 @@ model Tournament {
   overviewEn String?
   status TournamentStatus @default(DRAFT)
   published Boolean @default(false)
+  registrationEnabled Boolean @default(false)
   startsAt DateTime? @db.Timestamptz(3)
   registrationDeadline DateTime? @db.Timestamptz(3)
   gameTitle String?
@@ -161,6 +174,17 @@ model Tournament {
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   categories Category[]
   participants Participant[]
+  participationRequests ParticipationRequest[]
+}
+model ParticipationRequest {
+  id String @id @default(uuid())
+  tournamentId String
+  tournament Tournament @relation(fields: [tournamentId], references: [id])
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@unique([tournamentId, memberId])
+  @@index([createdAt])
 }
 model Category {
   id String @id @default(uuid())
@@ -201,6 +225,7 @@ model Participant {
   code String
   eligible Boolean @default(false)
   provisional Boolean @default(true)
+  withdrawn Boolean @default(false)
   @@unique([tournamentId, code])
   @@unique([tournamentId, memberId])
 }
@@ -209,10 +234,28 @@ model Team {
   categoryId String
   category Category @relation(fields: [categoryId], references: [id])
   name String
+  slug String @default("AUTO")
+  ownerId String?
+  owner Member? @relation("TeamOwner", fields: [ownerId], references: [id])
+  avatarImage String? @db.Text
   code String @default("AUTO")
   archived Boolean @default(false)
   memberships TeamMembership[]
+  applications TeamApplication[]
   @@unique([categoryId, code])
+  @@unique([categoryId, slug])
+}
+model TeamApplication {
+  id String @id @default(uuid())
+  teamId String
+  team Team @relation(fields: [teamId], references: [id])
+  memberId String
+  member Member @relation(fields: [memberId], references: [id])
+  status ReviewStatus @default(PENDING)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  decidedAt DateTime? @db.Timestamptz(3)
+  @@unique([teamId, memberId])
+  @@index([teamId, status, createdAt])
 }
 model TeamMembership {
   id String @id @default(uuid())

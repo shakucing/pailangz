@@ -1,6 +1,7 @@
 "use client";
 import { useState, useId, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useDialogForm } from "./workspace-dialog";
 import {
   SelectionField,
   OrderField,
@@ -57,12 +58,14 @@ export function ActionForm({
   fixed = {},
   label = "Save",
   compact = false,
+  onSuccess,
 }: {
   action: string;
   fields: Field[];
   fixed?: Record<string, unknown>;
   label?: string;
   compact?: boolean;
+  onSuccess?: () => void;
 }) {
   const [decision, setDecision] = useState(
     String(
@@ -75,9 +78,12 @@ export function ActionForm({
     [feedback, setFeedback] = useState<{ text: string; error: boolean } | null>(
       null,
     );
+  const dialogForm = useDialogForm(busy);
   return (
     <form
       className="form"
+      onChange={dialogForm.onChange}
+      onClick={dialogForm.onClick}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -99,6 +105,8 @@ export function ActionForm({
             text: "Saved.",
             error: false,
           });
+          dialogForm.onSaved();
+          onSuccess?.();
           router.refresh();
         } catch (error) {
           setFeedback({
@@ -289,15 +297,20 @@ export function UploadForm({
   resultId?: string;
 }) {
   const router = useRouter();
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false),
     [feedback, setFeedback] = useState("");
+  const dialogForm = useDialogForm(busy);
   return (
     <form
       className="form"
+      onChange={dialogForm.onChange}
+      onClick={dialogForm.onClick}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
         setFeedback("");
+        setFailed(false);
         const form = new FormData(e.currentTarget);
         form.set("action", action);
         if (resultId) form.set("resultId", resultId);
@@ -322,8 +335,10 @@ export function UploadForm({
               ? `Added ${body.created} registrations. ${body.skipped} already uploaded; ${body.conflicts} need a duplicate check.`
               : "Evidence uploaded.",
           );
+          dialogForm.onSaved();
           router.refresh();
         } catch (e) {
+          setFailed(true);
           setFeedback(
             e instanceof Error ? friendlyError(e.message) : "Upload failed.",
           );
@@ -338,6 +353,7 @@ export function UploadForm({
           : "Match screenshot (up to 4 MB)"}
         <input
           name="file"
+          disabled={busy}
           type="file"
           accept={
             action === "import" ? ".csv" : "image/png,image/jpeg,image/webp"
@@ -353,7 +369,10 @@ export function UploadForm({
             : "Upload private evidence"}
       </button>
       {feedback && (
-        <p className="feedback" role="status">
+        <p
+          className={`feedback ${failed ? "error" : ""}`}
+          role={failed ? "alert" : "status"}
+        >
           {feedback}
         </p>
       )}
@@ -442,9 +461,12 @@ export function AuditExport() {
   const [reason, setReason] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
+  const dialogForm = useDialogForm(busy);
   return (
     <form
       className="form"
+      onChange={dialogForm.onChange}
+      onClick={dialogForm.onClick}
       onSubmit={async (e) => {
         e.preventDefault();
         setBusy(true);
@@ -467,6 +489,7 @@ export function AuditExport() {
           a.download = "pailangz-activity.csv";
           a.click();
           URL.revokeObjectURL(url);
+          dialogForm.onSaved();
           setMessage(
             `Downloaded ${body.records.length} activities. This download is recorded in the history.`,
           );

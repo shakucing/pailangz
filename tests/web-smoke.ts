@@ -5,6 +5,7 @@ import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { encrypt } from "../src/lib/crypto";
 if (process.env.PAILANGZ_ISOLATED_WEB_TEST !== "true")
   throw new Error(
     "Use pnpm test:web. Staff HTTP checks only run in its disposable database/server.",
@@ -115,6 +116,15 @@ try {
         assert.match(html, new RegExp(`<html lang="${locale}"`));
         assert.ok(html.includes(heading));
         assert.ok(html.includes("pailangz-wordmark.webp"));
+        assert.ok(
+          html.includes("P01 · KingMinz"),
+          "Landing fixtures include the approved SOLO name",
+        );
+        assert.ok(
+          html.includes("Smith69"),
+          "Landing roster includes the approved SOLO names",
+        );
+        assert.ok(!html.includes("In-game names stay private."));
         assert.match(
           response.headers.get("content-security-policy") ?? "",
           /nonce-/,
@@ -218,17 +228,20 @@ try {
         assert.match(response.headers.get("cache-control") ?? "", /no-store/);
         if (section === "/matches") {
           assert.equal(
-            (html.match(/<form[^>]*class="form match-result-form"/g) ?? [])
-              .length,
+            (screenText.match(/Enter \/ correct score/g) ?? []).length,
             8,
-            "the fixture page must render only eight score editors",
+            "the fixture page must render only eight score dialog triggers",
+          );
+          assert.ok(
+            !/<form[^>]*class="form match-result-form"/.test(html),
+            "score editors stay unmounted until opened",
           );
           assert.ok(html.includes("Show fixtures"));
         }
       }
     },
   );
-  await check("moderator cannot elevate staff roles or publish", async () => {
+  await check("moderator cannot elevate staff roles", async () => {
     const response = await post(mod.cookie, "staff", {
       id: adminId,
       role: "MODERATOR",
@@ -247,6 +260,229 @@ try {
     );
     assert.ok(!html.includes("Staff accounts</h1>"));
   });
+  await check("member search finds records beyond the first page", async () => {
+    const all = await owner.member.findMany({
+      where: { archived: false },
+      orderBy: { displayIgn: "asc" },
+      select: { displayIgn: true },
+    });
+    assert.ok(all.length > 50, "the fixture must exercise pagination");
+    const target = all.at(-1)!;
+    const response = await fetch(
+      `${origin}/admin/members?q=${encodeURIComponent(target.displayIgn)}&state=all`,
+      { headers: { Cookie: admin.cookie } },
+    );
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    const screen = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    assert.ok(screen.includes(target.displayIgn));
+    assert.match(screen, /Showing 1 of 1 member/);
+    assert.ok(screen.includes("Search all members"));
+  });
+  await check(
+    "member countries combine with search, status and pagination for both staff roles",
+    async () => {
+      const prefix = `Country QA ${randomUUID()}`;
+      const canary = `PRIVATE_COUNTRY_CANARY_${randomUUID()}`;
+      const fixtures = [
+        ...Array.from({ length: 52 }, (_, i) => ({
+          name: `${prefix} ${String(i).padStart(2, "0")}`,
+          country: i % 2 ? " Malaysia " : "MY",
+          verified: true,
+          archived: false,
+        })),
+        {
+          name: `${prefix} Pending`,
+          country: "my",
+          verified: false,
+          archived: false,
+        },
+        {
+          name: `${prefix} Archived`,
+          country: "Malaysia",
+          verified: true,
+          archived: true,
+        },
+        {
+          name: `${prefix} Indonesia`,
+          country: "Indonesia",
+          verified: true,
+          archived: false,
+        },
+        {
+          name: `${prefix} Missing`,
+          country: null,
+          verified: true,
+          archived: false,
+        },
+        {
+          name: `${prefix} Blank`,
+          country: "",
+          verified: true,
+          archived: false,
+        },
+      ];
+      const mapping = await owner.integrationSetting.findUnique({
+        where: { key: "formMapping" },
+      });
+      const originalMapping = mapping!.value as {
+        ign: string;
+        phone: string;
+        country: string;
+      };
+      try {
+        for (const fixture of fixtures) {
+          const id = randomUUID();
+          await owner.member.create({
+            data: {
+              id,
+              displayIgn: fixture.name,
+              canonicalIgn: fixture.name.toLowerCase(),
+              verified: fixture.verified,
+              archived: fixture.archived,
+              ...(fixture.country !== null
+                ? {
+                    privateData: {
+                      create: {
+                        originalIgn: fixture.name,
+                        registrationEncrypted: encrypt(
+                          JSON.stringify({
+                            [originalMapping.country]: fixture.country,
+                            "Tiktok ID": canary,
+                          }),
+                          `member:${id}`,
+                        ),
+                      },
+                    },
+                  }
+                : {}),
+            },
+          });
+        }
+        async function directory(
+          base: string,
+          cookie: string,
+          country: string,
+          state = "active",
+          page = 1,
+        ) {
+          const params = new URLSearchParams({
+            q: prefix,
+            country,
+            state,
+            page: String(page),
+          });
+          const response = await fetch(`${origin}${base}/members?${params}`, {
+            headers: { Cookie: cookie },
+          });
+          assert.equal(response.status, 200);
+          const html = await response.text();
+          assert.ok(
+            !html.includes(canary),
+            "filtering must not serialize private answers",
+          );
+          const screen = html
+            .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<!--[\s\S]*?-->/g, "")
+            .replace(/<[^>]+>/g, " ")
+            .replace(/\s+/g, " ");
+          return { html, screen };
+        }
+        for (const [base, cookie] of [
+          ["/admin", admin.cookie],
+          ["/moderator", mod.cookie],
+        ]) {
+          const first = await directory(base, cookie, "MY");
+          assert.match(first.screen, /Showing 50 of 53 members/);
+          const nextHref = first.html.match(
+            /href="([^"]+)"[^>]*>Next →<\/a>/,
+          )?.[1];
+          assert.ok(nextHref, "matching members must have a next page");
+          const nextUrl = new URL(nextHref.replaceAll("&amp;", "&"), origin);
+          assert.equal(nextUrl.searchParams.get("country"), "MY");
+          assert.equal(nextUrl.searchParams.get("state"), "active");
+          assert.equal(nextUrl.searchParams.get("q"), prefix);
+          assert.equal(nextUrl.searchParams.get("page"), "2");
+          assert.match(
+            first.html,
+            /<option value="MY" selected="">Malaysia<\/option>/,
+          );
+          assert.ok(!first.screen.includes(`${prefix} Indonesia`));
+          assert.ok(!first.screen.includes(`${prefix} Archived`));
+          const second = await directory(base, cookie, "MY", "active", 2);
+          assert.match(second.screen, /Showing 3 of 53 members/);
+          assert.ok(second.screen.includes(`${prefix} Pending`));
+          assert.match(
+            (await directory(base, cookie, "Malaysia", "pending")).screen,
+            /Showing 1 of 1 member/,
+          );
+          assert.match(
+            (await directory(base, cookie, "MY", "archived")).screen,
+            /Showing 1 of 1 member/,
+          );
+          assert.match(
+            (await directory(base, cookie, "MY", "all")).screen,
+            /Showing 50 of 54 members/,
+          );
+          assert.match(
+            (await directory(base, cookie, "ID")).screen,
+            /Showing 1 of 1 member/,
+          );
+          assert.match(
+            (await directory(base, cookie, "unspecified")).screen,
+            /Showing 2 of 2 members/,
+          );
+          const empty = await directory(base, cookie, "SG");
+          assert.match(empty.screen, /No members found/);
+          assert.match(empty.screen, /Reset filters/);
+          assert.match(
+            (await directory(base, cookie, "")).screen,
+            /Showing 50 of 56 members/,
+          );
+        }
+        // Configured import columns take priority; standard web-form countries
+        // still work when the configured answer is absent.
+        await owner.integrationSetting.update({
+          where: { key: "formMapping" },
+          data: { value: { ...originalMapping, country: "Residence" } },
+        });
+        const target = await owner.member.findFirstOrThrow({
+          where: { displayIgn: `${prefix} Indonesia` },
+        });
+        await owner.memberPrivate.update({
+          where: { memberId: target.id },
+          data: {
+            registrationEncrypted: encrypt(
+              JSON.stringify({ Country: "MY", Residence: "Indonesia" }),
+              `member:${target.id}`,
+            ),
+          },
+        });
+        assert.match(
+          (await directory("/admin", admin.cookie, "ID")).screen,
+          /Showing 1 of 1 member/,
+        );
+        assert.match(
+          (await directory("/admin", admin.cookie, "MY")).screen,
+          /Showing 50 of 53 members/,
+        );
+      } finally {
+        await owner.integrationSetting.update({
+          where: { key: "formMapping" },
+          data: { value: originalMapping },
+        });
+        await owner.memberPrivate.deleteMany({
+          where: { member: { displayIgn: { startsWith: prefix } } },
+        });
+        await owner.member.deleteMany({
+          where: { displayIgn: { startsWith: prefix } },
+        });
+      }
+    },
+  );
   await check(
     "all moderator workflow pages render without admin-only navigation",
     async () => {
@@ -356,7 +592,7 @@ try {
     },
   );
   await check(
-    "configured tournament editor renders and rejects destructive capacity changes",
+    "configured tournament dialogs render and reject destructive capacity changes",
     async () => {
       const tournament = await owner.tournament.findUniqueOrThrow({
         where: { slug: "pailangz-solo-team" },
@@ -367,9 +603,9 @@ try {
       );
       const html = await response.text();
       assert.ok(
-        html.includes("Number of SOLO players") &&
-          html.includes("League rounds") &&
-          html.includes("Players qualifying through playoffs"),
+        html.includes("Change tournament sizes") &&
+          html.includes("Edit tournament rules") &&
+          html.includes("Manage stage progression"),
       );
       const setupText = html
         .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
@@ -526,6 +762,19 @@ try {
       );
     },
   );
+  const { checkRegistrationHttp } = await import("./web-registration");
+  await checkRegistrationHttp(origin, owner, check);
+  const { checkParticipationHttp } = await import("./web-participation");
+  await checkParticipationHttp(origin, owner, check, {
+    admin: admin.cookie,
+    moderator: mod.cookie,
+  });
+  const { checkTeamPortalHttp } = await import("./web-team-portal");
+  await checkTeamPortalHttp(origin, owner, check);
+  const { checkStaffTeamImages } = await import("./web-staff-team-images");
+  await checkStaffTeamImages(origin, owner, check, admin.cookie, mod.cookie);
+  const { checkModeratorSetupHttp } = await import("./web-moderator-setup");
+  await checkModeratorSetupHttp(origin, mod.cookie, check);
   await check(
     "demoted / suspended staff lose existing-session private access",
     async () => {

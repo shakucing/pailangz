@@ -1,3 +1,6 @@
+import { TaskDialog } from "./workspace-dialog";
+import { TeamRosterForm } from "./team-roster-form";
+import { TeamAvatar } from "./team-avatar";
 import {
   friendlyLabel,
   activityLabel,
@@ -34,6 +37,7 @@ import { standingsFor, tournamentReadiness } from "@/lib/competition";
 import { decrypt } from "@/lib/crypto";
 import { DomainError } from "@/lib/domain";
 import { StaffLoading } from "./staff-loading";
+import { renderParticipation } from "./participation-workspace";
 import { AddStaffAccount, StaffAccountRow } from "./staff-accounts-panel";
 import {
   renderMembers,
@@ -51,19 +55,7 @@ const requiredReason: Field = {
   required: true,
   placeholder: "Explain the override or correction",
 };
-const nav = [
-  ["overview", "Overview"],
-  ["registrations", "Registration inbox"],
-  ["members", "Members"],
-  ["tournaments", "Tournaments & rules"],
-  ["teams", "Team rosters"],
-  ["matches", "Fixtures & results"],
-  ["content", "Announcements"],
-  ["imports", "Registration uploads"],
-  ["audit", "Activity history"],
-  ["settings", "Registration settings"],
-  ["staff", "Staff accounts"],
-];
+import { staffNavigation as nav } from "@/lib/staff-navigation";
 export async function StaffDashboard({
   params,
   searchParams,
@@ -250,6 +242,7 @@ async function renderSection(
   }
   if (section === "registrations")
     return renderRegistrations(tx, actor, q, base);
+  if (section === "participation") return renderParticipation(tx, q, base);
   if (section === "members") return renderMembers(tx, actor, q, base);
   if (section === "tournaments") {
     if (!q.id) {
@@ -272,10 +265,7 @@ async function renderSection(
               <span className="text-link">Open setup & readiness ↗</span>
             </Link>
           ))}
-          <details className="panel">
-            <summary className="text-link cursor-pointer">
-              Create tournament
-            </summary>
+          <TaskDialog label="Create tournament" title="Create tournament">
             <ActionForm
               action="tournament"
               fixed={{ status: "DRAFT" }}
@@ -303,7 +293,7 @@ async function renderSection(
               ]}
               label="Create draft"
             />
-          </details>
+          </TaskDialog>
         </div>
       );
     }
@@ -396,17 +386,19 @@ async function renderSection(
             />
           </div>
         </details>
-        <details className="panel">
-          <summary>
-            Change tournament sizes · update {t.configurationVersion}
-          </summary>
+        <TaskDialog
+          label={`Change tournament sizes · update ${t.configurationVersion}`}
+          title={`Tournament sizes · ${t.name}`}
+        >
           <TournamentConfigForm id={t.id} configuration={config} />
-        </details>
+        </TaskDialog>
         {revisions.map((r) => (
-          <details className="panel" key={r.id}>
-            <summary>
-              Tournament update {r.version} · {friendlyLabel(r.status)}
-            </summary>
+          <TaskDialog
+            key={r.id}
+            label={`Tournament update ${r.version} · ${friendlyLabel(r.status)}`}
+            title={`Review tournament update ${r.version}`}
+            description={t.name}
+          >
             <p>{decrypt(r.reasonEncrypted, `tournament:${t.id}`)}</p>
             <div className="table-wrap">
               <table>
@@ -468,10 +460,12 @@ async function renderSection(
             {r.resolutionEncrypted && (
               <p>{decrypt(r.resolutionEncrypted, `revision:${r.id}`)}</p>
             )}
-          </details>
+          </TaskDialog>
         ))}
-        <details className="panel">
-          <summary>Choose players and create league matches</summary>
+        <TaskDialog
+          label="Choose players and create league matches"
+          title={`Assign players · ${t.name}`}
+        >
           <ActionForm
             action="assignParticipants"
             fixed={{ id: t.id }}
@@ -503,7 +497,63 @@ async function renderSection(
             fields={[reason]}
             label="Create league matches"
           />
-        </details>
+        </TaskDialog>
+        <div className="panel">
+          <h3>Player registration link</h3>
+          <p className="muted">
+            Enable registration in Overview &amp; schedule, then share this link
+            with players. Registration and team pages can open while fixtures
+            and results stay private. The configured SOLO capacity is the shared
+            player limit.
+          </p>
+          <Link className="text-link" href={`/participate/${t.slug}`}>
+            /participate/{t.slug} ↗
+          </Link>
+          <p className="text-sm">
+            {t.registrationEnabled ? "Link enabled" : "Link disabled"} ·{" "}
+            {config.soloCapacity} player places. Registration closes at the
+            deadline, when full, or when the tournament is published or
+            registration is closed.
+          </p>
+        </div>
+        <TaskDialog
+          label="Withdraw or replace a player"
+          title="Withdraw or replace a player"
+          description={t.name}
+        >
+          <p className="muted">
+            Choose an entrant and optionally a replacement. The previous entry
+            stays in history. Unplayed draft fixtures are rebuilt, so check
+            their schedule and confirm the player list again. A replacement
+            inherits the team place and ownership, if any. Started competition
+            requires an admin-controlled restart.
+          </p>
+          <ActionForm
+            action="changeEntrant"
+            label="Save player change"
+            fields={[
+              {
+                name: "id",
+                label: "Current entrant",
+                type: "select",
+                required: true,
+                options: t.participants.map((p) => ({
+                  value: p.id,
+                  label: `${p.code} · ${p.member.displayIgn}`,
+                })),
+              },
+              {
+                name: "replacementMemberId",
+                label: "Replacement (leave blank to withdraw)",
+                type: "select",
+                options: approvedMembers.filter(
+                  (m) => !t.participants.some((p) => p.memberId === m.value),
+                ),
+              },
+              requiredReason,
+            ]}
+          />
+        </TaskDialog>
         <div className="grid2">
           <div className="panel">
             <h3>
@@ -552,6 +602,12 @@ async function renderSection(
                   required: true,
                 },
                 {
+                  name: "registrationEnabled",
+                  label: "Enable player registration and shareable team pages",
+                  type: "checkbox",
+                  value: t.registrationEnabled,
+                },
+                {
                   name: "gameTitle",
                   label: "Game title",
                   value: t.gameTitle ?? "",
@@ -594,37 +650,35 @@ async function renderSection(
             />
           </div>
         </div>
-        {actor.role === "ADMIN" && (
-          <div className="grid2">
-            <div className="panel">
-              <h3 id="player-list-confirmation">Player list confirmation</h3>
-              <p className="muted text-sm">
-                Check that the player names and codes match your approved list.
-                Approve registrations and confirm each player can compete before
-                publishing.
-              </p>
-              <ActionForm
-                action="mapping"
-                fixed={{ id: t.id }}
-                fields={[reason]}
-                label="Confirm player list"
-              />
-            </div>
-            <div className="panel">
-              <h3>Publication</h3>
-              <p className="muted text-sm">
-                Publication is blocked until readiness is complete. Draft
-                fixture previews are available in the staff workspace.
-              </p>
-              <ActionForm
-                action="publish"
-                fixed={{ id: t.id, published: !t.published }}
-                fields={[reason]}
-                label={t.published ? "Unpublish" : "Approve publication"}
-              />
-            </div>
+        <div className="grid2">
+          <div className="panel">
+            <h3 id="player-list-confirmation">Player list confirmation</h3>
+            <p className="muted text-sm">
+              Check that the player names and codes match your approved list.
+              Approve registrations and confirm each player can compete before
+              publishing.
+            </p>
+            <ActionForm
+              action="mapping"
+              fixed={{ id: t.id }}
+              fields={[reason]}
+              label="Confirm player list"
+            />
           </div>
-        )}
+          <div className="panel">
+            <h3>Publication</h3>
+            <p className="muted text-sm">
+              Publication is blocked until readiness is complete. Draft fixture
+              previews are available in the staff workspace.
+            </p>
+            <ActionForm
+              action="publish"
+              fixed={{ id: t.id, published: !t.published }}
+              fields={[reason]}
+              label={t.published ? "Unpublish" : "Publish tournament"}
+            />
+          </div>
+        </div>
         <Link
           className="text-link"
           href={`${base}/matches?history=${q.history === "true" ? "false" : "true"}`}
@@ -646,53 +700,35 @@ async function renderSection(
               {s.confirmedRules.map(ruleLabel).join(", ") ||
                 "No rules confirmed yet"}
             </p>
-            <details
-              className="details"
+            <TaskDialog
               id={s === stages[0] ? "tournament-rules" : undefined}
+              label="Edit tournament rules"
+              title={`Tournament rules · ${s.name}`}
+              description={t.name}
             >
-              <summary>
-                Tournament rules{" "}
-                {actor.role !== "ADMIN" && "· admin approval required"}
-              </summary>
-              {actor.role === "ADMIN" ? (
-                <ActionForm
-                  action="rules"
-                  fixed={{ stageId: s.id }}
-                  label="Save rules"
-                  fields={[
-                    {
-                      name: "rules",
-                      label: "Tournament rules",
-                      type: "rules",
-                      value: s.rules,
-                      confirmed: s.confirmedRules,
-                      stageKey: s.key,
-                      kind: t.categories.find((c) => c.id === s.categoryId)
-                        ?.kind,
-                    },
-                    reason,
-                  ]}
-                />
-              ) : (
-                <dl className="readable-details">
-                  {Object.entries(s.rules as Record<string, unknown>).map(
-                    ([key, value]) => (
-                      <div key={key}>
-                        <dt>{ruleLabel(key)}</dt>
-                        <dd>
-                          {displayValue(value)}
-                          {s.confirmedRules.includes(key)
-                            ? " · Confirmed"
-                            : " · Awaiting confirmation"}
-                        </dd>
-                      </div>
-                    ),
-                  )}
-                </dl>
-              )}
-            </details>
-            <details className="details">
-              <summary>Stage progression</summary>
+              <ActionForm
+                action="rules"
+                fixed={{ stageId: s.id }}
+                label="Save rules"
+                fields={[
+                  {
+                    name: "rules",
+                    label: "Tournament rules",
+                    type: "rules",
+                    value: s.rules,
+                    confirmed: s.confirmedRules,
+                    stageKey: s.key,
+                    kind: t.categories.find((c) => c.id === s.categoryId)?.kind,
+                  },
+                  reason,
+                ]}
+              />
+            </TaskDialog>
+            <TaskDialog
+              label="Manage stage progression"
+              title={`Stage progression · ${s.name}`}
+              description={t.name}
+            >
               {s.format === "LEAGUE" ? (
                 <>
                   <ActionForm
@@ -793,7 +829,7 @@ async function renderSection(
                   }
                 />
               )}
-            </details>
+            </TaskDialog>
           </div>
         ))}
         <Link
@@ -840,37 +876,27 @@ async function renderSection(
               {c.teams.filter((t) => !t.archived).length}/{c.capacity} team
               slots assigned
             </p>
-            <details className="panel">
-              <summary>Create a team</summary>
-              <ActionForm
-                action="team"
-                fixed={{ categoryId: c.id }}
-                label="Create team"
-                fields={[
-                  { name: "name", label: "Team name", required: true },
-                  {
-                    name: "memberIds",
-                    label: "Choose team players",
-                    type: "members",
-                    max: 4,
-                    options: approvedMembers.map((m) => ({
-                      ...m,
-                      disabled: c.teams.some(
-                        (t) =>
-                          !t.archived &&
-                          t.memberships.some((p) => p.memberId === m.value),
-                      ),
-                    })),
-                    help: "Choose up to four approved players. A complete team needs four players. Names already on another team are unavailable.",
-                  },
-                  reason,
-                ]}
+            <TaskDialog
+              label="Create a team"
+              title={`Create a team · ${c.tournament.name}`}
+            >
+              <TeamRosterForm
+                categoryId={c.id}
+                players={approvedMembers.map((m) => ({
+                  ...m,
+                  disabled: c.teams.some(
+                    (t) =>
+                      !t.archived &&
+                      t.memberships.some((p) => p.memberId === m.value),
+                  ),
+                }))}
               />
-            </details>
+            </TaskDialog>
             <div className="stack">
               {c.teams.map((team) => (
                 <article className="panel" key={team.id}>
                   <div className="row">
+                    <TeamAvatar image={team.avatarImage} name={team.name} />
                     <h3 className="mb-0">
                       {team.code} · {team.name}
                     </h3>
@@ -887,48 +913,30 @@ async function renderSection(
                       .map((m) => m.member.displayIgn)
                       .join(" · ") || "No players assigned"}
                   </p>
-                  <details className="details">
-                    <summary>Edit team roster</summary>
-                    <ActionForm
-                      action="team"
-                      fixed={{ categoryId: c.id, id: team.id }}
-                      label="Save team"
-                      fields={[
-                        {
-                          name: "name",
-                          label: "Team name",
-                          required: true,
-                          value: team.name,
-                        },
-                        {
-                          name: "memberIds",
-                          label: "Team players",
-                          type: "members",
-                          value: team.memberships.map((m) => m.memberId),
-                          max: 4,
-                          options: approvedMembers.map((m) => ({
-                            ...m,
-                            disabled: c.teams.some(
-                              (t) =>
-                                t.id !== team.id &&
-                                !t.archived &&
-                                t.memberships.some(
-                                  (p) => p.memberId === m.value,
-                                ),
-                            ),
-                          })),
-                          help: "Search by name to add players. Remove a selected name using the × button.",
-                        },
-                        {
-                          name: "archived",
-                          label: "Archive this team",
-                          type: "checkbox",
-                          value: team.archived,
-                        },
-                        reason,
-                      ]}
+                  <TaskDialog
+                    label="Edit team roster"
+                    title={`Edit roster · ${team.name}`}
+                  >
+                    <TeamRosterForm
+                      categoryId={c.id}
+                      team={{
+                        id: team.id,
+                        name: team.name,
+                        avatarImage: team.avatarImage,
+                        archived: team.archived,
+                        memberIds: team.memberships.map((m) => m.memberId),
+                      }}
+                      players={approvedMembers.map((m) => ({
+                        ...m,
+                        disabled: c.teams.some(
+                          (t) =>
+                            t.id !== team.id &&
+                            !t.archived &&
+                            t.memberships.some((p) => p.memberId === m.value),
+                        ),
+                      }))}
                     />
-                  </details>
+                  </TaskDialog>
                 </article>
               ))}
             </div>
@@ -1228,10 +1236,10 @@ async function renderSection(
                 </div>
               )}
               {s.format === "LEAGUE" && s.rounds.length > 0 && (
-                <details className="panel mb-4">
-                  <summary className="cursor-pointer text-link">
-                    Visual fixture preview
-                  </summary>
+                <TaskDialog
+                  label="Visual fixture preview"
+                  title={`Fixture preview · ${s.name}`}
+                >
                   <div className="mt-5">
                     <FixtureBrowser
                       title={s.name}
@@ -1271,7 +1279,7 @@ async function renderSection(
                       }))}
                     />
                   </div>
-                </details>
+                </TaskDialog>
               )}
               {s.rounds.map((r) => (
                 <details className="panel mb-4" key={r.id} open>
@@ -1288,10 +1296,7 @@ async function renderSection(
                     )}
                     {r.matches.map((m) => (
                       <article key={m.id} className="panel">
-                        <fieldset
-                          disabled={s.archived}
-                          className="border-0 p-0 m-0 min-w-0"
-                        >
+                        <div className="min-w-0">
                           <div className="row">
                             <strong>
                               {names.get(m.sideAId ?? "") ?? "Pending"}{" "}
@@ -1306,9 +1311,30 @@ async function renderSection(
                           </div>
                           <p className="muted text-xs break-all mt-3">
                             Match {m.order}
+                            {m.scheduledAt &&
+                              ` · ${operationalTime(m.scheduledAt)}`}
                           </p>
+                          {m.results[0] && (
+                            <p className="text-sm">
+                              <strong>
+                                {m.results[0].games
+                                  .map((g) => `${g.scoreA}–${g.scoreB}`)
+                                  .join(" / ") ||
+                                  friendlyLabel(m.results[0].outcome)}
+                              </strong>
+                              <span className="muted">
+                                {" "}
+                                · {friendlyLabel(m.results[0].status)}
+                              </span>
+                            </p>
+                          )}
                           {m.dependencies.map((d) => (
-                            <div className="notice" key={d.id}>
+                            <TaskDialog
+                              key={d.id}
+                              label="Review changed opponents"
+                              title={`Review opponents · Match ${m.order}`}
+                              readOnly={s.archived}
+                            >
                               An earlier result changed. Review the opponents
                               before continuing.
                               {actor.role === "ADMIN" && (
@@ -1333,10 +1359,14 @@ async function renderSection(
                                   label="Confirm opponents"
                                 />
                               )}
-                            </div>
+                            </TaskDialog>
                           ))}
-                          <details className="details">
-                            <summary>Submit / correct result</summary>
+                          <TaskDialog
+                            label="Enter / correct score"
+                            title="Enter / correct score"
+                            description={`Match ${m.order} · ${names.get(m.sideAId ?? "") ?? "Player A"} vs ${names.get(m.sideBId ?? "") ?? "Player B"}`}
+                            readOnly={s.archived}
+                          >
                             <MatchResultForm
                               matchId={m.id}
                               bestOf={m.bestOf}
@@ -1364,72 +1394,96 @@ async function renderSection(
                                           : undefined
                               }
                             />
-                          </details>
-                          {m.results.map((v) => (
-                            <details key={v.id} className="details">
-                              <summary>
-                                Result {v.version} · {friendlyLabel(v.outcome)}{" "}
-                                · {friendlyLabel(v.status)}
-                              </summary>
-                              <p className="muted text-xs">
-                                {operationalTime(v.createdAt)} ·{" "}
-                                {v.games
-                                  .map((g) => `${g.scoreA}–${g.scoreB}`)
-                                  .join(" / ")}
-                              </p>
-                              {v.evidence.map((e) => (
-                                <a
-                                  key={e.id}
-                                  className="text-link block mb-3"
-                                  href={`/api/staff?evidence=${e.id}`}
-                                >
-                                  Download private evidence ↗
-                                </a>
-                              ))}
-                              {v.status === "ACCEPTED" &&
-                                m.currentResultId === v.id && (
-                                  <ActionForm
-                                    action="resultReview"
-                                    fixed={{ id: v.id, action: "DISPUTE" }}
-                                    fields={[requiredReason]}
-                                    label="Open a dispute"
-                                  />
-                                )}
-                              {v.status === "SUBMITTED" && (
-                                <>
-                                  <UploadForm
-                                    action="evidence"
-                                    resultId={v.id}
-                                  />
-                                  <hr className="divider" />
-                                  <ActionForm
-                                    action="resultReview"
-                                    fixed={{ id: v.id }}
-                                    fields={[
-                                      {
-                                        name: "action",
-                                        required: true,
-                                        label: "Decision",
-                                        type: "select",
-                                        options: [
-                                          "ACCEPT",
-                                          "REJECT",
-                                          "DISPUTE",
-                                        ].map((x) => ({
-                                          value: x,
-                                          label: friendlyLabel(x),
-                                        })),
-                                      },
-                                      reason,
-                                    ]}
-                                    label="Record result decision"
-                                  />
-                                </>
-                              )}
-                            </details>
-                          ))}
+                          </TaskDialog>
+                          {!!m.results.length && (
+                            <TaskDialog
+                              label={`Result history & review (${m.results.length})`}
+                              title={`Result history · Match ${m.order}`}
+                              description={`${names.get(m.sideAId ?? "") ?? "Player A"} vs ${names.get(m.sideBId ?? "") ?? "Player B"}`}
+                              readOnly={s.archived}
+                            >
+                              <div className="stack">
+                                {m.results.map((v) => (
+                                  <section key={v.id} className="panel">
+                                    <h3>
+                                      Result {v.version} ·{" "}
+                                      {friendlyLabel(v.outcome)} ·{" "}
+                                      {friendlyLabel(v.status)}
+                                    </h3>
+                                    <p className="muted text-xs">
+                                      {operationalTime(v.createdAt)} ·{" "}
+                                      {v.games
+                                        .map((g) => `${g.scoreA}–${g.scoreB}`)
+                                        .join(" / ")}
+                                    </p>
+                                    {v.evidence.map((e) => (
+                                      <a
+                                        key={e.id}
+                                        className="text-link block mb-3"
+                                        href={`/api/staff?evidence=${e.id}`}
+                                      >
+                                        Download private evidence ↗
+                                      </a>
+                                    ))}
+                                    {v.status === "ACCEPTED" &&
+                                      m.currentResultId === v.id && (
+                                        <ActionForm
+                                          action="resultReview"
+                                          fixed={{
+                                            id: v.id,
+                                            action: "DISPUTE",
+                                          }}
+                                          fields={[requiredReason]}
+                                          label="Open a dispute"
+                                        />
+                                      )}
+                                    {v.status === "SUBMITTED" && (
+                                      <>
+                                        <UploadForm
+                                          action="evidence"
+                                          resultId={v.id}
+                                        />
+                                        <hr className="divider" />
+                                        <ActionForm
+                                          action="resultReview"
+                                          fixed={{ id: v.id }}
+                                          fields={[
+                                            {
+                                              name: "action",
+                                              required: true,
+                                              label: "Decision",
+                                              type: "select",
+                                              options: [
+                                                "ACCEPT",
+                                                "REJECT",
+                                                "DISPUTE",
+                                              ].map((x) => ({
+                                                value: x,
+                                                label: friendlyLabel(x),
+                                              })),
+                                            },
+                                            reason,
+                                          ]}
+                                          label="Record result decision"
+                                        />
+                                      </>
+                                    )}
+                                  </section>
+                                ))}
+                              </div>
+                            </TaskDialog>
+                          )}
                           {m.disputes.map((d) => (
-                            <div className="notice" key={d.id}>
+                            <TaskDialog
+                              key={d.id}
+                              label={
+                                d.resolved
+                                  ? "View resolved dispute"
+                                  : "Resolve dispute"
+                              }
+                              title={`Dispute · Match ${m.order}`}
+                              readOnly={s.archived}
+                            >
                               <strong>
                                 {d.resolved
                                   ? "Resolved dispute"
@@ -1463,10 +1517,14 @@ async function renderSection(
                                   label="Resolve dispute"
                                 />
                               )}
-                            </div>
+                            </TaskDialog>
                           ))}
-                          <details className="details">
-                            <summary>Match schedule and actions</summary>
+                          <TaskDialog
+                            label="Match schedule and actions"
+                            title={`Manage match ${m.order}`}
+                            description={`${names.get(m.sideAId ?? "") ?? "Player A"} vs ${names.get(m.sideBId ?? "") ?? "Player B"}`}
+                            readOnly={s.archived}
+                          >
                             <ActionForm
                               action="match"
                               fixed={{ id: m.id }}
@@ -1517,8 +1575,8 @@ async function renderSection(
                                 />
                               </>
                             )}
-                          </details>
-                        </fieldset>
+                          </TaskDialog>
+                        </div>
                       </article>
                     ))}
                   </div>
@@ -1547,8 +1605,7 @@ async function renderSection(
     });
     return (
       <div className="stack">
-        <div className="panel">
-          <h3>Create announcement</h3>
+        <TaskDialog label="Create announcement" title="Create announcement">
           <ActionForm
             action="announcement"
             fixed={{ published: false }}
@@ -1560,15 +1617,7 @@ async function renderSection(
                 type: "textarea",
                 required: true,
               },
-              ...(actor.role === "ADMIN"
-                ? [
-                    {
-                      name: "published",
-                      label: "Publish (admin approval)",
-                      type: "checkbox" as const,
-                    },
-                  ]
-                : []),
+              { name: "published", label: "Publish", type: "checkbox" },
               { name: "titleEn", label: "English title" },
               {
                 name: "bodyEn",
@@ -1578,68 +1627,62 @@ async function renderSection(
               reason,
             ]}
           />
-        </div>
+        </TaskDialog>
+        {!rows.length && (
+          <p className="empty">
+            No announcements yet. Create one to prepare your first update.
+          </p>
+        )}
         {rows.map((r) => (
-          <details className="panel" key={r.id}>
-            <summary>
-              {r.title} · {r.published ? "Published" : "Draft"}
-            </summary>
-            {actor.role !== "ADMIN" && r.published ? (
-              <p className="muted text-sm whitespace-pre-wrap">
-                {r.body}
-                <br />
-                An admin can edit published announcements.
-              </p>
-            ) : (
-              <ActionForm
-                action="announcement"
-                fixed={{ id: r.id, published: r.published }}
-                fields={[
-                  {
-                    name: "title",
-                    label: "Title",
-                    value: r.title,
-                    required: true,
-                  },
-                  {
-                    name: "body",
-                    label: "Body",
-                    type: "textarea",
-                    value: r.body,
-                    required: true,
-                  },
-                  ...(actor.role === "ADMIN"
-                    ? [
-                        {
-                          name: "published",
-                          label: "Published",
-                          type: "checkbox" as const,
-                          value: r.published,
-                        },
-                      ]
-                    : []),
-                  {
-                    name: "archived",
-                    label: "Archived",
-                    type: "checkbox",
-                    value: r.archived,
-                  },
-                  {
-                    name: "titleEn",
-                    label: "English title",
-                    value: r.titleEn ?? "",
-                  },
-                  {
-                    name: "bodyEn",
-                    label: "English announcement",
-                    type: "textarea",
-                    value: r.bodyEn ?? "",
-                  },
-                  reason,
-                ]}
-              />
-            )}
-          </details>
+          <TaskDialog
+            key={r.id}
+            label={`${r.title} · ${r.published ? "Published" : "Draft"}`}
+            title={`Announcement · ${r.title}`}
+          >
+            <ActionForm
+              action="announcement"
+              fixed={{ id: r.id, published: r.published }}
+              fields={[
+                {
+                  name: "title",
+                  label: "Title",
+                  value: r.title,
+                  required: true,
+                },
+                {
+                  name: "body",
+                  label: "Body",
+                  type: "textarea",
+                  value: r.body,
+                  required: true,
+                },
+                {
+                  name: "published",
+                  label: "Published",
+                  type: "checkbox",
+                  value: r.published,
+                },
+                {
+                  name: "archived",
+                  label: "Archived",
+                  type: "checkbox",
+                  value: r.archived,
+                },
+                {
+                  name: "titleEn",
+                  label: "English title",
+                  value: r.titleEn ?? "",
+                },
+                {
+                  name: "bodyEn",
+                  label: "English announcement",
+                  type: "textarea",
+                  value: r.bodyEn ?? "",
+                },
+                reason,
+              ]}
+            />
+          </TaskDialog>
         ))}
       </div>
     );
