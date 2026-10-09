@@ -40,7 +40,7 @@ describe("tournament player list", () => {
     expect(html.indexOf("<td>P02</td>")).toBeLessThan(
       html.indexOf("<td>P10</td>"),
     );
-    expect(html.match(/>Eligible<\/span>/g)).toHaveLength(32);
+    expect(html.match(/>Eligible<\/button>/g)).toHaveLength(32);
     expect(html).toContain('aria-label="Select all assigned players"');
     expect(html.match(/aria-label="Select P\d+ · Player \d+"/g)).toHaveLength(
       32,
@@ -62,8 +62,8 @@ describe("tournament player list", () => {
       }),
     );
     expect(html).toContain("Player list awaiting confirmation.");
-    expect(html.match(/>Eligible<\/span>/g)).toHaveLength(1);
-    expect(html.match(/>Needs confirmation<\/span>/g)).toHaveLength(2);
+    expect(html.match(/>Eligible<\/button>/g)).toHaveLength(1);
+    expect(html.match(/>Ineligible<\/button>/g)).toHaveLength(2);
     expect(html).toContain("Member needs review");
   });
 
@@ -89,10 +89,10 @@ describe("tournament player list", () => {
       }),
     );
     expect(published).toMatch(
-      /<button[^>]*disabled=""[^>]*>Edit eligibility<\/button>/,
+      /<button[^>]*disabled=""[^>]*>Eligible<\/button>/,
     );
     expect(published).toContain(
-      "Unpublish the tournament before changing eligibility.",
+      "Unpublish the tournament before changing eligibility or removing players.",
     );
     expect(published).toMatch(
       /aria-label="Select all assigned players"[^>]*disabled=""/,

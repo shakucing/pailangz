@@ -4,7 +4,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
 import { encrypt } from "../src/lib/crypto";
 if (process.env.PAILANGZ_ISOLATED_WEB_TEST !== "true")
   throw new Error(
@@ -17,6 +17,8 @@ if (
   throw new Error(
     "Web smoke tests require the synthetic development environment.",
   );
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
+
 const origin = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 const owner = new PrismaClient({
   adapter: new PrismaPg({
@@ -117,12 +119,12 @@ try {
         assert.ok(html.includes(heading));
         assert.ok(html.includes("pailangz-wordmark.webp"));
         assert.ok(
-          html.includes("P01 · KingMinz"),
-          "Landing fixtures include the approved SOLO name",
+          !html.includes('id="tournament-format"'),
+          "The landing event centre stays hidden until staff select a highlight",
         );
         assert.ok(
-          html.includes("Smith69"),
-          "Landing roster includes the approved SOLO names",
+          !html.includes("P01 · KingMinz") && !html.includes("Smith69"),
+          "Unselected tournament players do not appear on the landing page",
         );
         assert.ok(!html.includes("In-game names stay private."));
         assert.match(
@@ -330,7 +332,8 @@ try {
         assert.ok(!html.includes("$2b$12$"));
         assert.ok(!html.includes("Staff access has been revoked"));
         assert.ok(
-          html.includes("Operations workspace"),
+          html.includes("Staff portal") &&
+            html.includes('aria-label="Staff workspace"'),
           section + " must render the authenticated workspace",
         );
         assert.ok(!html.includes("totpEncrypted"));
@@ -623,7 +626,7 @@ try {
         const screen = html
           .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
           .replace(/<[^>]+>/g, " ");
-        assert.ok(screen.includes("Operations workspace"), section);
+        assert.ok(screen.includes("Staff portal"), section);
         assert.ok(!screen.includes("Staff accounts"), section);
         assert.ok(!screen.includes("Registration settings"), section);
         assert.ok(!screen.includes("Publish (admin approval)"), section);

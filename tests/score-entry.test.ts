@@ -55,6 +55,31 @@ describe("staff game winner selection", () => {
       readGameWinners(selectGameWinner(reopened, 2, "B", 3), 3).outcome,
     ).toBe("B_WIN");
   });
+  it("supports BO7, including corrections that end the series at four wins", () => {
+    const drafts = picks(["A", "B", "A", "B", "A", "B", "B"], 7);
+    expect(readGameWinners(drafts, 7)).toMatchObject({
+      winsA: 3,
+      winsB: 4,
+      needed: 4,
+      outcome: "B_WIN",
+    });
+    expect(readGameWinners(drafts.slice(0, 6), 7).outcome).toBeNull();
+    const corrected = selectGameWinner(drafts, 3, "A", 7);
+    expect(corrected.map((draft) => draft.winner)).toEqual([
+      "A",
+      "B",
+      "A",
+      "A",
+      "A",
+      null,
+      null,
+    ]);
+    expect(readGameWinners(corrected, 7)).toMatchObject({
+      winsA: 4,
+      winsB: 1,
+      outcome: "A_WIN",
+    });
+  });
   it("clears the selected game and later games and prevents gaps", () => {
     const cleared = selectGameWinner(picks(["A", "B", "A"]), 1, null, 3);
     expect(cleared.map((draft) => draft.winner)).toEqual(["A", null, null]);
@@ -104,6 +129,12 @@ describe("staff game winner selection", () => {
   });
 });
 describe("staff score entry", () => {
+  it.each([0, 2, 6, -1, 7.5, 101])(
+    "rejects invalid series length %s",
+    (bestOf) => {
+      expect(() => readScoreEntry([], bestOf)).toThrow(/odd number/);
+    },
+  );
   it("keeps blank scores distinct from zero and omits unused trailing games", () => {
     expect(readScoreEntry([blank, blank], 3).games).toEqual([]);
     const entry = readScoreEntry([win, win, blank], 3);

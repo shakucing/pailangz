@@ -15,6 +15,7 @@ import { decrypt, encrypt } from "./crypto";
 import { DEFAULT_MAPPING, phoneInfo } from "./imports";
 import { memberFieldKind, normalizeMemberField } from "./member-fields";
 import { resizeTeamAvatar } from "./team-avatar";
+import { announcementExcerpt } from "./announcement-content";
 export async function memberUpdate(
   actor: Actor,
   input: {
@@ -484,14 +485,17 @@ export async function announcementUpdate(
   return privateTx(actor, async (tx) => {
     const data = {
       title: z.string().min(3).max(150).parse(input.title),
-      body: z.string().min(3).max(5000).parse(input.body),
+      body: z
+        .string()
+        .refine((value) => announcementExcerpt(value, 4).length >= 3)
+        .parse(input.body),
       titleEn:
         input.titleEn !== undefined
           ? z.string().max(150).parse(input.titleEn) || null
           : undefined,
       bodyEn:
         input.bodyEn !== undefined
-          ? z.string().max(5000).parse(input.bodyEn) || null
+          ? z.string().parse(input.bodyEn) || null
           : undefined,
       published: input.published,
       archived: input.archived ?? false,
@@ -806,6 +810,7 @@ export async function createTeamBracket(
       config.teamBracketSize,
       pairs,
       "TEAM",
+      config,
     );
     await audit(
       tx,

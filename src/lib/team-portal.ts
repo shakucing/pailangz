@@ -51,6 +51,8 @@ export type TeamEvent = {
   registrationDeadline: Date | null;
   capacity: number;
   published: boolean;
+  format: "SOLO" | "TEAM" | null;
+  teamRosterManagement: "PLAYER" | "STAFF";
 };
 export type PublicTeam = {
   avatarImage: string | null;
@@ -136,6 +138,9 @@ export async function mutateTeam(
 ) {
   if (!token) throw new DomainError("SIGN_IN", 401);
   const fields = teamActionSchema.parse(input);
+  const event = await publicTeamEvent(slug);
+  if (event?.teamRosterManagement === "STAFF")
+    throw new DomainError("STAFF_MANAGED", 403);
   let avatarImage: string | null = null;
   if (image) {
     if (fields.action !== "CREATE") throw new DomainError("INVALID_IMAGE", 400);
@@ -176,7 +181,9 @@ export async function mutateTeam(
         row.result.error,
         row.result.error === "SIGN_IN"
           ? 401
-          : ["NOT_APPROVED", "OWNER_ONLY"].includes(row.result.error)
+          : ["NOT_APPROVED", "OWNER_ONLY", "STAFF_MANAGED"].includes(
+                row.result.error,
+              )
             ? 403
             : row.result.error === "NOT_FOUND"
               ? 404
@@ -202,6 +209,7 @@ export async function publicTeams(slug: string) {
 }
 export function teamRegistrationOpen(event: TeamEvent) {
   return (
+    event.teamRosterManagement !== "STAFF" &&
     !event.published &&
     ["DRAFT", "REGISTRATION_OPEN"].includes(event.status) &&
     (!event.registrationDeadline ||

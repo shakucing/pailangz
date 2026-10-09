@@ -1,0 +1,111 @@
+.field {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+.frame {
+  min-width: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--field-bg);
+}
+.frame[data-invalid] {
+  border-color: var(--danger);
+}
+.toolbar,
+.tableTools,
+.linkActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.toolbar,
+.tableTools {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.toolbar button,
+.tableTools button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 12px;
+}
+.toolbar button:hover,
+.tableTools button:hover {
+  background: var(--surface-soft);
+}
+.toolbar button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.toolbar select {
+  width: auto;
+  min-height: 36px;
+  padding: 6px;
+  font-size: 12px;
+}
+.separator {
+  width: 1px;
+  height: 20px;
+  margin: 0 3px;
+  background: var(--border);
+}
+.editor :global(.tiptap) {
+  min-height: 240px;
+  padding: 16px;
+  border-radius: 0 0 6px 6px;
+  outline-offset: -3px;
+}
+.editor :global(.tiptap) > :first-child {
+  margin-top: 0;
+}
+.editor :global(.tiptap) > :last-child {
+  margin-bottom: 0;
+}
+.editor :global(.is-editor-empty):first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted);
+}
+.editor :global(.selectedCell) {
+  background: var(--accent-bg);
+}
+.editor :global(.tiptap) table {
+  width: 100%;
+}
+.editor :global(.tiptap) td,
+.editor :global(.tiptap) th {
+  min-width: 70px;
+}
+.linkPanel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+.loading {
+  padding: 16px;
+  color: var(--muted);
+}
+@media (pointer: coarse) {
+  .toolbar button,
+  .tableTools button,
+  .toolbar select {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

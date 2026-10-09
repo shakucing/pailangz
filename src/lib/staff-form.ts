@@ -2,6 +2,7 @@ import {
   malaysiaDateSubmission,
   ruleFields,
   sizeFields,
+  seriesFields,
 } from "./staff-presentation";
 
 export type FormField = {
@@ -26,8 +27,14 @@ export function staffFormData(
     if (f.type === "configuration") {
       data[f.name] = {
         scheduleSource: "generated",
+        ...(form.get("format") ? { format: form.get("format") } : {}),
         ...Object.fromEntries(
           sizeFields.map(([key]) => [key, Number(form.get(key))]),
+        ),
+        ...Object.fromEntries(
+          seriesFields
+            .filter(([key]) => form.has(key))
+            .map(([key]) => [key, Number(form.get(key))]),
         ),
         leagueByePolicy: form.get("leagueByePolicy"),
         bracketByePolicy: form.get("bracketByePolicy"),

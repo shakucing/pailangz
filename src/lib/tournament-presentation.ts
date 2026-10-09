@@ -1,4 +1,7 @@
-import type { TournamentConfiguration } from "./tournament-config";
+import {
+  knockoutBestOf,
+  type TournamentConfiguration,
+} from "./tournament-config";
 
 export type ProgressionRound = {
   key: string;
@@ -19,7 +22,7 @@ export function progressionRounds(
     rounds.push({
       key: `${category}-${n}`,
       size: n,
-      bestOf: category === "SOLO" || n === 2 ? 5 : 3,
+      bestOf: knockoutBestOf(config, category, n === 2),
       matches: n / 2,
     });
   return rounds;

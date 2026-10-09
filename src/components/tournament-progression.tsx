@@ -3,7 +3,10 @@
 import { useId, useState } from "react";
 import { ChevronDown, GitBranch, Trophy } from "lucide-react";
 import { useLocale } from "./locale-context";
-import type { TournamentConfiguration } from "@/lib/tournament-config";
+import {
+  tournamentKinds,
+  type TournamentConfiguration,
+} from "@/lib/tournament-config";
 import {
   configuredByes,
   progressionRounds,
@@ -33,8 +36,12 @@ export function TournamentProgression({
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const id = useId();
-  const [category, setCategory] = useState<"SOLO" | "TEAM">("SOLO");
-  const [selected, setSelected] = useState("league");
+  const [category, setCategory] = useState<"SOLO" | "TEAM">(
+    config.format ?? "SOLO",
+  );
+  const [selected, setSelected] = useState(
+    config.format === "TEAM" ? "entry" : "league",
+  );
   const player = (n: number) => t(`${n} pemain`, `${n} players`);
   const team = (n: number) => t(`${n} pasukan`, `${n} teams`);
   const roundName = (n: number) =>
@@ -69,10 +76,10 @@ export function TournamentProgression({
     key: "league",
     title: "Group League (SOLO)",
     subtitle: t(
-      `${config.leagueRounds} pusingan · ${config.leagueMatchesPerPlayer} perlawanan · BO3`,
-      `${config.leagueRounds} rounds · ${config.leagueMatchesPerPlayer} matches · BO3`,
+      `${config.leagueRounds} pusingan · ${config.leagueMatchesPerPlayer} perlawanan · BO${config.leagueBestOf}`,
+      `${config.leagueRounds} rounds · ${config.leagueMatchesPerPlayer} matches · BO${config.leagueBestOf}`,
     ),
-    format: "BO3",
+    format: `BO${config.leagueBestOf}`,
     entrants: player(config.soloCapacity),
     description: t(
       `Setiap pemain mempunyai ${config.leagueMatchesPerPlayer} perlawanan dengan lawan berbeza dalam ${config.leagueRounds} pusingan. Kedudukan liga menentukan laluan ke peringkat seterusnya.`,
@@ -228,7 +235,11 @@ export function TournamentProgression({
             <GitBranch size={14} />
             {t("Laluan ke final", "Road to the final")}
           </span>
-          <h2>{t("Satu arena. Dua laluan.", "One arena. Two paths.")}</h2>
+          <h2>
+            {config.format
+              ? `${config.format} · ${t("Laluan kejohanan", "Tournament progression")}`
+              : t("Satu arena. Dua laluan.", "One arena. Two paths.")}
+          </h2>
           <p>
             {t(
               "Tekan mana-mana peringkat untuk melihat format dan syarat kelayakan.",
@@ -247,7 +258,7 @@ export function TournamentProgression({
         role="group"
         aria-label={t("Kategori kejohanan", "Tournament category")}
       >
-        {(["SOLO", "TEAM"] as const).map((kind) => (
+        {tournamentKinds(config).map((kind) => (
           <button
             key={kind}
             type="button"

@@ -50,8 +50,12 @@ try {
     await import("../scripts/neon-data-upgrade");
   const { encrypt, decrypt } = await import("../src/lib/crypto");
   const once = { upgradeId: emptyTournamentUpgrade, production: true };
-  const { newTournamentConfiguration, generateLeague, validateLeague } =
-    await import("../src/lib/tournament-config");
+  const {
+    newTournamentConfiguration: soloDefaults,
+    generateLeague,
+    validateLeague,
+  } = await import("../src/lib/tournament-config");
+  const { format: _format, ...newTournamentConfiguration } = soloDefaults;
   await seed({ legacyFixtures: true });
   const tournament = await owner.tournament.findUniqueOrThrow({
     where: { slug: "pailangz-solo-team" },
@@ -326,7 +330,7 @@ try {
     where: { slug: "pailangz-solo-team" },
     include: { participants: true },
   });
-  assert.deepEqual(fresh.configuration, newTournamentConfiguration);
+  assert.deepEqual(fresh.configuration, soloDefaults);
   assert.equal(fresh.participants.length, 0);
   assert.equal(await owner.match.count(), 0);
   const emptyOnce = { upgradeId: "test_already_empty_32", production: true };

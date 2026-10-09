@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { staffFormData } from "../src/lib/staff-form";
 import {
+  configuration,
+  newTournamentConfiguration,
+} from "../src/lib/tournament-config";
+import {
   activityCsv,
   activityDetails,
   friendlyError,
@@ -17,6 +21,45 @@ function form(values: Record<string, string | string[]>) {
 }
 
 describe("guided staff forms", () => {
+  it("saves BO7 as a number for playoffs and independent finals", () => {
+    const values = Object.fromEntries(
+      Object.entries(newTournamentConfiguration).map(([key, value]) => [
+        key,
+        String(value),
+      ]),
+    );
+    const saved = staffFormData(
+      [
+        {
+          name: "configuration",
+          label: "Configuration",
+          type: "configuration",
+        },
+      ],
+      form({
+        ...values,
+        soloKnockoutBestOf: "5",
+        soloFinalBestOf: "7",
+        teamKnockoutBestOf: "5",
+        teamFinalBestOf: "7",
+      }),
+    );
+    expect(configuration(saved.configuration)).toMatchObject({
+      soloKnockoutBestOf: 5,
+      soloFinalBestOf: 7,
+      teamKnockoutBestOf: 5,
+      teamFinalBestOf: 7,
+    });
+    expect(
+      staffFormData(
+        [{ name: "rules", label: "Rules", type: "rules" }],
+        form({ "rule:qualificationBestOf": "7" }),
+      ),
+    ).toEqual({
+      rules: { qualificationBestOf: 7 },
+      confirmedRules: ["qualificationBestOf"],
+    });
+  });
   it("explains errors without changing ordinary words such as assigned or sign in", () => {
     expect(friendlyError("Please sign in with a staff account.")).toBe(
       "Please sign in with a staff account.",

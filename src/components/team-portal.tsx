@@ -88,6 +88,10 @@ export function TeamPortal({
       "Pendaftaran pasukan dan permohonan telah ditutup.",
       "Team registration and applications are closed.",
     ],
+    STAFF_MANAGED: [
+      "Pihak staf membentuk pasukan dan menetapkan pemain untuk kejohanan ini.",
+      "Staff form teams and assign players for this tournament.",
+    ],
     ALREADY_IN_TEAM: [
       "Anda sudah menyertai pasukan untuk kejohanan ini.",
       "You already belong to a team in this tournament.",

@@ -5,6 +5,8 @@ import {
 } from "./tournament-config";
 import { createStages } from "./configuration";
 import { persistBracket } from "./brackets";
+import { bestOfSchema } from "./best-of";
+import { generateQualificationPairs } from "./qualification-pairing";
 import { z } from "zod";
 import { privateTx, audit, type Actor, type Tx } from "./db";
 import {
@@ -367,6 +369,7 @@ export async function saveTournament(
         startsAt: z.string().optional(),
         registrationDeadline: z.string().optional(),
         registrationEnabled: z.boolean().optional(),
+        teamRosterManagement: z.enum(["PLAYER", "STAFF"]).optional(),
         status: z.enum([
           "DRAFT",
           "REGISTRATION_OPEN",
@@ -393,6 +396,7 @@ export async function saveTournament(
       : null;
     if (old) assertTransition(old.status, data.status);
     const { id, reason, startsAt, registrationDeadline, ...fields } = data;
+    const hideTournament = ["DRAFT", "ARCHIVED"].includes(data.status);
     const next = {
       ...fields,
       slug:
@@ -417,20 +421,30 @@ export async function saveTournament(
           where: { id: old.id },
           data: {
             ...next,
-            ...(data.status === "ARCHIVED" ? { published: false } : {}),
+            ...(hideTournament ? { published: false } : {}),
           },
         })
       : await tx.tournament.create({
           data: { ...next, configuration: createConfig! },
         });
     if (!old) await createStages(tx, row.id, createConfig!);
+    else if (hideTournament)
+      await tx.stage.updateMany({
+        where: { category: { tournamentId: row.id }, archived: false },
+        data: { published: false },
+      });
     await audit(
       tx,
       actor,
       old ? "TOURNAMENT_UPDATE" : "TOURNAMENT_CREATE",
       "TOURNAMENT",
       row.id,
-      { changedFields: Object.keys(fields) },
+      {
+        changedFields: Object.keys(fields),
+        ...(old && old.status !== data.status
+          ? { beforeStatus: old.status, afterStatus: data.status }
+          : {}),
+      },
       reason,
     );
     return { id: row.id };
@@ -453,9 +467,9 @@ export async function confirmRules(
         tiebreakers: z
           .array(z.enum(["wins", "differential", "gameWins"]))
           .optional(),
-        qualificationBestOf: z.union([z.literal(3), z.literal(5)]).optional(),
+        qualificationBestOf: bestOfSchema.optional(),
         qualificationCarry: z.boolean().optional(),
-        qualificationPairing: z.literal("manual").optional(),
+        qualificationPairing: z.enum(["manual", "auto"]).optional(),
         qualificationTiebreakers: z
           .array(z.enum(["wins", "differential", "gameWins"]))
           .optional(),
@@ -532,12 +546,20 @@ export async function tournamentReadiness(tx: Tx, id: string) {
       },
     },
   });
+  const eligibleMemberIds = new Set(
+    t.participants.filter((p) => p.eligible).map((p) => p.memberId),
+  );
   const teams = t.categories
     .flatMap((c) => c.teams)
     .filter(
       (t) =>
         t.memberships.length === 4 &&
-        t.memberships.every((m) => m.member.verified && !m.member.archived),
+        t.memberships.every(
+          (m) =>
+            m.member.verified &&
+            !m.member.archived &&
+            eligibleMemberIds.has(m.memberId),
+        ),
     ).length;
   const config = configuration(t.configuration);
   const checks = readiness(
@@ -570,16 +592,18 @@ export async function tournamentReadiness(tx: Tx, id: string) {
       scheduleValid = true;
     } catch {}
   }
-  checks.push({
-    key: "schedule",
-    label:
-      "League schedule matches configured capacity, rounds and match quota",
-    done: scheduleValid,
-  });
+  if (config.format !== "TEAM")
+    checks.push({
+      key: "schedule",
+      label:
+        "League schedule matches configured capacity, rounds and match quota",
+      done: scheduleValid,
+    });
   const needsByes =
-    config.soloCapacity % 2 !== 0 ||
-    config.directSlots + config.playoffSlots < config.soloBracketSize ||
-    config.teamCapacity < config.teamBracketSize;
+    (config.format !== "TEAM" &&
+      (config.soloCapacity % 2 !== 0 ||
+        config.directSlots + config.playoffSlots < config.soloBracketSize)) ||
+    (config.format !== "SOLO" && config.teamCapacity < config.teamBracketSize);
   checks.push({
     key: "byes",
     label: "Explicit bye policies confirmed on affected stages",
@@ -772,7 +796,7 @@ export async function freezeRankings(
 }
 export async function createQualification(
   actor: Actor,
-  input: { stageId: string; pairs: string[][]; reason: string },
+  input: { stageId: string; pairs?: string[][]; reason: string },
 ) {
   return privateTx(actor, async (tx) => {
     const stage = await tx.stage.findUniqueOrThrow({
@@ -804,15 +828,26 @@ export async function createQualification(
     const ids = (snap.rankings as { id: string }[])
       .slice(config.directSlots, config.directSlots + config.playoffEntrants)
       .map((r) => r.id);
+    if (ids.length !== config.playoffEntrants)
+      throw new DomainError("The frozen ranking is missing playoff entrants.");
+    const pairing = (stage.rules as Rules).qualificationPairing;
+    if (!["manual", "auto"].includes(pairing ?? ""))
+      throw new DomainError(
+        "Confirm the playoff opponent assignment rule first.",
+      );
+    const pairs =
+      pairing === "auto"
+        ? generateQualificationPairs(ids, config.qualificationMatchesPerPlayer)
+        : (input.pairs ?? []);
     const expectedMatches =
       (config.playoffEntrants * config.qualificationMatchesPerPlayer) / 2;
-    if (input.pairs.length !== expectedMatches)
+    if (pairs.length !== expectedMatches)
       throw new DomainError(
         `${expectedMatches} qualification series are required.`,
       );
     const count = new Map(ids.map((id) => [id, 0])),
       seen = new Set<string>();
-    for (const pair of input.pairs) {
+    for (const pair of pairs) {
       if (
         pair.length !== 2 ||
         pair[0] === pair[1] ||
@@ -838,7 +873,7 @@ export async function createQualification(
     const r = await tx.round.create({
       data: { stageId: stage.id, number: 1, name: "Qualification" },
     });
-    for (const [i, pair] of input.pairs.entries()) {
+    for (const [i, pair] of pairs.entries()) {
       const m = await tx.match.create({
         data: {
           roundId: r.id,
@@ -858,7 +893,7 @@ export async function createQualification(
       "QUALIFICATION_CREATE",
       "STAGE",
       stage.id,
-      { matches: expectedMatches },
+      { matches: expectedMatches, pairing },
       optionalNote(input.reason),
     );
     return { id: stage.id };
@@ -946,6 +981,7 @@ export async function createSoloBracket(
       config.soloBracketSize,
       pairs,
       "SOLO",
+      config,
       [l.id, ...(q ? [q.id] : [])],
     );
     await audit(

@@ -182,9 +182,11 @@ Rolling back a Vercel deployment changes application code, not the database. Kee
 
 ## Local verification on 9 October 2026
 
-The optimized production build and TypeScript check pass. All 225 unit tests across 26 files, 38 isolated HTTP workflows and 47 desktop/mobile dialog browser checks pass. The actual exported database restored into a disposable migrated database, matched every exported row, and retained the original contents of all 344 encrypted fields with independent test keys. Prepared private transfer files have mode 0600.
+The optimized production build and TypeScript check pass. All 310 unit tests across 32 files, 105 integration checks on native PostgreSQL, 38 isolated HTTP workflows, and 47 desktop/mobile readiness dialog checks pass. Browser checks also cover independent tournament formats, BO7 final scoring, rich announcements, and landing highlight selection. The actual exported database previously restored into a disposable migrated database, matched every exported row, and retained the original contents of all 344 encrypted fields with independent test keys. Prepared private transfer files have mode 0600.
 
-The full database integration suite was interrupted by PGlite protocol/backend failures on two attempts, so it is not recorded as passing. Rerun it with a native PostgreSQL installation by setting `TEST_PG_BIN_DIR` to its `bin` directory, or with a stable isolated backend, before production promotion. The cloud test database, bucket, Vercel project and hosted behavior remain to be provisioned and verified by following this walkthrough.
+PGlite still produces protocol/backend failures in the full integration suite. The release run passed using PostgreSQL 17.10 with `TEST_PG_BIN_DIR` pointing to its temporary, ignored local `bin` directory. The integration checks run before deliberately revoking the moderator's session; HTTP smoke checks now match the current staff portal labels and the requirement to select landing highlights explicitly.
+
+Both the hosted test and production databases have schema migrations 024–028. Private backups were saved beneath each environment's existing transfer directory before applying schema-only migrations, and every original application row and field was compared afterward. No local or test records were copied into production. Database cleanup and splitting a legacy combined tournament remain separate operator actions; committing and pushing Git does not transfer local database changes.
 
 ## Provider references
 

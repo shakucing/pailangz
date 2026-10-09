@@ -27,8 +27,21 @@ export default async function Teams({
             "teams · Four players per team",
           )}
         </p>
+        {event.teamRosterManagement === "STAFF" && (
+          <p className="muted">
+            {translate(
+              locale,
+              "Pemain mendaftar secara individu. Pihak staf membentuk pasukan dan menetapkan roster.",
+              "Players register individually. Staff form teams and assign the rosters.",
+            )}
+          </p>
+        )}
       </div>
-      <TeamDirectory teams={teams} slug={slug} />
+      <TeamDirectory
+        teams={teams}
+        slug={slug}
+        showRegistration={event.teamRosterManagement !== "STAFF"}
+      />
     </div>
   );
 }

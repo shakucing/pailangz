@@ -5,6 +5,7 @@ import { ArrowRight, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { useLocale } from "./locale-context";
 import { InteractiveBracket, type BracketTeam } from "./interactive-bracket";
 import { PlayerResultsDialog } from "./player-results-dialog";
+import { TeamResultsDialog } from "./team-results-dialog";
 import {
   configuredByes,
   progressionRounds,
@@ -21,19 +22,27 @@ export function EventPresentation({
   data,
   configuration: config,
   teams,
+  tournamentOptions,
+  onTournamentChange,
 }: {
   data: EventPresentationData | null;
   configuration: TournamentConfiguration;
   teams?: BracketTeam[];
+  tournamentOptions?: { slug: string; format: "SOLO" | "TEAM" }[];
+  onTournamentChange?: (slug: string) => void;
 }) {
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const id = useId();
-  const [category, setCategory] = useState<"SOLO" | "TEAM">("SOLO");
-  const [stageKey, setStageKey] = useState("league");
+  const [category, setCategory] = useState<"SOLO" | "TEAM">(
+    config.format ?? "SOLO",
+  );
+  const [stageKey, setStageKey] = useState(
+    config.format === "TEAM" ? "knockout" : "league",
+  );
   const [roundNumber, setRoundNumber] = useState(1);
   const [view, setView] = useState<"fixtures" | "standings" | "bracket">(
-    "fixtures",
+    config.format === "TEAM" ? "bracket" : "fixtures",
   );
   const [selectedPlayerCode, setSelectedPlayerCode] = useState<string | null>(
     null,
@@ -41,8 +50,12 @@ export function EventPresentation({
   const selectedPlayer = data?.participants.find(
     (p) => p.code === selectedPlayerCode,
   );
+  const [selectedTeamCode, setSelectedTeamCode] = useState<string | null>(null);
   const solo = category === "SOLO";
   const categoryData = data?.categories.find((c) => c.kind === category);
+  const selectedTeam = categoryData?.teams.find(
+    (team) => team.code === selectedTeamCode,
+  );
   const stages = solo
     ? [
         "league",
@@ -137,17 +150,30 @@ export function EventPresentation({
     setCategory(next);
     chooseStage(next === "SOLO" ? "league" : "knockout");
     setView(next === "SOLO" ? "fixtures" : "bracket");
+    setSelectedPlayerCode(null);
+    setSelectedTeamCode(null);
+    const tournament = tournamentOptions?.find(
+      (event) => event.format === next,
+    );
+    if (tournament) onTournamentChange?.(tournament.slug);
   };
 
   return (
     <div className={styles.presentation}>
       <div className={styles.heading}>
         <div>
-          <div className="eyebrow">SOLO & TEAM · Event centre</div>
+          <div className="eyebrow">
+            {config.format ?? "SOLO & TEAM"} · Event centre
+          </div>
           <h2>
-            {t("Dua kategori. Satu pentas.", "Two categories. One arena.")}
+            {config.format
+              ? t("Satu format. Satu juara.", "One format. One champion.")
+              : t("Dua kategori. Satu pentas.", "Two categories. One arena.")}
           </h2>
-          <p>{data?.name ?? "PAILANGZ & PAILANGZZ — Solo & Team Tournament"}</p>
+          <p>
+            {data?.name ??
+              `PAILANGZ & PAILANGZZ — ${config.format ?? "Solo & Team"} Tournament`}
+          </p>
         </div>
         <span className="badge warning">{status}</span>
       </div>
@@ -163,35 +189,45 @@ export function EventPresentation({
       <div
         className={styles.categorySwitch}
         role="group"
-        aria-label={t("Kategori acara", "Event category")}
+        aria-label={
+          tournamentOptions
+            ? t("Kejohanan acara", "Event tournament")
+            : t("Kategori acara", "Event category")
+        }
       >
-        <button
-          type="button"
-          aria-pressed={solo}
-          onClick={() => chooseCategory("SOLO")}
-        >
-          <Swords size={16} aria-hidden="true" />
-          <span>
-            SOLO
-            <small>
-              {t(
-                "Liga → Kelayakan → Knockout",
-                "League → Qualification → Knockout",
-              )}
-            </small>
-          </span>
-        </button>
-        <button
-          type="button"
-          aria-pressed={!solo}
-          onClick={() => chooseCategory("TEAM")}
-        >
-          <Users size={16} aria-hidden="true" />
-          <span>
-            TEAM
-            <small>{t("4 pemain · Knockout", "4 players · Knockout")}</small>
-          </span>
-        </button>
+        {(tournamentOptions?.some((event) => event.format === "SOLO") ??
+          config.format !== "TEAM") && (
+          <button
+            type="button"
+            aria-pressed={solo}
+            onClick={() => chooseCategory("SOLO")}
+          >
+            <Swords size={16} aria-hidden="true" />
+            <span>
+              SOLO
+              <small>
+                {t(
+                  "Liga → Kelayakan → Knockout",
+                  "League → Qualification → Knockout",
+                )}
+              </small>
+            </span>
+          </button>
+        )}
+        {(tournamentOptions?.some((event) => event.format === "TEAM") ??
+          config.format !== "SOLO") && (
+          <button
+            type="button"
+            aria-pressed={!solo}
+            onClick={() => chooseCategory("TEAM")}
+          >
+            <Users size={16} aria-hidden="true" />
+            <span>
+              TEAM
+              <small>{t("4 pemain · Knockout", "4 players · Knockout")}</small>
+            </span>
+          </button>
+        )}
       </div>
       <div className={styles.metrics}>
         <div>
@@ -202,7 +238,7 @@ export function EventPresentation({
           <span>
             {solo
               ? t("Pemain berdaftar", "Registered players")
-              : t("Kod pasukan berdaftar", "Registered team codes")}
+              : t("Pasukan berdaftar", "Registered teams")}
           </span>
         </div>
         <div>
@@ -220,7 +256,16 @@ export function EventPresentation({
           <span>{t("Slot bracket knockout", "Knockout bracket places")}</span>
         </div>
         <div>
-          <strong>{solo ? "BO3 / BO5" : "BO3 → BO5"}</strong>
+          <strong>
+            {[
+              ...new Set([
+                ...(solo ? [config.leagueBestOf] : []),
+                ...rounds.map((r) => r.bestOf),
+              ]),
+            ]
+              .map((n) => `BO${n}`)
+              .join(" / ")}
+          </strong>
           <span>{t("Format series", "Series format")}</span>
         </div>
       </div>
@@ -240,7 +285,10 @@ export function EventPresentation({
           <div className={styles.routeCard}>
             <span className={styles.kicker}>
               {solo
-                ? t("Liga · BO3", "League · BO3")
+                ? t(
+                    `Liga · BO${config.leagueBestOf}`,
+                    `League · BO${config.leagueBestOf}`,
+                  )
                 : t("Roster pasukan", "Team rosters")}
             </span>
             <strong>{capacity}</strong>
@@ -323,7 +371,14 @@ export function EventPresentation({
                 ? t("pemain layak", "qualifying players")
                 : t("pasukan", "teams")}
             </span>
-            <p>{solo ? "BO5" : t("BO3 · Final BO5", "BO3 · BO5 final")}</p>
+            <p>
+              {rounds
+                .map((r) => `BO${r.bestOf}`)
+                .filter(
+                  (value, i, values) => i === 0 || value !== values[i - 1],
+                )
+                .join(" → ")}
+            </p>
             {byes > 0 && (
               <small>
                 {byes} {t("bye untuk seed teratas", "byes for top seeds")}
@@ -416,7 +471,7 @@ export function EventPresentation({
 
         {view === "bracket" ? (
           <InteractiveBracket
-            key={category}
+            key={`${data?.slug}:${category}`}
             configuration={config}
             category={category}
             rounds={knockout?.rounds}
@@ -600,12 +655,17 @@ export function EventPresentation({
               {entrants.length} {t("rekod tersimpan", "saved records")}
             </span>
           </div>
-          {solo && entrants.length > 0 && (
+          {entrants.length > 0 && (
             <p>
-              {t(
-                "Klik pemain untuk melihat keputusan perlawanan mereka.",
-                "Click a player to see their match results.",
-              )}
+              {solo
+                ? t(
+                    "Klik pemain untuk melihat keputusan perlawanan mereka.",
+                    "Click a player to see their match results.",
+                  )
+                : t(
+                    "Klik pasukan untuk melihat ahli dan keputusan perlawanan mereka.",
+                    "Click a team to see their members and match results.",
+                  )}
             </p>
           )}
           {showLeaguePoints && (
@@ -619,10 +679,7 @@ export function EventPresentation({
           {entrants.length ? (
             <ul>
               {entrants.map((entrant) => (
-                <li
-                  key={entrant.code}
-                  className={solo ? styles.playerChipItem : undefined}
-                >
+                <li key={entrant.code} className={styles.playerChipItem}>
                   {solo ? (
                     <button
                       type="button"
@@ -642,10 +699,22 @@ export function EventPresentation({
                       )}
                     </button>
                   ) : (
-                    <>
+                    <button
+                      type="button"
+                      className={styles.playerChip}
+                      aria-haspopup="dialog"
+                      onClick={() => setSelectedTeamCode(entrant.code)}
+                    >
                       {entrant.code}
                       <span> · {teamNames.get(entrant.code)}</span>
-                    </>
+                      <span>
+                        {" · "}
+                        {categoryData?.teams.find(
+                          (team) => team.code === entrant.code,
+                        )?.playerCount ?? 0}
+                        /4 {t("pemain", "players")}
+                      </span>
+                    </button>
                   )}
                 </li>
               ))}
@@ -677,6 +746,13 @@ export function EventPresentation({
           stages={data?.categories.find((c) => c.kind === "SOLO")?.stages ?? []}
           testResults={data?.testResults}
           onClose={() => setSelectedPlayerCode(null)}
+        />
+      )}
+      {selectedTeam && (
+        <TeamResultsDialog
+          team={selectedTeam}
+          stages={categoryData?.stages ?? []}
+          onClose={() => setSelectedTeamCode(null)}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import {
   type TournamentConfiguration,
 } from "./tournament-config";
 import { publicTournament } from "./public-data";
+import { publicPlayerNames } from "./public-player-names";
 import { calculateStandings, type Rules } from "./domain";
 
 export type EventMatch = {
@@ -46,7 +47,12 @@ export type EventPresentationData = {
   participants: { code: string; ign?: string }[];
   categories: {
     kind: string;
-    teams: { code: string; name: string; playerCount: number }[];
+    teams: {
+      code: string;
+      name: string;
+      playerCount: number;
+      roster?: { ign: string; owner: boolean }[];
+    }[];
     stages: EventStage[];
   }[];
   preview: boolean;
@@ -164,7 +170,11 @@ export async function eventPresentationData(
     const [record] = await db.$queryRaw<
       { data: Omit<EventPresentationData, "preview"> }[]
     >`
-      SELECT data FROM "PublicEventPreview" LIMIT 1
+      SELECT data FROM "PublicEventPreview"
+      WHERE (${slug ?? null}::text IS NULL OR data->>'slug' = ${slug ?? null})
+      ORDER BY CASE WHEN data->'configuration'->>'format' = 'TEAM' THEN 1 ELSE 0 END,
+        data->>'slug'
+      LIMIT 1
     `;
     if (!record) return null;
     data = {
@@ -174,10 +184,16 @@ export async function eventPresentationData(
     };
   }
   data = await localTestResults(data);
-  const players = await db.$queryRaw<{ code: string; ign: string }[]>`
-    SELECT code, ign FROM "PublicEventPlayerName" WHERE slug = ${data.slug}
-  `;
+  const players = await publicPlayerNames(data.slug);
   const names = new Map(players.map((p) => [p.code, p.ign]));
+  const teamMembers = data.categories.some(
+    (category) => category.kind === "TEAM" && category.teams.length > 0,
+  )
+    ? await db.$queryRaw<{ teamCode: string; ign: string; owner: boolean }[]>`
+        SELECT "teamCode", ign, owner FROM "PublicEventTeamMember"
+        WHERE slug = ${data.slug} ORDER BY "teamCode", owner DESC, ign
+      `
+    : [];
   const label = (code: string | null) => {
     const ign = code ? names.get(code) : undefined;
     return ign ? `${code} · ${ign}` : code;
@@ -190,7 +206,15 @@ export async function eventPresentationData(
     })),
     categories: data.categories.map((c) =>
       c.kind !== "SOLO"
-        ? c
+        ? {
+            ...c,
+            teams: c.teams.map((team) => ({
+              ...team,
+              roster: teamMembers
+                .filter((member) => member.teamCode === team.code)
+                .map(({ ign, owner }) => ({ ign, owner })),
+            })),
+          }
         : {
             ...c,
             stages: c.stages.map((s) => ({
@@ -207,4 +231,18 @@ export async function eventPresentationData(
           },
     ),
   };
+}
+
+export async function landingEventPresentations(): Promise<
+  EventPresentationData[]
+> {
+  if (!process.env.DATABASE_URL) return [];
+  await ensureRuntime();
+  const highlights = await db.$queryRaw<{ slug: string }[]>`
+    SELECT slug FROM "PublicLandingHighlight" ORDER BY format ASC
+  `;
+  const events = await Promise.all(
+    highlights.map(({ slug }) => eventPresentationData(slug)),
+  );
+  return events.filter((event): event is EventPresentationData => !!event);
 }

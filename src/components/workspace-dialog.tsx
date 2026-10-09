@@ -62,16 +62,18 @@ export function TaskDialogButton({
   target,
   fieldTarget,
   children,
+  className = "",
 }: {
   target: string;
   fieldTarget?: string;
   children: ReactNode;
+  className?: string;
 }) {
   const navigation = useContext(DialogNavigationContext);
   return (
     <button
       type="button"
-      className="text-link readiness-action"
+      className={`text-link readiness-action ${className}`.trim()}
       aria-haspopup="dialog"
       onClick={() => navigation?.open(target, fieldTarget)}
     >
@@ -339,6 +341,7 @@ export function TaskDialog({
   id,
   disabled,
   readOnly = false,
+  triggerClassName = "button secondary small",
 }: {
   label: ReactNode;
   title: string;
@@ -347,6 +350,7 @@ export function TaskDialog({
   id?: string;
   disabled?: boolean;
   readOnly?: boolean;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [fieldTarget, setFieldTarget] = useState<string>();
@@ -364,7 +368,7 @@ export function TaskDialog({
     <div className={styles.trigger} id={id}>
       <button
         type="button"
-        className="button secondary small"
+        className={triggerClassName}
         aria-haspopup="dialog"
         disabled={disabled}
         onClick={() => {

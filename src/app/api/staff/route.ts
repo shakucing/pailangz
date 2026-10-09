@@ -17,6 +17,10 @@ import {
   approveRegistrations,
 } from "@/lib/imports";
 import * as competition from "@/lib/competition";
+import {
+  landingHighlightsSchema,
+  saveLandingHighlights,
+} from "@/lib/landing-highlights";
 import * as operations from "@/lib/operations";
 import { putEvidence, getEvidence } from "@/lib/evidence";
 import { MAX_UPLOAD_REQUEST_BYTES } from "@/lib/evidence-policy";
@@ -128,6 +132,7 @@ export async function POST(request: Request) {
       "review",
       "approveRegistrations",
       "tournament",
+      "landingHighlights",
       "publish",
       "rules",
       "mapping",
@@ -236,6 +241,12 @@ export async function POST(request: Request) {
       case "tournament":
         value = await competition.saveTournament(actor, data);
         break;
+      case "landingHighlights":
+        value = await saveLandingHighlights(
+          actor,
+          landingHighlightsSchema.parse(data),
+        );
+        break;
       case "publish":
         value = await competition.publishTournament(
           actor,
@@ -327,7 +338,7 @@ export async function POST(request: Request) {
               title: z.string(),
               body: z.string(),
               titleEn: z.string().max(150).optional(),
-              bodyEn: z.string().max(5000).optional(),
+              bodyEn: z.string().optional(),
               published: z.boolean(),
               archived: z.boolean().optional(),
               reason,
@@ -379,7 +390,11 @@ export async function POST(request: Request) {
         value = await competition.createQualification(
           actor,
           z
-            .object({ stageId: id, pairs: z.array(z.array(id)), reason })
+            .object({
+              stageId: id,
+              pairs: z.array(z.array(id)).optional(),
+              reason,
+            })
             .parse(data),
         );
         break;

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { configuration } from "./tournament-config";
 import { getLocale } from "./i18n";
 import { db, ensureRuntime } from "./db";
@@ -48,6 +49,29 @@ export async function publishedAnnouncements() {
     body: locale === "en" && bodyEn ? bodyEn : r.body,
   }));
 }
+export const publicAnnouncement = cache(async (id: string) => {
+  if (!process.env.DATABASE_URL) return null;
+  await ensureRuntime();
+  const locale = await getLocale();
+  const record = await db.announcement.findFirst({
+    where: { id, published: true, archived: false },
+    select: {
+      id: true,
+      title: true,
+      body: true,
+      titleEn: true,
+      bodyEn: true,
+      createdAt: true,
+    },
+  });
+  if (!record) return null;
+  const { titleEn, bodyEn, ...announcement } = record;
+  return {
+    ...announcement,
+    title: locale === "en" && titleEn ? titleEn : announcement.title,
+    body: locale === "en" && bodyEn ? bodyEn : announcement.body,
+  };
+});
 export async function publicTournament(slug: string) {
   if (!process.env.DATABASE_URL) return null;
   await ensureRuntime();

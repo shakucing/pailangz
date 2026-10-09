@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { originalConfiguration } from "../src/lib/tournament-config";
+import {
+  originalConfiguration,
+  newTournamentConfiguration,
+} from "../src/lib/tournament-config";
 import type { EventPresentationData } from "../src/lib/event-presentation-data";
 
 const mocks = vi.hoisted(() => ({
@@ -15,7 +18,10 @@ vi.mock("../src/lib/db", () => ({
 vi.mock("../src/lib/public-data", () => ({
   publicTournament: mocks.publicTournament,
 }));
-import { eventPresentationData } from "../src/lib/event-presentation-data";
+import {
+  eventPresentationData,
+  landingEventPresentations,
+} from "../src/lib/event-presentation-data";
 
 function event(): EventPresentationData {
   return {
@@ -130,6 +136,148 @@ describe("landing SOLO names", () => {
     mocks.queryRaw.mockResolvedValueOnce([]);
     expect(await eventPresentationData()).toBeNull();
     expect(mocks.queryRaw).toHaveBeenCalledOnce();
+  });
+
+  it("looks up an explicit preview slug without falling back to the other tournament", async () => {
+    mocks.publicTournament.mockResolvedValueOnce(null);
+    mocks.queryRaw.mockResolvedValueOnce([]);
+    expect(await eventPresentationData("missing-team-event")).toBeNull();
+    const [sql, ...values] = mocks.queryRaw.mock.calls[0];
+    expect(sql.join("")).toContain("data->>'slug' =");
+    expect(values).toEqual(["missing-team-event", "missing-team-event"]);
+    expect(mocks.queryRaw).toHaveBeenCalledOnce();
+  });
+
+  it("loads only the selected highlights with their own configuration and publication state", async () => {
+    const solo = {
+      ...event(),
+      slug: "official-solo",
+      configuration: newTournamentConfiguration,
+      categories: event().categories.filter(
+        (category) => category.kind === "SOLO",
+      ),
+    };
+    const team = {
+      ...event(),
+      slug: "official-team",
+      participants: [],
+      configuration: {
+        ...newTournamentConfiguration,
+        format: "TEAM" as const,
+        teamCapacity: 16,
+        teamBracketSize: 16,
+      },
+      categories: [
+        {
+          ...event().categories[1],
+          teams: [{ code: "T01", name: "Team only", playerCount: 4 }],
+        },
+      ],
+    };
+    mocks.publicTournament.mockImplementation(async (slug) =>
+      slug === solo.slug ? solo : null,
+    );
+    mocks.queryRaw.mockImplementation(async (sql, ...values) => {
+      const query = sql.join("");
+      if (query.includes('FROM "PublicLandingHighlight"'))
+        return [solo, team].map(({ slug }) => ({ slug }));
+      if (query.includes('FROM "PublicEventPreview"'))
+        return values[0] === team.slug ? [{ data: team }] : [];
+      return [];
+    });
+    const results = await landingEventPresentations();
+    expect(results.map(({ slug, preview }) => ({ slug, preview }))).toEqual([
+      { slug: solo.slug, preview: false },
+      { slug: team.slug, preview: true },
+    ]);
+    expect(results[0].configuration.soloCapacity).toBe(32);
+    expect(results[1].configuration.teamCapacity).toBe(16);
+    expect(results[1].participants).toEqual([]);
+    expect(results[1].categories[0].teams).toEqual([
+      { ...team.categories[0].teams[0], roster: [] },
+    ]);
+    expect(mocks.publicTournament).not.toHaveBeenCalledWith(
+      "unrelated-published-solo",
+    );
+  });
+
+  it("returns no landing events when staff have not selected any highlights", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    expect(await landingEventPresentations()).toEqual([]);
+    expect(mocks.publicTournament).not.toHaveBeenCalled();
+    expect(mocks.queryRaw).toHaveBeenCalledOnce();
+  });
+
+  it.each([true, false])(
+    "adds only public members for each team in preview=%s",
+    async (preview) => {
+      const data = event();
+      data.categories[1].teams = [
+        { code: "T01", name: "Alpha", playerCount: 4 },
+        { code: "T02", name: "Beta", playerCount: 1 },
+      ];
+      if (preview) mocks.queryRaw.mockResolvedValueOnce([{ data }]);
+      else mocks.publicTournament.mockResolvedValueOnce(data);
+      mocks.queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([
+        {
+          teamCode: "T01",
+          ign: "Captain",
+          owner: true,
+          phone: "PRIVATE_CANARY",
+        },
+        { teamCode: "T01", ign: "Teammate", owner: false },
+        { teamCode: "T02", ign: "Opponent", owner: false },
+        { teamCode: "T03", ign: "Other team", owner: false },
+      ]);
+      const result = await eventPresentationData(data.slug);
+      expect(result?.categories[1].teams).toEqual([
+        {
+          ...data.categories[1].teams[0],
+          roster: [
+            { ign: "Captain", owner: true },
+            { ign: "Teammate", owner: false },
+          ],
+        },
+        {
+          ...data.categories[1].teams[1],
+          roster: [{ ign: "Opponent", owner: false }],
+        },
+      ]);
+      expect(JSON.stringify(result)).not.toContain("PRIVATE_CANARY");
+      expect(JSON.stringify(result)).not.toContain("Other team");
+      const [sql, slug] = mocks.queryRaw.mock.calls.at(-1)!;
+      expect(sql.join("")).toContain('FROM "PublicEventTeamMember"');
+      expect(slug).toBe(data.slug);
+      expect(result?.categories[1].stages).toEqual(data.categories[1].stages);
+    },
+  );
+
+  it.each(["SOLO", "TEAM"] as const)(
+    "shows only a selected %s tournament",
+    async (format) => {
+      const selected = {
+        ...event(),
+        configuration: { ...newTournamentConfiguration, format },
+      };
+      mocks.queryRaw.mockImplementation(async (sql) =>
+        sql.join("").includes('FROM "PublicLandingHighlight"')
+          ? [{ slug: selected.slug }]
+          : [],
+      );
+      mocks.publicTournament.mockResolvedValueOnce(selected);
+      const results = await landingEventPresentations();
+      expect(results).toHaveLength(1);
+      expect(results[0].configuration.format).toBe(format);
+      expect(mocks.publicTournament).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("hides a selected event that is no longer publicly available", async () => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ slug: "removed-highlight" }])
+      .mockResolvedValueOnce([]);
+    mocks.publicTournament.mockResolvedValueOnce(null);
+    expect(await landingEventPresentations()).toEqual([]);
   });
 
   it("does not query without a configured database", async () => {

@@ -10,6 +10,8 @@ import {
 } from "./domain";
 import {
   configuration,
+  tournamentKinds,
+  playerCapacity,
   generateLeague,
   type TournamentConfiguration,
 } from "./tournament-config";
@@ -19,7 +21,7 @@ export async function createStages(
   tournamentId: string,
   config: TournamentConfiguration,
 ) {
-  for (const kind of ["SOLO", "TEAM"] as const) {
+  for (const kind of tournamentKinds(config)) {
     const category = await tx.category.upsert({
       where: { tournamentId_kind: { tournamentId, kind } },
       create: {
@@ -33,20 +35,32 @@ export async function createStages(
     });
     const definitions =
       kind === "TEAM"
-        ? ([["knockout", "TEAM · Knockout", "KNOCKOUT", 3]] as const)
+        ? ([
+            [
+              "knockout",
+              "TEAM · Knockout",
+              "KNOCKOUT",
+              config.teamKnockoutBestOf,
+            ],
+          ] as const)
         : ([
             [
               "league",
               `SOLO · ${config.leagueRounds}-round league`,
               "LEAGUE",
-              3,
+              config.leagueBestOf,
             ],
             ...(config.playoffEntrants
               ? ([
                   ["qualification", "SOLO · Qualification", "LEAGUE", 3],
                 ] as const)
               : []),
-            ["knockout", "SOLO · Knockout", "KNOCKOUT", 5],
+            [
+              "knockout",
+              "SOLO · Knockout",
+              "KNOCKOUT",
+              config.soloKnockoutBestOf,
+            ],
           ] as const);
     for (const [key, name, format, bestOf] of definitions)
       await tx.stage.create({
@@ -82,11 +96,11 @@ async function checkCapacity(
         AND NOT EXISTS(SELECT FROM "Participant" p WHERE p."tournamentId"=${tournamentId} AND p."memberId"=a."memberId" AND p.withdrawn)
     ) active_players`;
   if (
-    config.soloCapacity < Math.max(players, Number(pool.count)) ||
-    config.teamCapacity < teams
+    playerCapacity(config) < Math.max(players, Number(pool.count)) ||
+    (config.format !== "SOLO" && config.teamCapacity < teams)
   )
     throw new DomainError(
-      `Capacity must retain all ${players} assigned SOLO entrants and ${teams} active teams. No records can be silently removed.`,
+      `Capacity must retain all ${players} assigned players and ${teams} active teams. No records can be silently removed.`,
     );
 }
 async function activeResults(tx: Tx, tournamentId: string) {
@@ -196,7 +210,11 @@ async function apply(
     where: { tournamentId: revision.tournamentId, withdrawn: false },
     orderBy: { code: "asc" },
   });
-  if (generate && players.length === config.soloCapacity)
+  if (
+    generate &&
+    config.format !== "TEAM" &&
+    players.length === config.soloCapacity
+  )
     await generateFixtures(
       tx,
       actor,
@@ -234,6 +252,10 @@ async function generateFixtures(
   ids: string[],
   reason: string,
 ) {
+  if (config.format === "TEAM")
+    throw new DomainError(
+      "TEAM tournaments use a knockout bracket, not a SOLO league.",
+    );
   const stage = await tx.stage.findFirstOrThrow({
     where: {
       category: { tournamentId, kind: "SOLO" },
@@ -257,7 +279,7 @@ async function generateFixtures(
           order: j + 1,
           sideAId: pair.a,
           sideBId: pair.b,
-          bestOf: 3,
+          bestOf: config.leagueBestOf,
           status: pair.b === null ? "BYE" : "SCHEDULED",
         },
       });
@@ -295,6 +317,10 @@ export async function configureTournament(
     const tournament = await tx.tournament.findUniqueOrThrow({
       where: { id: input.id },
     });
+    if (configuration(tournament.configuration).format !== config.format)
+      throw new DomainError(
+        "Tournament format cannot be changed. Create a separate SOLO or TEAM event.",
+      );
     await checkCapacity(tx, tournament.id, config);
     const requiresAdmin =
       !!(await activeResults(tx, tournament.id)) ||
@@ -436,7 +462,7 @@ export async function assignParticipants(
     const ids = z
       .array(z.string().uuid())
       .min(1)
-      .max(config.soloCapacity)
+      .max(playerCapacity(config))
       .parse(input.memberIds);
     if (new Set(ids).size !== ids.length)
       throw new DomainError("Choose distinct members.");
@@ -465,8 +491,8 @@ export async function assignParticipants(
         .map((a) => a.memberId),
       ...newIds,
     ]);
-    if (reserved.size > config.soloCapacity)
-      throw new DomainError("Configured SOLO capacity is full.");
+    if (reserved.size > playerCapacity(config))
+      throw new DomainError("Configured player capacity is full.");
     let next =
       Math.max(0, ...existing.map((p) => Number(p.code.slice(1)) || 0)) + 1;
     for (const memberId of newIds) {
@@ -698,7 +724,11 @@ export async function changeEntrant(
       where: { tournamentId: t.id, withdrawn: false },
       orderBy: { code: "asc" },
     });
-    if (hadFixtures && players.length === config.soloCapacity)
+    if (
+      hadFixtures &&
+      config.format !== "TEAM" &&
+      players.length === config.soloCapacity
+    )
       await generateFixtures(
         tx,
         actor,

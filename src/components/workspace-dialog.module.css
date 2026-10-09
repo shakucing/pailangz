@@ -10,6 +10,7 @@
   background: var(--panel, var(--panel));
   box-shadow: 0 24px 90px #0009;
   overflow: hidden;
+  white-space: normal;
 }
 .dialog[open] {
   display: flex;

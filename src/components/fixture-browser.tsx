@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { useLocale } from "./locale-context";
+import { TournamentPlayerName } from "./tournament-player-results";
 
 export type FixtureRound = {
   number: number;
@@ -115,7 +116,7 @@ export function FixtureBrowser({
             {entrants.map((name, i) => (
               <li key={name}>
                 <span>#{i + 1}</span>
-                {name}
+                <TournamentPlayerName value={name} />
               </li>
             ))}
           </ol>
@@ -152,9 +153,13 @@ export function FixtureBrowser({
               <details key={m.id} className="pairing">
                 <summary>
                   <span className="pairing-sides">
-                    <span>{entrantName(m.a)}</span>
+                    <span>
+                      <TournamentPlayerName value={entrantName(m.a)} />
+                    </span>
                     <b>{m.status === "BYE" ? "BYE" : "VS"}</b>
-                    <span>{entrantName(m.b)}</span>
+                    <span>
+                      <TournamentPlayerName value={entrantName(m.b)} />
+                    </span>
                   </span>
                   <span className="pairing-meta">
                     BO{m.bestOf} · {statuses[m.status] ?? m.status}
@@ -182,7 +187,11 @@ export function FixtureBrowser({
                         {m.result.games.map((g) => (
                           <span key={g.number}>
                             Game {g.number}:{" "}
-                            {entrantName(g.scoreA > g.scoreB ? m.a : m.b)}{" "}
+                            <TournamentPlayerName
+                              value={entrantName(
+                                g.scoreA > g.scoreB ? m.a : m.b,
+                              )}
+                            />{" "}
                             {t("menang", "wins")}
                           </span>
                         ))}

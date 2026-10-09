@@ -50,10 +50,19 @@ export default async function Participate({
             </p>
             <p className="muted">
               {t(
-                `Terhad kepada ${event.capacity} pemain. Satu penyertaan untuk SOLO & TEAM. Sahkan maklumat anda dengan rekod ahli yang sedia ada.`,
-                `Limited to ${event.capacity} players. One submission for SOLO & TEAM. Verify your details against your existing member record.`,
+                `Terhad kepada ${event.capacity} pemain. Penyertaan untuk ${event.format ?? "SOLO & TEAM"}. Sahkan maklumat anda dengan rekod ahli yang sedia ada.`,
+                `Limited to ${event.capacity} players. Entry for ${event.format ?? "SOLO & TEAM"}. Verify your details against your existing member record.`,
               )}
             </p>
+            {event.format !== "SOLO" &&
+              event.teamRosterManagement === "STAFF" && (
+                <p className="muted">
+                  {t(
+                    "Daftar sebagai pemain individu. Pihak staf akan membentuk pasukan dan menetapkan pemain selepas pendaftaran.",
+                    "Register as an individual player. Staff will form teams and assign players after registration.",
+                  )}
+                </p>
+              )}
             {event.gameTitle && <p>{event.gameTitle}</p>}
             {event.startsAt && (
               <p>
@@ -70,10 +79,15 @@ export default async function Participate({
         )}
       </div>
       {event && status === "OPEN" ? (
-        <ParticipationForm slug={slug} />
+        <ParticipationForm
+          slug={slug}
+          format={event.format}
+          teamRosterManagement={event.teamRosterManagement}
+        />
       ) : (
         <ParticipationClosed
           slug={slug}
+          format={event?.format ?? "SOLO"}
           status={status === "FULL" ? "FULL" : "CLOSED"}
         />
       )}

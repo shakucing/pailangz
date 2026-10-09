@@ -1,17 +1,54 @@
+export const staffNavigationGroups = [
+  {
+    id: "registration",
+    label: "Registrations",
+    adminOnly: false,
+    items: [
+      ["registrations", "Registration inbox"],
+      ["members", "Members"],
+      ["imports", "Registration uploads"],
+    ],
+  },
+  {
+    id: "competition",
+    label: "Competition",
+    adminOnly: false,
+    items: [
+      ["tournaments", "Tournaments & rules"],
+      ["participation", "Tournament participation"],
+      ["teams", "Team rosters"],
+      ["matches", "Fixtures & results"],
+    ],
+  },
+  {
+    id: "workspace",
+    label: "Workspace activity",
+    adminOnly: false,
+    items: [
+      ["content", "Announcements"],
+      ["audit", "Activity history"],
+    ],
+  },
+  {
+    id: "administration",
+    label: "Administration",
+    adminOnly: true,
+    items: [
+      ["settings", "Registration settings"],
+      ["staff", "Staff accounts"],
+    ],
+  },
+] as const;
+
+type GroupNavigationItem =
+  (typeof staffNavigationGroups)[number]["items"][number];
+
 export const staffNavigation = [
   ["overview", "Overview"],
-  ["registrations", "Registration inbox"],
-  ["participation", "Tournament participation"],
-  ["members", "Members"],
-  ["tournaments", "Tournaments & rules"],
-  ["teams", "Team rosters"],
-  ["matches", "Fixtures & results"],
-  ["content", "Announcements"],
-  ["imports", "Registration uploads"],
-  ["audit", "Activity history"],
-  ["settings", "Registration settings"],
-  ["staff", "Staff accounts"],
+  ...staffNavigationGroups.flatMap<GroupNavigationItem>((group) => group.items),
 ] as const;
+
+export type StaffNavigationKey = (typeof staffNavigation)[number][0];
 
 export async function staffPageMetadata({
   params,

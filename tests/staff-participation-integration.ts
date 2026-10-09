@@ -20,7 +20,7 @@ export async function checkStaffParticipation(
     slug: prefix,
     overview: "Synthetic test",
     status: "DRAFT",
-    configuration: newTournamentConfiguration,
+    configuration: { ...newTournamentConfiguration, format: "TEAM" },
   });
   const memberIds = Array.from({ length: 33 }, () => randomUUID());
   for (let n = 0; n < memberIds.length; n++) {
@@ -127,7 +127,7 @@ export async function checkStaffParticipation(
     slug: `${prefix}-second`,
     overview: "Synthetic test",
     status: "DRAFT",
-    configuration: newTournamentConfiguration,
+    configuration: { ...newTournamentConfiguration, format: "TEAM" },
   });
   await assignParticipants(actor, {
     id: secondEvent.id,

@@ -10,6 +10,7 @@ import {
   stageRankingRules,
   rankStandings,
   compareStandings,
+  resultSchema,
 } from "../src/lib/domain";
 import { encrypt, decrypt } from "../src/lib/crypto";
 import { validateFixtures } from "../src/lib/fixture-validation";
@@ -79,6 +80,35 @@ describe("series result rules", () => {
     expect(
       validateSeries(5, [loss, win, win, win], "A_WIN", rules, confirmed),
     ).toEqual({ a: 3, b: 1 }));
+  it("accepts a seven-game BO7 result through the submission schema", () => {
+    const games = [win, loss, win, loss, win, loss, win];
+    expect(
+      resultSchema.safeParse({
+        matchId: "28bc319e-e92d-4c8d-bc7b-0c1548f67a59",
+        idempotencyKey: "39fb7188-45c6-499c-8b6d-292052fcb378",
+        outcome: "A_WIN",
+        games,
+      }).success,
+    ).toBe(true);
+    expect(validateSeries(7, games, "A_WIN", rules, confirmed)).toEqual({
+      a: 4,
+      b: 3,
+    });
+    expect(() =>
+      validateSeries(7, games.slice(0, 6), "A_WIN", rules, confirmed),
+    ).toThrow(/4 wins/);
+    expect(() =>
+      validateSeries(7, [...games, loss], "A_WIN", rules, confirmed),
+    ).toThrow(/after the series/);
+  });
+  it.each([0, 2, 4, 6, -1, 3.5, 101, NaN, Infinity])(
+    "rejects invalid series length %s",
+    (bestOf) => {
+      expect(() =>
+        validateSeries(bestOf, [win, win], "A_WIN", rules, confirmed),
+      ).toThrow(/odd number/);
+    },
+  );
   it("rejects an incomplete BO3 / BO5", () => {
     expect(() => validateSeries(3, [win], "A_WIN", rules, confirmed)).toThrow();
     expect(() =>
@@ -259,9 +289,14 @@ describe("private data and authorization", () => {
     expect(row.status).toBe("ADMIN");
     expect(row["Whatsapp Number"]).toBe("0123456789");
   });
-  it("blocks invalid tournament transitions and incomplete readiness", () => {
-    expect(() => assertTransition("DRAFT", "COMPLETED")).toThrow();
+  it("allows valid tournament status corrections and rejects incomplete readiness", () => {
+    expect(() => assertTransition("DRAFT", "COMPLETED")).not.toThrow();
     expect(() => assertTransition("DRAFT", "REGISTRATION_OPEN")).not.toThrow();
+    expect(() =>
+      assertTransition("REGISTRATION_CLOSED", "REGISTRATION_OPEN"),
+    ).not.toThrow();
+    expect(() => assertTransition("ARCHIVED", "DRAFT")).not.toThrow();
+    expect(() => assertTransition("DRAFT", "UNKNOWN")).toThrow();
     expect(
       readiness(
         {

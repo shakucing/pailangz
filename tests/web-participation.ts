@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
 import { encrypt } from "../src/lib/crypto";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 export async function checkParticipationHttp(
   origin: string,

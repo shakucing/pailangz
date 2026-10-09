@@ -3,6 +3,7 @@ import { getActor } from "@/lib/auth";
 import { DomainError } from "@/lib/domain";
 import { StaffNavigation } from "./staff-navigation";
 import { Logout } from "./login-form";
+import { Clock3 } from "lucide-react";
 
 export async function StaffShell({
   children,
@@ -25,17 +26,20 @@ export async function StaffShell({
     <div className="wrap staff-layout" lang="en">
       <aside className="sidebar">
         <div className="staff-meta">
+          <strong className="staff-portal-title">Staff portal</strong>
           <span className="badge">
             {actor.role === "ADMIN" ? "Admin" : "Moderator"}
           </span>
-          <p className="text-xs muted">
-            Operations workspace
-            <br />
-            Malaysia time
-          </p>
-          <Logout />
         </div>
-        <StaffNavigation base={base} admin={actor.role === "ADMIN"} />
+        <StaffNavigation base={base} admin={actor.role === "ADMIN"}>
+          <div className="staff-session">
+            <span className="staff-timezone">
+              <Clock3 size={14} aria-hidden="true" />
+              Malaysia time (MYT)
+            </span>
+            <Logout />
+          </div>
+        </StaffNavigation>
       </aside>
       <section className="staff-main">{children}</section>
     </div>

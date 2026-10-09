@@ -164,6 +164,7 @@ model Tournament {
   status TournamentStatus @default(DRAFT)
   published Boolean @default(false)
   registrationEnabled Boolean @default(false)
+  teamRosterManagement String @default("PLAYER")
   startsAt DateTime? @db.Timestamptz(3)
   registrationDeadline DateTime? @db.Timestamptz(3)
   gameTitle String?
@@ -175,6 +176,12 @@ model Tournament {
   categories Category[]
   participants Participant[]
   participationRequests ParticipationRequest[]
+  landingHighlight LandingHighlight?
+}
+model LandingHighlight {
+  format String @id
+  tournamentId String? @unique
+  tournament Tournament? @relation(fields: [tournamentId], references: [id], onDelete: SetNull)
 }
 model ParticipationRequest {
   id String @id @default(uuid())

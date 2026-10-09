@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { NavigationLink as Link } from "@/components/navigation-link";
 import { TeamPortal } from "@/components/team-portal";
 import {
@@ -24,6 +24,7 @@ export default async function NewTeam({
   const { slug } = await params;
   const event = await publicTeamEvent(slug);
   if (!event) notFound();
+  if (event.teamRosterManagement === "STAFF") redirect(`/participate/${slug}`);
   const state = await teamState(
     (await cookies()).get(memberCookie)?.value,
     slug,

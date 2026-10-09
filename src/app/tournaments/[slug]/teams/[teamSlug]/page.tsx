@@ -38,7 +38,9 @@ export default async function Team({
   );
   if (!team) notFound();
   const state = await teamState(
-    (await cookies()).get(memberCookie)?.value,
+    event.teamRosterManagement === "STAFF"
+      ? undefined
+      : (await cookies()).get(memberCookie)?.value,
     slug,
     teamSlug,
   );
@@ -76,7 +78,7 @@ export default async function Team({
               </li>
             ))}
           </ul>
-          {team.playerCount < 4 && (
+          {team.playerCount < 4 && event.teamRosterManagement !== "STAFF" && (
             <p className="muted">
               {4 - team.playerCount}{" "}
               {t(
@@ -86,13 +88,30 @@ export default async function Team({
             </p>
           )}
         </section>
-        <TeamPortal
-          slug={slug}
-          state={state}
-          team={team}
-          open={teamRegistrationOpen(event)}
-          participationStatus={registration}
-        />
+        {event.teamRosterManagement === "STAFF" ? (
+          <section className="panel">
+            <h2>{t("Penetapan pasukan", "Team assignments")}</h2>
+            <p className="muted">
+              {t(
+                "Pemain mendaftar secara individu. Pihak staf membentuk pasukan dan mengurus semua penetapan roster.",
+                "Players register individually. Staff form teams and manage all roster assignments.",
+              )}
+            </p>
+            {registration === "OPEN" && (
+              <Link className="button" href={`/participate/${slug}`}>
+                {t("Daftar sebagai pemain", "Register as a player")}
+              </Link>
+            )}
+          </section>
+        ) : (
+          <TeamPortal
+            slug={slug}
+            state={state}
+            team={team}
+            open={teamRegistrationOpen(event)}
+            participationStatus={registration}
+          />
+        )}
       </div>
     </div>
   );

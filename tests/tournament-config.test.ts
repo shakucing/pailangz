@@ -11,6 +11,37 @@ import {
 const ids = (n: number) =>
   Array.from({ length: n }, (_, i) => `player-${i + 1}`);
 describe("configurable schedules and brackets", () => {
+  it("keeps the previous series lengths for configurations saved before this setting", () => {
+    const legacy = { ...newTournamentConfiguration } as Record<string, unknown>;
+    for (const key of [
+      "leagueBestOf",
+      "soloKnockoutBestOf",
+      "soloFinalBestOf",
+      "teamKnockoutBestOf",
+      "teamFinalBestOf",
+    ])
+      delete legacy[key];
+    expect(configuration(legacy)).toEqual(newTournamentConfiguration);
+  });
+  it.each([
+    "leagueBestOf",
+    "soloKnockoutBestOf",
+    "soloFinalBestOf",
+    "teamKnockoutBestOf",
+    "teamFinalBestOf",
+  ])(
+    "accepts odd %s lengths and rejects even, fractional and out-of-range values",
+    (key) => {
+      for (const n of [1, 3, 5, 7, 9, 99])
+        expect(
+          configuration({ ...newTournamentConfiguration, [key]: n }),
+        ).toHaveProperty(key, n);
+      for (const n of [0, -1, 2, 6, 7.5, 101])
+        expect(() =>
+          configuration({ ...newTournamentConfiguration, [key]: n }),
+        ).toThrow(/odd number/);
+    },
+  );
   it("generates 96 distinct series for 32 players over six rounds", () => {
     const players = ids(32),
       rounds = generateLeague(players, newTournamentConfiguration);
@@ -102,7 +133,11 @@ describe("configurable schedules and brackets", () => {
       configuration({ ...newTournamentConfiguration, directSlots: 5 }),
     ).toThrow(/slots/);
     expect(() =>
-      configuration({ ...newTournamentConfiguration, teamCapacity: 6 }),
+      configuration({
+        ...newTournamentConfiguration,
+        format: "TEAM",
+        teamCapacity: 6,
+      }),
     ).toThrow(/explicit/);
     expect(() =>
       configuration({ ...newTournamentConfiguration, soloBracketSize: 12 }),
@@ -142,5 +177,29 @@ describe("configurable schedules and brackets", () => {
     expect(() => seededBracketPairs(ids(3), 8, "seeded_top")).toThrow(
       /Too few/,
     );
+  });
+});
+
+describe("independent tournament formats", () => {
+  it("does not require TEAM bracket policies for SOLO", () => {
+    expect(
+      configuration({ ...newTournamentConfiguration, teamCapacity: 6 }).format,
+    ).toBe("SOLO");
+  });
+  it("does not require a valid SOLO league or qualification route for TEAM", () => {
+    expect(
+      configuration({
+        ...newTournamentConfiguration,
+        format: "TEAM",
+        soloCapacity: 3,
+        leagueRounds: 6,
+        directSlots: 100,
+      }).format,
+    ).toBe("TEAM");
+  });
+  it("rejects unknown formats", () => {
+    expect(() =>
+      configuration({ ...newTournamentConfiguration, format: "MIXED" }),
+    ).toThrow();
   });
 });

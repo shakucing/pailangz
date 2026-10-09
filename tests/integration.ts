@@ -846,6 +846,12 @@ try {
   await checkParticipation(owner, actor, check);
   const { checkTeamPortal } = await import("./team-portal-integration");
   await checkTeamPortal(owner, check);
+  const { checkTournamentFormats } =
+    await import("./tournament-format-integration");
+  await checkTournamentFormats(owner, actor, check);
+  const { checkLandingHighlights } =
+    await import("./landing-highlights-integration");
+  await checkLandingHighlights(owner, actor, mod, check);
   await check(
     "suspension and demotion revoke current private-data access",
     async () => {

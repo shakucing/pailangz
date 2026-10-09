@@ -24,7 +24,9 @@ function row(number: number) {
   return {
     id: `entry-${number}`,
     tournamentId: "tournament",
+    format: null,
     tournamentName: "Draft tournament",
+    tournamentPublished: false,
     memberId: `member-${number}`,
     receivedAt: number <= 2 ? new Date("2030-01-01T00:00:00Z") : null,
     member: {
@@ -34,6 +36,7 @@ function row(number: number) {
       archived: false,
       participants: [
         {
+          id: `participant-${number}`,
           tournamentId: "tournament",
           code: `P${String(number).padStart(2, "0")}`,
           eligible: true,

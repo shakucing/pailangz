@@ -5,6 +5,8 @@ type ParticipationEntry = {
   id: string;
   tournamentId: string;
   tournamentName: string;
+  tournamentPublished: boolean;
+  format: "SOLO" | "TEAM" | null;
   memberId: string;
   receivedAt: Date | null;
 };
@@ -37,7 +39,7 @@ export async function staffParticipation(
   const [rows, counts] = await Promise.all([
     tx.$queryRaw<ParticipationEntry[]>(Prisma.sql`
       ${entries}
-      SELECT e.*, t.name AS "tournamentName"
+      SELECT e.*, t.name AS "tournamentName", t.published AS "tournamentPublished", t.configuration->>'format' AS format
       ${from}
       ORDER BY COALESCE(e."receivedAt",t."createdAt") DESC, t.id DESC, m."displayIgn" ASC, e.id DESC
       LIMIT 50 OFFSET ${(page - 1) * 50}
@@ -57,6 +59,7 @@ export async function staffParticipation(
       participants: {
         where: { tournamentId: { in: tournamentIds } },
         select: {
+          id: true,
           tournamentId: true,
           code: true,
           eligible: true,

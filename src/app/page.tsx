@@ -4,15 +4,16 @@ import { FadeContent } from "@/components/react-bits/fade-content";
 import { SpotlightCard } from "@/components/react-bits/spotlight-card";
 import { Wordmark } from "@/components/wordmark";
 import { HeroOrbit } from "@/components/hero-orbit";
-import { EventPresentation } from "@/components/event-presentation";
-import { eventPresentationData } from "@/lib/event-presentation-data";
-import { originalConfiguration } from "@/lib/tournament-config";
+import { LandingEventCentre } from "@/components/landing-event-centre";
+import { landingEventPresentations } from "@/lib/event-presentation-data";
+import { newTournamentConfiguration } from "@/lib/tournament-config";
 import { publicTeams, publicTeamEvent } from "@/lib/team-portal";
 import {
   participationStatus,
   registrationEvent,
 } from "@/lib/participation-status";
 import { TeamDirectory } from "@/components/team-directory";
+import { AnnouncementCard } from "@/components/announcement-card";
 import { getLocale, translate } from "@/lib/i18n";
 import {
   publishedTournaments,
@@ -27,18 +28,47 @@ export default async function Home() {
     publishedTournaments(),
     publishedAnnouncements(),
   ]);
-  const featured = tournaments[0];
-  const event = await eventPresentationData(featured?.slug);
+  const events = await landingEventPresentations();
+  const event = events[0];
+  const featured = event
+    ? tournaments.find((tournament) => tournament.slug === event.slug)
+    : tournaments[0];
   const teamSlug = event?.slug ?? featured?.slug ?? "pailangz-solo-team";
-  const [teams, registration, entryStatus, teamEvent] = await Promise.all([
-    publicTeams(teamSlug),
-    registrationEvent(teamSlug),
-    participationStatus(teamSlug),
-    publicTeamEvent(teamSlug),
-  ]);
+  const [registration, entryStatus, teamEvent, presentations] =
+    await Promise.all([
+      registrationEvent(teamSlug),
+      participationStatus(teamSlug),
+      publicTeamEvent(teamSlug),
+      Promise.all(
+        events.map(async (data) => {
+          const teams = await publicTeams(data.slug);
+          const hasTeams = data.categories.some(
+            (category) => category.kind === "TEAM",
+          );
+          return {
+            data,
+            teams: teams.map(({ code, name, avatarImage }) => ({
+              code,
+              name,
+              avatarImage,
+            })),
+            directory:
+              hasTeams && teams.length ? (
+                <TeamDirectory
+                  teams={teams}
+                  slug={data.slug}
+                  showRegistration={false}
+                />
+              ) : null,
+          };
+        }),
+      ),
+    ]);
   const arena = registration ?? featured;
   const config =
-    event?.configuration ?? featured?.configuration ?? originalConfiguration;
+    event?.configuration ??
+    featured?.configuration ??
+    newTournamentConfiguration;
   return (
     <div className="wrap">
       <section className="hero">
@@ -58,6 +88,9 @@ export default async function Home() {
             )}
           </p>
           <div className="actions">
+            <Link className="button secondary" href="/solo">
+              {t("Terokai Solo ↗", "Explore Solo ↗")}
+            </Link>
             {registration && (
               <a className="button" href="#tournament-registration">
                 {t("Pendaftaran kejohanan", "Tournament registration")}
@@ -70,9 +103,11 @@ export default async function Home() {
             >
               {t("Lihat kejohanan", "View tournaments")}
             </Link>
-            <a className="button secondary" href="#tournament-format">
-              {t("Lihat format", "Explore the format")}
-            </a>
+            {events.length > 0 && (
+              <a className="button secondary" href="#tournament-format">
+                {t("Lihat format", "Explore the format")}
+              </a>
+            )}
           </div>
           <p style={{ fontSize: 11, marginTop: 24, letterSpacing: 1 }}>
             {t("DUA GANG. SATU SEMANGAT.", "TWO GANGS. ONE SPIRIT.")}
@@ -94,16 +129,36 @@ export default async function Home() {
           <span>{t("Gang, satu komuniti", "Gangs, one community")}</span>
         </div>
         <div className="stat">
-          <strong>{config.soloCapacity}</strong>
-          <span>{t("Slot SOLO dirancang", "Planned SOLO slots")}</span>
+          <strong>
+            {config.format === "TEAM"
+              ? config.teamCapacity
+              : config.soloCapacity}
+          </strong>
+          <span>
+            {config.format === "TEAM"
+              ? t("Pasukan dirancang", "Planned teams")
+              : t("Slot SOLO dirancang", "Planned SOLO slots")}
+          </span>
         </div>
         <div className="stat">
-          <strong>{config.teamCapacity}</strong>
-          <span>{t("Slot TEAM dirancang", "Planned TEAM slots")}</span>
+          <strong>
+            {config.format === "TEAM"
+              ? config.teamBracketSize
+              : config.soloBracketSize}
+          </strong>
+          <span>{t("Slot knockout", "Knockout places")}</span>
         </div>
         <div className="stat">
-          <strong>{String(config.leagueRounds).padStart(2, "0")}</strong>
-          <span>{t("Pusingan liga SOLO", "SOLO league rounds")}</span>
+          <strong>
+            {config.format === "TEAM"
+              ? "04"
+              : String(config.leagueRounds).padStart(2, "0")}
+          </strong>
+          <span>
+            {config.format === "TEAM"
+              ? t("Pemain setiap pasukan", "Players per team")
+              : t("Pusingan liga SOLO", "SOLO league rounds")}
+          </span>
         </div>
       </div>
       <FadeContent>
@@ -141,7 +196,9 @@ export default async function Home() {
                 {arena?.name ?? "PAILANGZ & PAILANGZZ"}
                 <br />
                 {!arena && (
-                  <span className="muted">Solo & Team Tournament</span>
+                  <span className="muted">
+                    {config.format ?? "Solo & Team"} Tournament
+                  </span>
                 )}
               </h2>
               <p className="muted">
@@ -151,8 +208,8 @@ export default async function Home() {
                     : registration.overview
                   : featured?.overview) ??
                   t(
-                    "Dari duel 1v1 ke kerjasama empat pemain. Kenali pemain solo dan pasukan terkuat dalam gang.",
-                    "From 1v1 duels to four-player teamwork. Find the strongest solo players and teams in the gang.",
+                    "Sertai kejohanan komuniti dan buktikan kemahiran anda.",
+                    "Join the community tournament and show your skills.",
                   )}
               </p>
               <p className="text-sm">
@@ -167,8 +224,8 @@ export default async function Home() {
                           `All ${registration.capacity} player places are filled.`,
                         )
                       : t(
-                          "Satu pendaftaran pemain untuk SOLO & TEAM.",
-                          "One player registration for SOLO & TEAM.",
+                          `Pendaftaran pemain untuk kejohanan ${registration.format ?? "SOLO & TEAM"} ini.`,
+                          `Player registration for this ${registration.format ?? "SOLO & TEAM"} tournament.`,
                         )}
                   </p>
                   {registration.registrationDeadline && (
@@ -184,8 +241,8 @@ export default async function Home() {
                     >
                       {entryStatus === "OPEN"
                         ? t(
-                            "Daftar pemain · SOLO & TEAM",
-                            "Register as a player · SOLO & TEAM",
+                            `Daftar pemain · ${registration.format ?? "SOLO & TEAM"}`,
+                            `Register as a player · ${registration.format ?? "SOLO & TEAM"}`,
                           )
                         : t(
                             "Lihat status pendaftaran",
@@ -215,36 +272,44 @@ export default async function Home() {
               )}
             </div>
             <div className="feature-art" aria-hidden="true">
-              <div className="category-block">
-                <Swords className="mx-auto mb-4 text-lime" size={32} />
-                <strong>SOLO</strong>
-                <span>1V1 · BO3 / BO5</span>
-              </div>
-              <div className="category-block">
-                <Users className="mx-auto mb-4 text-sky-300" size={32} />
-                <strong>TEAM</strong>
-                <span>4 PLAYERS · 1 TEAM</span>
-              </div>
+              {config.format !== "TEAM" && (
+                <div className="category-block">
+                  <Swords className="mx-auto mb-4 text-lime" size={32} />
+                  <strong>SOLO</strong>
+                  <span>
+                    1V1 ·{" "}
+                    {[
+                      ...new Set([
+                        config.leagueBestOf,
+                        config.soloKnockoutBestOf,
+                        config.soloFinalBestOf,
+                      ]),
+                    ]
+                      .map((n) => `BO${n}`)
+                      .join(" / ")}
+                  </span>
+                </div>
+              )}
+              {config.format !== "SOLO" && (
+                <div className="category-block">
+                  <Users className="mx-auto mb-4 text-sky-300" size={32} />
+                  <strong>TEAM</strong>
+                  <span>4 PLAYERS · 1 TEAM</span>
+                </div>
+              )}
             </div>
           </div>
         </section>
       </FadeContent>
-      <section
-        className="section"
-        style={{ paddingTop: 0 }}
-        id="tournament-format"
-      >
-        <EventPresentation
-          data={event}
-          configuration={config}
-          teams={teams.map(({ code, name, avatarImage }) => ({
-            code,
-            name,
-            avatarImage,
-          }))}
-        />
-      </section>
-      <TeamDirectory teams={teams} slug={teamSlug} showRegistration={false} />
+      {presentations.length > 0 && (
+        <section
+          className="section"
+          style={{ paddingTop: 0 }}
+          id="tournament-format"
+        >
+          <LandingEventCentre events={presentations} />
+        </section>
+      )}
       <FadeContent>
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="section-title">
@@ -299,7 +364,11 @@ export default async function Home() {
         </section>
       </FadeContent>
       <FadeContent>
-        <section className="section" style={{ paddingTop: 0 }}>
+        <section
+          className="section"
+          id="announcements"
+          style={{ paddingTop: 0 }}
+        >
           <div className="section-title">
             <div>
               <div className="eyebrow">Community board</div>
@@ -309,10 +378,7 @@ export default async function Home() {
           {announcements.length ? (
             <div className="grid2">
               {announcements.map((a) => (
-                <article className="panel" key={a.id}>
-                  <h3>{a.title}</h3>
-                  <p className="muted whitespace-pre-wrap mb-0">{a.body}</p>
-                </article>
+                <AnnouncementCard key={a.id} announcement={a} locale={locale} />
               ))}
             </div>
           ) : (

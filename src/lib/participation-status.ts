@@ -22,6 +22,8 @@ export type RegistrationEvent = {
   startsAt: Date | null;
   registrationDeadline: Date | null;
   capacity: number;
+  format: "SOLO" | "TEAM" | null;
+  teamRosterManagement: "PLAYER" | "STAFF";
 };
 export async function registrationEvent(slug: string) {
   if (!process.env.DATABASE_URL) return null;

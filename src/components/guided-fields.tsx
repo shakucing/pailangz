@@ -6,7 +6,9 @@ import {
   metricChoices,
   ruleFields,
   sizeFields,
+  seriesFields,
 } from "@/lib/staff-presentation";
+import { BEST_OF_HELP, MAX_BEST_OF, defaultSeriesLengths } from "@/lib/best-of";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
 
 export function SelectionField({
@@ -287,51 +289,126 @@ export function PairsField({
 
 export function SizesFields({
   configuration,
+  chooseFormat = false,
 }: {
   configuration: TournamentConfiguration;
+  chooseFormat?: boolean;
 }) {
+  const [format, setFormat] = useState(
+    configuration.format ?? (chooseFormat ? "SOLO" : ""),
+  );
+  const solo = format !== "TEAM";
+  const team = format !== "SOLO";
   return (
     <>
+      {chooseFormat ? (
+        <label>
+          Tournament format
+          <select
+            name="format"
+            value={format}
+            onChange={(event) => setFormat(event.target.value)}
+            required
+          >
+            <option value="SOLO">SOLO tournament</option>
+            <option value="TEAM">TEAM tournament</option>
+          </select>
+        </label>
+      ) : (
+        <>
+          <input type="hidden" name="format" value={format} />
+          <p className="muted">{format || "SOLO & TEAM"} tournament</p>
+        </>
+      )}
       <div className="grid2">
-        {sizeFields.map(([key, label, min]) => (
-          <label key={key}>
-            {label}
-            {key === "soloBracketSize" || key === "teamBracketSize" ? (
-              <select name={key} defaultValue={configuration[key]}>
-                {[2, 4, 8, 16, 32, 64, 128, 256].map((n) => (
-                  <option key={n} value={n}>
-                    {n} places
-                  </option>
-                ))}
-              </select>
-            ) : (
+        {sizeFields.map(([key, label, min]) => {
+          const visible = key.startsWith("team") ? team : solo;
+          if (!visible)
+            return (
               <input
-                type="number"
+                key={key}
+                type="hidden"
                 name={key}
-                defaultValue={configuration[key]}
-                min={min}
-                max={key.includes("MatchesPerPlayer") ? 255 : 256}
-                step={1}
-                required
+                value={configuration[key]}
               />
-            )}
-          </label>
-        ))}
+            );
+          return (
+            <label key={key}>
+              {label}
+              {key === "soloBracketSize" || key === "teamBracketSize" ? (
+                <select name={key} defaultValue={configuration[key]}>
+                  {[2, 4, 8, 16, 32, 64, 128, 256].map((n) => (
+                    <option key={n} value={n}>
+                      {n} places
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  name={key}
+                  defaultValue={configuration[key]}
+                  min={min}
+                  max={key.includes("MatchesPerPlayer") ? 255 : 256}
+                  step={1}
+                  required
+                />
+              )}
+            </label>
+          );
+        })}
       </div>
-      <label>
-        League rest rounds
-        <select
+      <fieldset className="guided-field">
+        <legend>Series lengths</legend>
+        <p className="muted text-xs">
+          {BEST_OF_HELP} Enter 7 for BO7; the first to 4 game wins takes the
+          series.{solo && " Playoff length is set in the qualification rules."}
+        </p>
+        <div className="grid2">
+          {seriesFields.map(([key, label]) => {
+            const visible = key.startsWith("team") ? team : solo;
+            const value = configuration[key] ?? defaultSeriesLengths[key];
+            return visible ? (
+              <label key={key}>
+                {label}
+                <input
+                  type="number"
+                  name={key}
+                  defaultValue={value}
+                  min={1}
+                  max={MAX_BEST_OF}
+                  step={2}
+                  required
+                />
+              </label>
+            ) : (
+              <input key={key} type="hidden" name={key} value={value} />
+            );
+          })}
+        </div>
+      </fieldset>
+      {solo ? (
+        <label>
+          League rest rounds
+          <select
+            name="leagueByePolicy"
+            defaultValue={configuration.leagueByePolicy}
+          >
+            <option value="none">
+              Everyone plays each round (even player count)
+            </option>
+            <option value="rotating_no_points">
+              Everyone takes one rest round; no points awarded
+            </option>
+          </select>
+        </label>
+      ) : (
+        <input
+          type="hidden"
           name="leagueByePolicy"
-          defaultValue={configuration.leagueByePolicy}
-        >
-          <option value="none">
-            Everyone plays each round (even player count)
-          </option>
-          <option value="rotating_no_points">
-            Everyone takes one rest round; no points awarded
-          </option>
-        </select>
-      </label>
+          value={configuration.leagueByePolicy}
+        />
+      )}
       <label>
         Knockout places without an opponent
         <select
@@ -344,10 +421,12 @@ export function SizesFields({
           </option>
         </select>
       </label>
-      <p className="muted text-xs">
-        Players face each league opponent once at most. With an odd number of
-        players, everyone faces all other players and takes one rest round.
-      </p>
+      {solo && (
+        <p className="muted text-xs">
+          Players face each league opponent once at most. With an odd number of
+          players, everyone faces all other players and takes one rest round.
+        </p>
+      )}
     </>
   );
 }
@@ -390,6 +469,20 @@ export function RulesFields({
               options={metricChoices}
               value={(rules[f.key] as string[] | undefined) ?? []}
             />
+          ) : f.bestOf ? (
+            <label>
+              Best of (games)
+              <input
+                type="number"
+                name={`rule:${f.key}`}
+                defaultValue={String(rules[f.key] ?? "")}
+                min={1}
+                max={MAX_BEST_OF}
+                step={2}
+                placeholder="e.g. 7"
+              />
+              <span className="muted text-xs">{BEST_OF_HELP}</span>
+            </label>
           ) : f.choices ? (
             <label>
               <span className="sr-only">{f.label}</span>

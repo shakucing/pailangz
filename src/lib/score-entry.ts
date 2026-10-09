@@ -1,3 +1,5 @@
+import { BEST_OF_HELP, isValidBestOf } from "./best-of";
+
 export type ScoreDraft = { scoreA: string; scoreB: string };
 
 export type GameWinner = "A" | "B";
@@ -64,8 +66,7 @@ export function selectGameWinner(
 }
 
 export function readScoreEntry(drafts: ScoreDraft[], bestOf: number) {
-  if (bestOf !== 3 && bestOf !== 5)
-    throw new Error("This match needs a best-of-three or best-of-five format.");
+  if (!isValidBestOf(bestOf)) throw new Error(BEST_OF_HELP);
   const needed = Math.floor(bestOf / 2) + 1;
   const games: { scoreA: number; scoreB: number }[] = [];
   let winsA = 0,

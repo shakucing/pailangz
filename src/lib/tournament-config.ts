@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DomainError } from "./domain";
+import { bestOfSchema, defaultSeriesLengths } from "./best-of";
 const count = z.number().int().min(2).max(256);
 const bracket = count.refine(
   (n) => (n & (n - 1)) === 0,
@@ -7,6 +8,17 @@ const bracket = count.refine(
 );
 export const configurationSchema = z
   .object({
+    // Missing format is retained only for existing combined competitions.
+    format: z.enum(["SOLO", "TEAM"]).optional(),
+    leagueBestOf: bestOfSchema.default(defaultSeriesLengths.leagueBestOf),
+    soloKnockoutBestOf: bestOfSchema.default(
+      defaultSeriesLengths.soloKnockoutBestOf,
+    ),
+    soloFinalBestOf: bestOfSchema.default(defaultSeriesLengths.soloFinalBestOf),
+    teamKnockoutBestOf: bestOfSchema.default(
+      defaultSeriesLengths.teamKnockoutBestOf,
+    ),
+    teamFinalBestOf: bestOfSchema.default(defaultSeriesLengths.teamFinalBestOf),
     soloCapacity: count,
     teamCapacity: count,
     leagueRounds: z.number().int().min(1).max(256),
@@ -25,59 +37,92 @@ export const configurationSchema = z
   .superRefine((c, ctx) => {
     const issue = (message: string) =>
       ctx.addIssue({ code: "custom", message });
-    if (c.directSlots + c.playoffEntrants > c.soloCapacity)
-      issue("Direct players and the playoff pool exceed SOLO capacity.");
-    if (
-      c.playoffSlots > c.playoffEntrants ||
-      (c.playoffSlots === 0) !== (c.playoffEntrants === 0)
-    )
-      issue("Playoff winners and pool sizes do not fit.");
+    const solo = c.format !== "TEAM";
+    const team = c.format !== "SOLO";
     const entrants = c.directSlots + c.playoffSlots;
-    if (entrants < 2 || entrants > c.soloBracketSize)
-      issue("Qualification slots must fit the SOLO bracket.");
-    if (
-      c.soloBracketSize > 2 * entrants ||
-      c.teamBracketSize > 2 * c.teamCapacity
-    )
+    if (solo) {
+      if (c.directSlots + c.playoffEntrants > c.soloCapacity)
+        issue("Direct players and the playoff pool exceed SOLO capacity.");
+      if (
+        c.playoffSlots > c.playoffEntrants ||
+        (c.playoffSlots === 0) !== (c.playoffEntrants === 0)
+      )
+        issue("Playoff winners and pool sizes do not fit.");
+      if (entrants < 2 || entrants > c.soloBracketSize)
+        issue("Qualification slots must fit the SOLO bracket.");
+      if (c.soloBracketSize > 2 * entrants)
+        issue(
+          "Bracket size leaves empty first-round pairs; choose a smaller bracket.",
+        );
+      if (c.leagueMatchesPerPlayer >= c.soloCapacity)
+        issue("Non-repeating league opponents are not possible.");
+      if (c.soloCapacity % 2 === 0) {
+        if (c.leagueRounds !== c.leagueMatchesPerPlayer)
+          issue("Even-sized leagues require one match per player per round.");
+      } else {
+        if (c.leagueByePolicy !== "rotating_no_points")
+          issue("Odd player counts require an explicit rotating bye policy.");
+        if (
+          c.leagueRounds !== c.soloCapacity ||
+          c.leagueMatchesPerPlayer !== c.soloCapacity - 1
+        )
+          issue(
+            "The balanced odd-count generator requires a complete cycle: N rounds, N−1 matches per player, one bye each.",
+          );
+      }
+      if (
+        c.playoffEntrants &&
+        (c.qualificationMatchesPerPlayer >= c.playoffEntrants ||
+          (c.playoffEntrants * c.qualificationMatchesPerPlayer) % 2)
+      )
+        issue(
+          "Non-repeating, equal-match qualification pairings are impossible.",
+        );
+    }
+    if (team && c.teamBracketSize > 2 * c.teamCapacity)
       issue(
         "Bracket size leaves empty first-round pairs; choose a smaller bracket.",
       );
-    if (c.teamCapacity > c.teamBracketSize)
+    if (team && c.teamCapacity > c.teamBracketSize)
       issue("TEAM entrants exceed the TEAM bracket size.");
     if (
-      (entrants < c.soloBracketSize || c.teamCapacity < c.teamBracketSize) &&
+      ((solo && entrants < c.soloBracketSize) ||
+        (team && c.teamCapacity < c.teamBracketSize)) &&
       c.bracketByePolicy === "none"
     )
       issue(
         "An explicit seeded bye policy is required for incomplete brackets.",
       );
-    if (c.leagueMatchesPerPlayer >= c.soloCapacity)
-      issue("Non-repeating league opponents are not possible.");
-    if (c.soloCapacity % 2 === 0) {
-      if (c.leagueRounds !== c.leagueMatchesPerPlayer)
-        issue("Even-sized leagues require one match per player per round.");
-    } else {
-      if (c.leagueByePolicy !== "rotating_no_points")
-        issue("Odd player counts require an explicit rotating bye policy.");
-      if (
-        c.leagueRounds !== c.soloCapacity ||
-        c.leagueMatchesPerPlayer !== c.soloCapacity - 1
-      )
-        issue(
-          "The balanced odd-count generator requires a complete cycle: N rounds, N−1 matches per player, one bye each.",
-        );
-    }
-    if (
-      c.playoffEntrants &&
-      (c.qualificationMatchesPerPlayer >= c.playoffEntrants ||
-        (c.playoffEntrants * c.qualificationMatchesPerPlayer) % 2)
-    )
-      issue(
-        "Non-repeating, equal-match qualification pairings are impossible.",
-      );
   });
 export type TournamentConfiguration = z.infer<typeof configurationSchema>;
+export function knockoutBestOf(
+  config: TournamentConfiguration,
+  kind: "SOLO" | "TEAM",
+  final: boolean,
+) {
+  const key =
+    kind === "SOLO"
+      ? final
+        ? "soloFinalBestOf"
+        : "soloKnockoutBestOf"
+      : final
+        ? "teamFinalBestOf"
+        : "teamKnockoutBestOf";
+  return config[key] ?? defaultSeriesLengths[key];
+}
+export function tournamentKinds(
+  config: Pick<TournamentConfiguration, "format">,
+): ("SOLO" | "TEAM")[] {
+  return config.format ? [config.format] : ["SOLO", "TEAM"];
+}
+export function playerCapacity(config: TournamentConfiguration) {
+  return config.format === "TEAM"
+    ? config.teamCapacity * 4
+    : config.soloCapacity;
+}
 export const newTournamentConfiguration: TournamentConfiguration = {
+  ...defaultSeriesLengths,
+  format: "SOLO",
   soloCapacity: 32,
   teamCapacity: 8,
   leagueRounds: 6,
@@ -93,6 +138,7 @@ export const newTournamentConfiguration: TournamentConfiguration = {
   scheduleSource: "generated",
 };
 export const originalConfiguration: TournamentConfiguration = {
+  ...defaultSeriesLengths,
   soloCapacity: 64,
   teamCapacity: 16,
   leagueRounds: 6,

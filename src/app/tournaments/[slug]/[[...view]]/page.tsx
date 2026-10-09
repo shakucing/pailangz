@@ -5,6 +5,11 @@ import { publicTournament, dateText } from "@/lib/public-data";
 import { TournamentProgression } from "@/components/tournament-progression";
 import { FixtureBrowser } from "@/components/fixture-browser";
 import { InteractiveBracket } from "@/components/interactive-bracket";
+import {
+  TournamentPlayerName,
+  TournamentPlayerResults,
+} from "@/components/tournament-player-results";
+import { publicPlayerNames } from "@/lib/public-player-names";
 export const dynamic = "force-dynamic";
 export async function generateMetadata({
   params,
@@ -38,8 +43,31 @@ export default async function Tournament({
     notFound();
   const t = await publicTournament(slug);
   if (!t) notFound();
+  const names = new Map(
+    (await publicPlayerNames(slug)).map((player) => [player.code, player.ign]),
+  );
+  const participants = t.participants.map((player) => ({
+    code: player.code,
+    ...(names.has(player.code) ? { ign: names.get(player.code) } : {}),
+  }));
+  const playerLabel = (value: string) =>
+    names.has(value) ? `${value} · ${names.get(value)}` : value;
   const stages = t.categories.flatMap((c) => c.stages);
-  return (
+  const playerStages = t.categories
+    .filter((category) => category.kind === "SOLO")
+    .flatMap((category) => category.stages)
+    .map((stage) => ({
+      ...stage,
+      rounds: stage.rounds.map((round) => ({
+        ...round,
+        matches: round.matches.map((match) => ({
+          ...match,
+          a: playerLabel(match.a),
+          b: playerLabel(match.b),
+        })),
+      })),
+    }));
+  const content = (
     <div className="wrap">
       <div className="page-heading">
         <Link href="/tournaments" className="text-link">
@@ -57,7 +85,10 @@ export default async function Tournament({
           ["standings", copy("Kedudukan", "Standings")],
           ["fixtures", copy("Perlawanan", "Fixtures")],
           ["brackets", copy("Bracket", "Brackets")],
-          ["teams", copy("Pasukan", "Teams")],
+          ...(t.configuration.format !== "SOLO" &&
+          t.categories.some((category) => category.kind === "TEAM")
+            ? [["teams", copy("Pasukan", "Teams")]]
+            : []),
         ].map(([key, label]) => (
           <Link
             key={key}
@@ -89,32 +120,44 @@ export default async function Tournament({
                     "Players are free to choose their weapons and weapon modes.",
                   )}
                 </p>
-                <p>
-                  {copy(
-                    `SOLO: liga ${t.configuration.leagueRounds} pusingan BO3 → qualification → knockout BO5. TEAM: empat pemain setiap pasukan; BO3 sehingga semifinal dan BO5 untuk final.`,
-                    `SOLO: ${t.configuration.leagueRounds}-round BO3 league → qualification → BO5 knockout. TEAM: four players per team; BO3 through the semifinals and BO5 in the final.`,
-                  )}
-                </p>
-                <p>
-                  {copy(
-                    `${t.configuration.directSlots} pemain terbaik liga layak terus; ${t.configuration.playoffEntrants} peserta bermain ${t.configuration.qualificationMatchesPerPlayer} perlawanan qualification untuk ${t.configuration.playoffSlots} slot seterusnya.`,
-                    `The top ${t.configuration.directSlots} league players qualify directly; ${t.configuration.playoffEntrants} entrants play ${t.configuration.qualificationMatchesPerPlayer} qualification matches for ${t.configuration.playoffSlots} further slots.`,
-                  )}
-                </p>
+                {t.configuration.format !== "TEAM" && (
+                  <>
+                    <p>
+                      {copy(
+                        `SOLO: liga ${t.configuration.leagueRounds} pusingan BO${t.configuration.leagueBestOf} → qualification → knockout BO${t.configuration.soloKnockoutBestOf} → final BO${t.configuration.soloFinalBestOf}.`,
+                        `SOLO: ${t.configuration.leagueRounds}-round BO${t.configuration.leagueBestOf} league → qualification → BO${t.configuration.soloKnockoutBestOf} knockout → BO${t.configuration.soloFinalBestOf} final.`,
+                      )}
+                    </p>
+                    <p>
+                      {copy(
+                        `${t.configuration.directSlots} pemain terbaik liga layak terus; ${t.configuration.playoffEntrants} peserta bermain ${t.configuration.qualificationMatchesPerPlayer} perlawanan qualification untuk ${t.configuration.playoffSlots} slot seterusnya.`,
+                        `The top ${t.configuration.directSlots} league players qualify directly; ${t.configuration.playoffEntrants} entrants play ${t.configuration.qualificationMatchesPerPlayer} qualification matches for ${t.configuration.playoffSlots} further slots.`,
+                      )}
+                    </p>
+                  </>
+                )}
+                {t.configuration.format !== "SOLO" && (
+                  <p>
+                    {copy(
+                      `TEAM: empat pemain setiap pasukan; BO${t.configuration.teamKnockoutBestOf} sehingga semifinal dan BO${t.configuration.teamFinalBestOf} untuk final.`,
+                      `TEAM: four players per team; BO${t.configuration.teamKnockoutBestOf} through the semifinals and BO${t.configuration.teamFinalBestOf} in the final.`,
+                    )}
+                  </p>
+                )}
               </article>
               <article className="panel">
                 <h3>{copy("Peserta diluluskan", "Approved participants")}</h3>
                 <div className="grid2">
-                  {t.participants.map((p) => (
+                  {participants.map((p) => (
                     <div key={p.code} className="text-sm">
-                      {p.code}
+                      <TournamentPlayerName value={p.code} />
                     </div>
                   ))}
                 </div>
                 <p className="muted text-sm mt-4 mb-0">
                   {copy(
-                    "Halaman kejohanan ini menggunakan kod peserta untuk mengenal pasti pemain.",
-                    "This tournament page identifies players by their participant codes.",
+                    "Pilih pemain untuk melihat keputusan perlawanan mereka.",
+                    "Select a player to view their match results.",
                   )}
                 </p>
                 {!t.participants.length && (
@@ -203,7 +246,9 @@ export default async function Tournament({
                                 </span>
                               )}
                             </td>
-                            <td>{r.code}</td>
+                            <td>
+                              <TournamentPlayerName value={r.code} />
+                            </td>
                             {[
                               r.played,
                               r.wins,
@@ -243,19 +288,23 @@ export default async function Tournament({
                         <details key={m.id} className="fixture">
                           <summary>
                             <strong>
-                              {copy(
-                                m.a,
-                                m.a === "Menunggu peserta"
-                                  ? "Awaiting participant"
-                                  : m.a,
-                              )}
+                              <TournamentPlayerName
+                                value={copy(
+                                  m.a,
+                                  m.a === "Menunggu peserta"
+                                    ? "Awaiting participant"
+                                    : m.a,
+                                )}
+                              />
                               <span className="vs">VS</span>
-                              {copy(
-                                m.b,
-                                m.b === "Menunggu peserta"
-                                  ? "Awaiting participant"
-                                  : m.b,
-                              )}
+                              <TournamentPlayerName
+                                value={copy(
+                                  m.b,
+                                  m.b === "Menunggu peserta"
+                                    ? "Awaiting participant"
+                                    : m.b,
+                                )}
+                              />
                             </strong>
                             <small>
                               BO{m.bestOf} · {m.status.replaceAll("_", " ")} ·{" "}
@@ -298,7 +347,7 @@ export default async function Tournament({
                   storageScope={t.slug}
                   rounds={c.stages.find((s) => s.format === "KNOCKOUT")?.rounds}
                   stages={c.stages}
-                  participants={t.participants}
+                  participants={participants}
                 />
               </div>
             ))}
@@ -306,5 +355,10 @@ export default async function Tournament({
         )}
       </section>
     </div>
+  );
+  return (
+    <TournamentPlayerResults participants={participants} stages={playerStages}>
+      {content}
+    </TournamentPlayerResults>
   );
 }

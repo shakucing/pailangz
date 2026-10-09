@@ -1,0 +1,14 @@
+.page {
+  max-width: 880px;
+}
+
+.eyebrow {
+  margin-top: 28px;
+}
+
+.page .title {
+  font-size: clamp(30px, 5vw, 54px);
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}

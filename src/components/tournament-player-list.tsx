@@ -2,8 +2,7 @@
 
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ActionForm } from "./action-form";
-import { TaskDialog } from "./workspace-dialog";
+import { RemoveTournamentPlayer } from "./remove-tournament-player";
 import { friendlyError } from "@/lib/staff-presentation";
 
 type Entrant = {
@@ -59,7 +58,7 @@ export function TournamentPlayerList({
       selectAll.current.indeterminate = selectedIds.length > 0 && !allSelected;
   }, [selectedIds.length, allSelected]);
 
-  async function updateEligibility(eligible: boolean) {
+  async function updateEligibility(eligible: boolean, participant?: Entrant) {
     setSaving(true);
     setFeedback(null);
     try {
@@ -68,16 +67,25 @@ export function TournamentPlayerList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "participantsEligibility",
-          data: { tournamentId, ids: selectedIds, eligible, reason: note },
+          data: {
+            tournamentId,
+            ids: participant ? [participant.id] : selectedIds,
+            eligible,
+            reason: participant ? "" : note,
+          },
         }),
       });
       const body = await response.json();
       if (!response.ok)
         throw new Error(body.error ?? "Unable to update eligibility.");
-      setSelected([]);
-      setNote("");
+      if (!participant) {
+        setSelected([]);
+        setNote("");
+      }
       setFeedback({
-        text: `${body.count} ${body.count === 1 ? "player" : "players"} marked ${eligible ? "eligible" : "ineligible"}.`,
+        text: participant
+          ? `${participant.member.displayIgn} marked ${eligible ? "eligible" : "ineligible"}.`
+          : `${body.count} ${body.count === 1 ? "player" : "players"} marked ${eligible ? "eligible" : "ineligible"}.`,
         error: false,
       });
       startTransition(() => router.refresh());
@@ -131,15 +139,6 @@ export function TournamentPlayerList({
               >
                 Mark ineligible
               </button>
-              {selectedIds.length > 0 && (
-                <button
-                  type="button"
-                  className="button small secondary"
-                  onClick={() => setSelected([])}
-                >
-                  Clear selection
-                </button>
-              )}
             </div>
             {selectedIds.length > 0 && (
               <label htmlFor={`${uid}-bulk-note`}>
@@ -203,6 +202,7 @@ export function TournamentPlayerList({
               <tbody>
                 {entrants.map((p) => {
                   const activeMember = p.member.verified && !p.member.archived;
+                  const eligible = p.eligible && activeMember;
                   return (
                     <tr key={p.id}>
                       <td>
@@ -229,39 +229,24 @@ export function TournamentPlayerList({
                         )}
                       </td>
                       <td>
-                        <span
-                          className={`badge ${p.eligible && activeMember ? "" : "warning"}`}
+                        <button
+                          type="button"
+                          className={`button small${eligible ? "" : " secondary"}`}
+                          style={{ whiteSpace: "nowrap" }}
+                          aria-pressed={eligible}
+                          disabled={published || busy || !activeMember}
+                          onClick={() => updateEligibility(!eligible, p)}
                         >
-                          {p.eligible && activeMember
-                            ? "Eligible"
-                            : "Needs confirmation"}
-                        </span>
+                          {eligible ? "Eligible" : "Ineligible"}
+                        </button>
                       </td>
                       <td>
-                        <TaskDialog
-                          label="Edit eligibility"
-                          title={`Eligibility · ${p.code} · ${p.member.displayIgn}`}
+                        <RemoveTournamentPlayer
+                          participantId={p.id}
+                          playerName={p.member.displayIgn}
+                          code={p.code}
                           disabled={published || busy}
-                        >
-                          <ActionForm
-                            action="participant"
-                            fixed={{ id: p.id }}
-                            fields={[
-                              {
-                                name: "eligible",
-                                label: "Confirm this player can compete",
-                                type: "checkbox",
-                                value: p.eligible,
-                              },
-                              {
-                                name: "reason",
-                                label: "Note",
-                                placeholder: "Add a note if useful",
-                              },
-                            ]}
-                            label="Save eligibility"
-                          />
-                        </TaskDialog>
+                        />
                       </td>
                     </tr>
                   );
@@ -278,7 +263,8 @@ export function TournamentPlayerList({
       )}
       {published && (
         <p className="muted text-sm">
-          Unpublish the tournament before changing eligibility.
+          Unpublish the tournament before changing eligibility or removing
+          players.
         </p>
       )}
     </section>

@@ -1,5 +1,6 @@
 import {
   seededBracketPairs,
+  knockoutBestOf,
   type TournamentConfiguration,
 } from "./tournament-config";
 import type { EventMatch } from "./event-presentation-data";
@@ -66,7 +67,7 @@ export function previewBracket(
           order: i + 1,
           a: entrant(pair?.a ?? null),
           b: entrant(pair?.b ?? null),
-          bestOf: category === "SOLO" || n === 2 ? 5 : 3,
+          bestOf: knockoutBestOf(config, category, n === 2),
           status: pair && pair.b === null ? "BYE" : "SCHEDULED",
           result: null,
         };

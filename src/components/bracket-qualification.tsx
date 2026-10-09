@@ -2,6 +2,7 @@
 
 import { ArrowDown, ArrowRight, Trophy } from "lucide-react";
 import { useLocale } from "./locale-context";
+import { TournamentPlayerName } from "./tournament-player-results";
 import { bracketQualification } from "@/lib/bracket-qualification";
 import type { EventStage } from "@/lib/event-presentation-data";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
@@ -45,9 +46,11 @@ export function BracketQualification({
               #{i + 1}
             </span>
             <strong>
-              {row
-                ? label(row.code)
-                : t("Menunggu peserta", "Awaiting entrant")}
+              {row ? (
+                <TournamentPlayerName value={label(row.code)} />
+              ) : (
+                t("Menunggu peserta", "Awaiting entrant")
+              )}
             </strong>
           </li>
         );
@@ -88,7 +91,9 @@ export function BracketQualification({
               {stage.standings.map((row) => (
                 <tr key={row.code}>
                   <td>{row.rank ?? "—"}</td>
-                  <td>{label(row.code)}</td>
+                  <td>
+                    <TournamentPlayerName value={label(row.code)} />
+                  </td>
                   <td>{row.played}</td>
                   <td>{row.points}</td>
                 </tr>
@@ -180,9 +185,11 @@ export function BracketQualification({
                           {t("Liga", "League")} #{config.directSlots + i + 1}
                         </span>
                         <strong>
-                          {row
-                            ? label(row.code)
-                            : t("Menunggu peserta", "Awaiting entrant")}
+                          {row ? (
+                            <TournamentPlayerName value={label(row.code)} />
+                          ) : (
+                            t("Menunggu peserta", "Awaiting entrant")
+                          )}
                         </strong>
                       </li>
                     ))}
@@ -208,7 +215,11 @@ export function BracketQualification({
             {config.directSlots} {t("terus", "direct")} + {config.playoffSlots}{" "}
             {t("daripada kelayakan", "from qualification")}
           </p>
-          <p>{t("Penyingkiran tunggal", "Single elimination")} · BO5</p>
+          <p>
+            {t("Penyingkiran tunggal", "Single elimination")} · BO
+            {config.soloKnockoutBestOf} · {t("Final", "Final")} BO
+            {config.soloFinalBestOf}
+          </p>
           <strong>
             {t("Bracket → Final → Juara", "Bracket → Final → Champion")}
           </strong>

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { privateTx, type Actor } from "../src/lib/db";
 import { encrypt } from "../src/lib/crypto";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
 import {
   assignParticipants,
   changeEntrant,
@@ -37,6 +37,8 @@ import {
   mutateTeam,
   teamState,
 } from "../src/lib/team-portal";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 export async function checkModeratorSetup(
   owner: pg.Client,

@@ -1,0 +1,2916 @@
+.page {
+  --solo-bg: #101112;
+  --solo-paper: #f3f1e9;
+  --solo-muted: #92948e;
+  --solo-line: #ffffff24;
+  --solo-lime: #d2fa69;
+  --solo-pink: #ff72bb;
+  --solo-body-size: 16px;
+  --solo-small-size: 14px;
+  --solo-label-size: 12px;
+  --display: var(--font-solo-display), Impact, "Arial Narrow", sans-serif;
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  color: var(--solo-paper);
+  background: var(--solo-bg);
+  font-size: var(--solo-body-size);
+  line-height: 1.65;
+}
+
+:global(body):has(.page) {
+  --page-bg: #101112;
+  --text: #f3f1e9;
+  --text-soft: #f3f1e9;
+  --muted: #92948e;
+  --border: #ffffff24;
+  --accent: #d2fa69;
+  --accent-bg: #d2fa6910;
+  --accent-border: #d2fa6930;
+  --surface: #17191a;
+  --surface-hover: #222526;
+  --panel: #17191a;
+  --field-bg: #101112;
+  --border-strong: #ffffff40;
+  color-scheme: dark;
+}
+
+:global(html):has(.page[data-motion="on"]) {
+  scroll-behavior: smooth;
+}
+
+.page :where(a, button):focus-visible {
+  outline: 2px solid var(--solo-lime);
+  outline-offset: 5px;
+}
+
+.page :where(h1, h2, h3, p) {
+  margin-top: 0;
+}
+
+.container,
+.heroInner,
+.chapterInner,
+.endline {
+  width: min(100% - 96px, 1200px);
+  margin-inline: auto;
+}
+
+.hero {
+  position: relative;
+  scroll-margin-top: 24px;
+}
+
+.heroGrid {
+  position: absolute;
+  inset: 0 0 55px;
+  z-index: -1;
+  background-image:
+    linear-gradient(#ffffff04 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff04 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(90deg, transparent, #000);
+}
+
+.heroInner {
+  position: relative;
+  min-height: 800px;
+  padding-top: 28px;
+}
+
+.heroMeta,
+.heroBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 1.1px;
+}
+
+.heroMeta {
+  color: #bcbbb4;
+}
+
+.heroMeta > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.heroMeta i {
+  width: 6px;
+  height: 6px;
+  background: var(--solo-lime);
+  border-radius: 50%;
+  box-shadow: 0 0 14px #d2fa6980;
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 2;
+  padding-top: 69px;
+  width: 66%;
+  pointer-events: none;
+}
+
+.heroCopy a {
+  pointer-events: auto;
+}
+
+.kicker {
+  display: inline-block;
+  margin-bottom: 22px;
+  color: var(--solo-lime);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  line-height: 1.6;
+}
+
+.heroTitle {
+  font-family: var(--display);
+  font-size: clamp(110px, 16.3vw, 220px);
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: -5px;
+  line-height: 0.79;
+  margin: 0 0 34px -8px;
+}
+
+.heroTitle > span {
+  display: block;
+}
+
+.heroTitle > span:last-child {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 20px;
+  color: var(--solo-lime);
+  font-size: 0.405em;
+  letter-spacing: -1.8px;
+}
+
+.titleStar {
+  display: inline-block;
+  color: var(--solo-pink);
+  font-family: Arial, sans-serif;
+  font-size: 0.8em;
+  font-style: normal;
+  animation: rotateStar 20s linear infinite;
+}
+
+.heroDescription {
+  max-width: 345px;
+  color: #aeafa9;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 26px;
+}
+
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+}
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  min-height: 52px;
+  padding: 14px 22px;
+  background: var(--solo-lime);
+  color: #11130d;
+  font-size: 12px;
+  font-weight: 700;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.primaryButton:hover {
+  background: #e0ff91;
+  transform: translateY(-3px);
+}
+
+.simpleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--solo-line);
+}
+
+.simpleLink:hover {
+  color: var(--solo-lime);
+}
+
+.heroArt {
+  position: absolute;
+  top: 78px;
+  right: -30px;
+  width: 54%;
+  height: 560px;
+}
+
+.orbitDisc {
+  position: absolute;
+  top: 50px;
+  left: 16%;
+  width: 76%;
+  aspect-ratio: 1;
+  border: 1px solid #ff72bb38;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at 55% 60%,
+    #8e245134,
+    #25151e50 55%,
+    #10111200 75%
+  );
+}
+
+.orbitDisc::before,
+.orbitDisc::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  border: 1px dashed #ff72bb20;
+  border-radius: 50%;
+  animation: rotateStar 60s linear infinite;
+}
+
+.orbitDisc::after {
+  inset: 30px;
+  border-style: solid;
+  border-color: #ff72bb12;
+}
+
+.orbitRing {
+  position: absolute;
+  top: 200px;
+  left: 0;
+  width: 103%;
+  height: 150px;
+  border: 1px solid #dbb5cf45;
+  border-radius: 50%;
+  transform: rotate(-24deg);
+}
+
+.trophyLayer {
+  position: absolute;
+  inset: -26px -8px 0;
+  transform: translate3d(0, var(--parallax, 0px), 0);
+  will-change: transform;
+}
+
+.floatingTrophy {
+  width: 100%;
+  height: 100%;
+  animation: floatTrophy 7s ease-in-out infinite;
+}
+
+.floatingTrophy img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 35px #0008);
+}
+
+.artCross,
+.artCrossTwo {
+  position: absolute;
+  top: 20px;
+  left: 70px;
+  color: var(--solo-pink);
+  font:
+    28px ui-monospace,
+    monospace;
+}
+
+.artCrossTwo {
+  top: auto;
+  left: auto;
+  bottom: 20px;
+  right: 20px;
+}
+
+.prizeTag {
+  position: absolute;
+  z-index: 3;
+  bottom: 68px;
+  left: 17px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 19px;
+  border: 1px solid #ffffff42;
+  background: #19151cce;
+  backdrop-filter: blur(14px);
+  transform: rotate(-5deg);
+  color: var(--solo-pink);
+}
+
+.prizeTag > span {
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.prizeTag strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--solo-paper);
+  font:
+    700 25px Arial,
+    sans-serif;
+  letter-spacing: -1px;
+}
+
+.prizeTag small {
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 0;
+}
+
+.artCoordinate,
+.artCaption {
+  position: absolute;
+  right: 0;
+  top: 10px;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  color: #82837e;
+}
+
+.artCaption {
+  top: auto;
+  bottom: 18px;
+  right: 23%;
+}
+
+.heroBottom {
+  position: absolute;
+  bottom: 45px;
+  left: 0;
+  right: 0;
+  color: #878982;
+  font-size: 9px;
+}
+
+.heroBottom a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.scrollIcon {
+  display: grid;
+  place-items: center;
+  height: 35px;
+  width: 24px;
+  border: 1px solid #ffffff50;
+  border-radius: 20px;
+}
+
+.scrollIcon svg {
+  animation: nudgeDown 2s ease-in-out infinite;
+}
+
+.heroBottom b {
+  color: var(--solo-paper);
+  font-weight: 400;
+}
+
+.ticker {
+  position: relative;
+  overflow: hidden;
+  background: var(--solo-lime);
+  color: #11140c;
+  padding: 12px 0 14px;
+  transform: rotate(-1.7deg) scale(1.02);
+  margin: 0 0 25px;
+}
+
+.tickerTrack {
+  display: flex;
+  width: max-content;
+  animation: ticker 28s linear infinite;
+}
+
+.tickerTrack > span {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding-right: 32px;
+  font-family: var(--display);
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -0.4px;
+}
+
+.tickerTrack > span > span {
+  font:
+    24px Arial,
+    sans-serif;
+}
+
+.chapterBar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #101112ee;
+  backdrop-filter: blur(18px);
+  border-block: 1px solid var(--solo-line);
+}
+
+.readingProgress {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--solo-lime);
+  transform: scaleX(var(--reading-progress, 0));
+  transform-origin: left;
+}
+
+.chapterInner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 70px;
+}
+
+.chapterBrand {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
+}
+
+.chapterBrand > span {
+  margin: 0 5px;
+  color: var(--solo-lime);
+}
+
+.chapterNav {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #444 transparent;
+}
+
+.chapterNav a {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 50px;
+  padding-inline: 8px;
+  font-size: 11px;
+  color: #a1a49b;
+  transition: color 0.2s;
+}
+
+.chapterNav a > span {
+  font:
+    8px ui-monospace,
+    monospace;
+  color: #60645c;
+}
+
+.chapterNav a[aria-current],
+.chapterNav a[aria-current] > span,
+.chapterNav a:hover {
+  color: var(--solo-lime);
+}
+
+.motionButton {
+  flex: 0 0 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--solo-line);
+  color: var(--solo-paper);
+  background: transparent;
+  border-radius: 50%;
+}
+
+.motionButton:hover {
+  border-color: var(--solo-lime);
+  color: var(--solo-lime);
+}
+
+.manifesto {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 100px;
+  padding-block: 110px 120px;
+}
+
+.manifestoTitle {
+  font-family: var(--display);
+  font-size: clamp(36px, 4.6vw, 62px);
+  font-style: italic;
+  letter-spacing: -1px;
+  line-height: 1;
+  margin: 0;
+}
+
+.manifestoTitle span {
+  color: var(--solo-muted);
+}
+
+.objectives {
+  display: grid;
+  gap: 28px;
+}
+
+.objective {
+  display: flex;
+  gap: 20px;
+}
+
+.objective > svg {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: var(--solo-lime);
+}
+
+.objective h3 {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  margin-bottom: 6px;
+}
+
+.objective p {
+  color: #a0a29b;
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 0;
+  max-width: 350px;
+}
+
+.chapter {
+  padding-block: 44px 110px;
+  border-top: 1px solid var(--solo-line);
+  scroll-margin-top: 70px;
+}
+
+.chapterLabel {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 70px;
+  color: #a6a79f;
+  font:
+    10px ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.chapterLabel > span:first-child {
+  display: grid;
+  place-items: center;
+  width: 29px;
+  height: 29px;
+  border: 1px solid var(--solo-line);
+  color: var(--solo-lime);
+}
+
+.chapterLabel > span:last-child {
+  margin-left: auto;
+  font-size: 20px;
+}
+
+.sectionTitle {
+  font-family: var(--display);
+  font-size: clamp(48px, 6.4vw, 86px);
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  line-height: 0.98;
+  margin: 0 0 26px;
+}
+
+.sectionTitle > span {
+  color: var(--solo-lime);
+}
+
+.sectionIntro {
+  color: #a5a79f;
+  max-width: 365px;
+  font-size: 14px;
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.formatSection {
+  background: #141615;
+}
+
+.formatLayout {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  align-items: center;
+  gap: 90px;
+}
+
+.formatBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.formatBadges > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--solo-line);
+  color: #b7baae;
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 0.6px;
+}
+
+.sixPanel {
+  position: relative;
+  padding: 25px 30px 22px;
+  border: 1px solid #d2fa694a;
+  background: linear-gradient(135deg, #d2fa6909, transparent 55%);
+  transform: rotate(2deg);
+}
+
+.sixPanel::after {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -5px;
+  right: -5px;
+  background: var(--solo-lime);
+}
+
+.sixHeader,
+.sixFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--solo-lime);
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 0.8px;
+}
+
+.sixNumber {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font: italic 900 clamp(160px, 20vw, 260px)/1.05 var(--display);
+  letter-spacing: -10px;
+}
+
+.sixNumber > span {
+  margin: 0 0 32px 20px;
+  color: var(--solo-lime);
+  font:
+    65px Arial,
+    sans-serif;
+  letter-spacing: 0;
+}
+
+.sixFooter {
+  border-top: 1px solid #d2fa6930;
+  padding-top: 16px;
+  color: #a7ae99;
+}
+
+.pointsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 70px;
+  border-block: 1px solid var(--solo-line);
+}
+
+.point {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 24px 30px;
+  border-right: 1px solid var(--solo-line);
+}
+
+.point:first-child {
+  padding-left: 0;
+}
+
+.point:last-child {
+  padding-right: 0;
+  border: 0;
+}
+
+.pointLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: start;
+  font:
+    10px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.pointLabel i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.point > strong {
+  grid-row: span 2;
+  font: italic 900 58px/0.95 var(--display);
+  letter-spacing: -1px;
+}
+
+.point small {
+  display: block;
+  margin-top: 7px;
+  color: #9b9f93;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  text-align: right;
+}
+
+.point > span:last-child {
+  color: #9b9f93;
+  align-self: end;
+  font-size: 11px;
+}
+
+.win {
+  color: var(--solo-lime);
+}
+.draw {
+  color: #f0cf7a;
+}
+.lose {
+  color: #ef8a84;
+}
+
+.sectionHeading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 35px;
+  margin-bottom: 45px;
+}
+
+.sectionHeading .sectionTitle {
+  margin-bottom: 0;
+}
+
+.sectionHeading .sectionIntro {
+  max-width: 280px;
+  margin-bottom: 5px;
+  font-size: 12px;
+}
+
+.qualifySection .sectionTitle > span {
+  color: var(--solo-pink);
+}
+
+.pathways {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.pathway {
+  position: relative;
+  padding: 30px 34px;
+  border: 1px solid #d2fa6940;
+  background: #d2fa6906;
+}
+
+.pathwayTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--solo-lime);
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  margin-bottom: 40px;
+}
+
+.rankLabel {
+  color: #898e80;
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.rank {
+  display: block;
+  color: var(--solo-lime);
+  font: italic 900 clamp(60px, 8.7vw, 116px)/1 var(--display);
+  letter-spacing: -2px;
+  margin: 4px 0 22px;
+}
+
+.pathway h3 {
+  font-size: 19px;
+  margin-bottom: 10px;
+}
+
+.pathway p {
+  max-width: 340px;
+  color: #a2a79a;
+  font-size: 12px;
+  min-height: 44px;
+  margin-bottom: 26px;
+}
+
+.slotTag {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-top: 17px;
+  border-top: 1px solid #d2fa6929;
+  color: var(--solo-lime);
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 0.6px;
+}
+
+.playoffPath {
+  border-color: #ff72bb40;
+  background: #ff72bb06;
+}
+
+.playoffPath :is(.pathwayTop, .rank, .slotTag) {
+  color: var(--solo-pink);
+  border-color: #ff72bb29;
+}
+
+.qualificationSum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  margin-top: 36px;
+  padding: 24px;
+  border: 1px solid var(--solo-line);
+  font:
+    9px ui-monospace,
+    monospace;
+  color: #a5a89d;
+}
+
+.qualificationSum > span {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.qualificationSum b {
+  color: var(--solo-paper);
+  font: italic 900 45px/1 var(--display);
+}
+
+.qualificationSum i {
+  font:
+    25px Arial,
+    sans-serif;
+  color: #676c60;
+}
+
+.sumResult b {
+  color: var(--solo-lime);
+}
+
+.knockoutSection {
+  background: var(--solo-lime);
+  color: #161b10;
+}
+
+.knockoutSection .chapterLabel {
+  color: #4e6135;
+}
+
+.knockoutSection .chapterLabel > span:first-child {
+  border-color: #15200c40;
+  color: #15200c;
+}
+
+.knockoutSection .sectionTitle > span {
+  color: #617f34;
+}
+
+.bo5Badge {
+  font: italic 900 56px/1 var(--display);
+  text-align: right;
+  margin-bottom: 3px;
+}
+
+.bo5Badge > span {
+  display: block;
+  margin-top: 9px;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 0.5px;
+}
+
+.knockoutTrack {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  align-items: end;
+  gap: 25px;
+  margin-top: 70px;
+}
+
+.knockoutStep {
+  position: relative;
+  min-width: 0;
+  padding-top: calc(var(--step) * 28px);
+}
+
+.stepIndex {
+  display: block;
+  font:
+    9px ui-monospace,
+    monospace;
+  color: #4e6135;
+  letter-spacing: 0.2px;
+  padding-top: 14px;
+  border-top: 1px solid #16220d50;
+}
+
+.knockoutStep > strong {
+  display: block;
+  font: italic 900 clamp(90px, 12vw, 164px)/1.1 var(--display);
+  letter-spacing: -4px;
+}
+
+.knockoutStep:last-child > strong {
+  color: #617f34;
+}
+
+.stepBottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stepBottom h3 {
+  font-size: 12px;
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+.stepBottom svg {
+  flex-shrink: 0;
+}
+
+.stepLine {
+  display: block;
+  height: 4px;
+  background: #17230d;
+  margin-top: 24px;
+}
+
+.knockoutStep:last-child .stepLine {
+  background: #617f34;
+}
+
+.formatRecap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  padding-top: 30px;
+  margin-top: 40px;
+  border-top: 1px solid #17230d40;
+  font:
+    9px ui-monospace,
+    monospace;
+  color: #425827;
+}
+
+.formatRecap b {
+  display: block;
+  margin-top: 4px;
+  color: #17230d;
+  font-size: 13px;
+}
+
+.rulesLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+}
+
+.rulesHeading > svg {
+  color: #bdc6b0;
+  margin-bottom: 24px;
+}
+
+.rulesHeading .sectionTitle > span {
+  color: #a7ac9e;
+}
+
+.noCheatStamp {
+  display: inline-block;
+  padding: 14px 22px;
+  margin-top: 30px;
+  transform: rotate(-10deg);
+  border: 2px solid #ff848b8a;
+  color: #ff848b;
+  font: italic 900 26px/1.1 var(--display);
+  text-align: center;
+}
+
+.banHeading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding-block: 5px 20px;
+  border-bottom: 1px solid var(--solo-line);
+  font:
+    8px/1.6 ui-monospace,
+    monospace;
+  color: #858a7d;
+  letter-spacing: 0.5px;
+}
+
+.banHeading > span:last-child {
+  color: #ff848b;
+  text-align: right;
+}
+
+.banRow {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  min-height: 79px;
+  border-bottom: 1px solid var(--solo-line);
+}
+
+.banNumber {
+  color: #64695f;
+  font:
+    9px ui-monospace,
+    monospace;
+}
+
+.banRow > strong {
+  font: italic 900 36px/1 var(--display);
+  letter-spacing: -0.5px;
+  transition:
+    color 0.2s,
+    transform 0.2s;
+}
+
+.banRow > svg {
+  margin-left: auto;
+  color: #ff848b;
+}
+
+.banRow:hover > strong {
+  color: #ff848b;
+  transform: translateX(5px);
+}
+
+.integrity {
+  margin-top: 28px;
+  padding: 21px 23px;
+  background: #ff848b0b;
+  border-left: 2px solid #ff848b;
+}
+
+.integrity > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #ff848b;
+}
+
+.integrity h3 {
+  font-size: 13px;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.integrity > div > span {
+  margin-left: auto;
+  font:
+    8px ui-monospace,
+    monospace;
+}
+
+.integrity p {
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.9;
+  color: #b5a3a2;
+}
+
+.commitSection {
+  background: #1b1c18;
+}
+
+.commitLayout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 90px;
+}
+
+.warningLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  color: #e5c788;
+  font:
+    9px/1.6 ui-monospace,
+    monospace;
+  letter-spacing: 0.5px;
+}
+
+.commitSection .sectionTitle > span {
+  color: #e5c788;
+}
+
+.commitNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 25px;
+  border: 1px solid #e5c78840;
+  background: #e5c78805;
+}
+
+.commitNotice > span {
+  display: grid;
+  place-items: center;
+  flex: 0 0 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid #e5c788;
+  color: #e5c788;
+  font:
+    700 17px Arial,
+    sans-serif;
+}
+
+.commitNotice h3 {
+  font-size: 16px;
+  letter-spacing: -0.3px;
+  color: #e5c788;
+  margin-bottom: 12px;
+}
+
+.commitNotice p {
+  margin-bottom: 0;
+  font-size: 12px;
+  color: #b6b09f;
+  line-height: 1.8;
+}
+
+.walkoverText {
+  color: #aaa99b;
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 28px 0;
+}
+
+.walkoverScores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-block: 1px solid #e5c78830;
+  padding-block: 23px;
+}
+
+.walkoverScores > div {
+  padding-left: 25px;
+  border-left: 1px solid #e5c78830;
+}
+
+.walkoverScores > div:first-child {
+  border: 0;
+  padding-left: 0;
+}
+
+.walkoverScores span,
+.walkoverScores small {
+  display: block;
+  color: #b3a686;
+  font:
+    9px/1.6 ui-monospace,
+    monospace;
+  letter-spacing: 0.3px;
+}
+
+.walkoverScores strong {
+  display: block;
+  color: #e5c788;
+  margin: 5px 0 9px;
+  font: italic 900 70px/1 var(--display);
+  letter-spacing: -1px;
+}
+
+.walkoverScores small {
+  font-size: 8px;
+}
+
+.rewardSection {
+  position: relative;
+  background: #171116;
+}
+
+.rewardSection > .container {
+  position: relative;
+}
+
+.rewardGlow {
+  position: absolute;
+  top: 70px;
+  right: -300px;
+  width: 800px;
+  height: 800px;
+  background: radial-gradient(circle, #ff4da415, transparent 65%);
+  pointer-events: none;
+}
+
+.rewardSection .sectionTitle {
+  font-size: clamp(43px, 5.7vw, 77px);
+}
+
+.rewardSection .sectionTitle > span {
+  color: var(--solo-pink);
+}
+
+.rewardEyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 170px;
+  color: var(--solo-pink);
+  font:
+    9px/1.7 ui-monospace,
+    monospace;
+  letter-spacing: 0.3px;
+}
+
+.rewardEyebrow > svg {
+  flex-shrink: 0;
+}
+
+.grandPrize {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 45px 50px;
+  border: 1px solid #ff72bb65;
+  background: linear-gradient(115deg, #ff72bb0c, #ff72bb03 70%);
+  overflow: hidden;
+}
+
+.grandPrize::before {
+  position: absolute;
+  content: "";
+  inset: 0;
+  background-image:
+    linear-gradient(#ff72bb05 1px, transparent 1px),
+    linear-gradient(90deg, #ff72bb05 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+.grandPrizeCopy {
+  position: relative;
+  z-index: 1;
+}
+
+.winnerBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border: 1px solid #ff72bb65;
+  color: var(--solo-pink);
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.prizeNumber {
+  display: block;
+  margin: 24px 0 6px -7px;
+  font: italic 900 clamp(90px, 12vw, 156px)/0.9 var(--display);
+  letter-spacing: -3px;
+  color: var(--solo-pink);
+}
+
+.prizeCurrency {
+  display: block;
+  margin: 20px 0 10px;
+  font-size: 12px;
+  letter-spacing: 4px;
+}
+
+.grandPrizeCopy p {
+  margin: 0;
+  font-size: 11px;
+  color: #ac8f9e;
+}
+
+.prizeArt {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  transform: translate3d(0, var(--parallax, 0px), 0);
+}
+
+.gem {
+  position: relative;
+  width: 83%;
+  max-width: 330px;
+  transform: rotate(-12deg);
+  filter: drop-shadow(0 10px 45px #ff3c9c35);
+  animation: floatGem 8s ease-in-out infinite;
+}
+
+.gemHalo {
+  position: absolute;
+  width: 82%;
+  aspect-ratio: 1;
+  border: 1px solid #ff72bb18;
+  border-radius: 50%;
+}
+
+.gemHalo::after {
+  content: "";
+  position: absolute;
+  inset: 25px;
+  border: 1px dashed #ff72bb22;
+  border-radius: 50%;
+  animation: rotateStar 40s linear infinite;
+}
+
+.prizeSpark,
+.prizeSparkTwo {
+  position: absolute;
+  top: 10%;
+  right: 9%;
+  color: #ffd4ed;
+  font-size: 32px;
+}
+
+.prizeSparkTwo {
+  right: auto;
+  left: 6%;
+  top: auto;
+  bottom: 18%;
+  font-size: 20px;
+}
+
+.prizeCorner {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  color: var(--solo-pink);
+  font-size: 25px;
+}
+
+.rewardList {
+  margin-top: 24px;
+}
+
+.rewardRow {
+  display: grid;
+  grid-template-columns: 90px 1fr 40px 1fr;
+  align-items: center;
+  gap: 15px;
+  min-height: 105px;
+  border-bottom: 1px solid #ff72bb29;
+}
+
+.rewardRank {
+  color: #b1849a;
+  font: italic 900 35px/1 var(--display);
+  letter-spacing: -0.5px;
+}
+
+.rewardPlace {
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 0.5px;
+  color: #a88d9b;
+}
+
+.rewardRow > svg {
+  color: var(--solo-pink);
+}
+
+.rewardRow > strong {
+  font-size: 24px;
+  letter-spacing: -0.6px;
+  font-weight: 600;
+}
+
+.rewardRow small {
+  display: inline-block;
+  margin-left: 14px;
+  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: #b2a3a9;
+}
+
+.squadLayout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: 50px;
+}
+
+.squadLayout .sectionTitle {
+  font-size: clamp(43px, 5.4vw, 73px);
+}
+
+.squadVisual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 370px;
+}
+
+.squadRing {
+  position: absolute;
+  left: 15%;
+  width: 70%;
+  aspect-ratio: 1;
+  border: 1px solid #d2fa6920;
+  border-radius: 50%;
+}
+
+.squadRing::after {
+  content: "";
+  position: absolute;
+  inset: -25px;
+  border: 1px dashed #d2fa6920;
+  border-radius: 50%;
+  animation: rotateStar 60s linear infinite;
+}
+
+.squadCaption {
+  position: relative;
+  color: #8a937e;
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+  text-align: center;
+  margin-bottom: 35px;
+}
+
+.squadPlayers {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.squadPlayer {
+  position: relative;
+  flex: 1;
+  max-width: 105px;
+  height: 173px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(#283021, #151813);
+  border: 1px solid #d2fa6940;
+  transform: rotate(-5deg) translateY(8px);
+  transition:
+    transform 0.3s,
+    border-color 0.3s;
+}
+
+.squadPlayer:nth-child(2) {
+  transform: rotate(-2deg) translateY(-8px);
+}
+.squadPlayer:nth-child(3) {
+  transform: rotate(2deg) translateY(-8px);
+}
+.squadPlayer:nth-child(4) {
+  transform: rotate(5deg) translateY(8px);
+}
+.squadPlayer:hover {
+  transform: translateY(-15px);
+  border-color: var(--solo-lime);
+}
+
+.squadPlayer > svg {
+  color: #d2fa6970;
+}
+
+.squadPlayer strong {
+  color: var(--solo-lime);
+  font: italic 900 55px/1 var(--display);
+}
+
+.squadPlayer > span {
+  color: #8a937e;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.squadWordmark {
+  position: relative;
+  color: var(--solo-lime);
+  text-align: center;
+  font: italic 900 38px/1 var(--display);
+  letter-spacing: 3px;
+  margin-top: 35px;
+}
+
+.squadWordmark > span {
+  display: block;
+  margin-top: 10px;
+  color: #7c8770;
+  font:
+    8px ui-monospace,
+    monospace;
+  letter-spacing: 2px;
+}
+
+.squadCondition {
+  display: flex;
+  gap: 22px;
+  border-top: 1px solid var(--solo-line);
+  padding-top: 30px;
+  margin-top: 45px;
+}
+
+.squadCondition > svg {
+  flex-shrink: 0;
+  color: var(--solo-lime);
+}
+
+.squadCondition h3 {
+  font-size: 14px;
+  letter-spacing: 0;
+  margin-bottom: 8px;
+}
+
+.squadCondition p {
+  max-width: 650px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.9;
+  color: #9ba28f;
+}
+
+.finale {
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid var(--solo-line);
+  text-align: center;
+  padding: 120px 0 110px;
+  background: radial-gradient(ellipse at 50% 20%, #d2fa690b, transparent 65%);
+}
+
+.finale > .container {
+  position: relative;
+}
+
+.finaleText {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  width: max-content;
+  color: transparent;
+  -webkit-text-stroke: 1px #d2fa6910;
+  font: italic 900 clamp(150px, 28vw, 380px)/1 var(--display);
+  letter-spacing: -10px;
+  transform: translate3d(-50%, var(--parallax, 0px), 0);
+}
+
+.finale h2 {
+  font: italic 900 clamp(55px, 8.6vw, 116px)/0.98 var(--display);
+  letter-spacing: -2px;
+  margin: 0 0 30px;
+}
+
+.finale h2 > span {
+  color: var(--solo-lime);
+}
+
+.finale p {
+  max-width: 445px;
+  margin: 0 auto 35px;
+  color: #a6ac9d;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.finaleSignoff {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  margin-top: 38px;
+  color: #8e9880;
+  font:
+    9px ui-monospace,
+    monospace;
+  letter-spacing: 1px;
+}
+
+.endline {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 25px;
+  padding-block: 25px;
+  border-top: 1px solid var(--solo-line);
+  color: #929889;
+  font:
+    9px/1.7 ui-monospace,
+    monospace;
+  letter-spacing: 0.5px;
+}
+
+.endline a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.page[data-enhanced="true"][data-motion="on"] [data-reveal] {
+  transition:
+    opacity 0.7s ease,
+    translate 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+.page[data-enhanced="true"][data-motion="on"]
+  [data-reveal]:not([data-visible="true"]) {
+  opacity: 0;
+  translate: 0 28px;
+}
+
+.page[data-motion="on"] .knockoutStep {
+  transition-delay: calc(var(--step) * 90ms);
+}
+
+.page[data-motion="off"] *,
+.page[data-motion="off"] *::before,
+.page[data-motion="off"] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+}
+
+@keyframes floatTrophy {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(-2deg);
+  }
+}
+
+@keyframes floatGem {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-12deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(-7deg);
+  }
+}
+
+@keyframes rotateStar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nudgeDown {
+  0%,
+  100% {
+    transform: translateY(-3px);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (min-width: 1500px) {
+  .heroInner {
+    min-height: 790px;
+  }
+  .heroCopy {
+    padding-top: 90px;
+  }
+  .heroArt {
+    top: 95px;
+    width: 55%;
+    height: 590px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .container,
+  .heroInner,
+  .chapterInner,
+  .endline {
+    width: calc(100% - 64px);
+  }
+  .chapterInner {
+    gap: 15px;
+  }
+  .chapterBrand {
+    display: none;
+  }
+  .heroInner {
+    min-height: 780px;
+  }
+  .heroArt {
+    top: 100px;
+    height: 480px;
+    right: -20px;
+  }
+  .heroTitle {
+    font-size: 17vw;
+  }
+  .heroCopy {
+    padding-top: 75px;
+  }
+  .heroTitle > span:last-child {
+    gap: 10px;
+  }
+  .heroDescription {
+    max-width: 300px;
+  }
+  .heroActions {
+    gap: 17px;
+  }
+  .heroActions .primaryButton {
+    padding-inline: 17px;
+    gap: 15px;
+  }
+  .manifesto {
+    gap: 55px;
+  }
+  .formatLayout,
+  .rulesLayout,
+  .commitLayout {
+    gap: 50px;
+  }
+  .qualificationSum {
+    gap: 20px;
+  }
+  .grandPrize {
+    padding: 40px;
+  }
+  .rewardRow {
+    grid-template-columns: 75px 1fr 30px 1.3fr;
+  }
+  .rewardRow > strong {
+    font-size: 22px;
+  }
+}
+
+@media (max-width: 800px) {
+  .heroInner {
+    min-height: 800px;
+  }
+  .heroCopy {
+    padding-top: 70px;
+  }
+  .heroArt {
+    height: 410px;
+    top: 105px;
+    right: -10px;
+  }
+  .heroTitle {
+    font-size: 17.5vw;
+    letter-spacing: -3px;
+  }
+  .heroTitle > span:last-child {
+    font-size: 0.39em;
+  }
+  .heroDescription {
+    max-width: 265px;
+    font-size: 12px;
+  }
+  .heroActions {
+    gap: 15px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .heroActions .simpleLink {
+    font-size: 11px;
+  }
+  .heroMeta {
+    font-size: 8px;
+  }
+  .prizeTag {
+    left: 10px;
+    bottom: 30px;
+    padding: 12px;
+    gap: 8px;
+  }
+  .prizeTag strong {
+    font-size: 22px;
+  }
+  .prizeTag small {
+    font-size: 6px;
+  }
+  .artCaption {
+    bottom: -15px;
+  }
+  .artCoordinate {
+    font-size: 6px;
+  }
+  .orbitRing {
+    top: 155px;
+    height: 120px;
+  }
+  .chapterInner {
+    min-height: 62px;
+  }
+  .chapterNav a {
+    font-size: 10px;
+    padding-inline: 6px;
+  }
+  .chapterNav a > span {
+    display: none;
+  }
+  .chapter {
+    scroll-margin-top: 62px;
+    padding-bottom: 80px;
+  }
+  .chapterLabel {
+    margin-bottom: 45px;
+  }
+  .manifesto {
+    padding-block: 80px;
+    gap: 40px;
+  }
+  .manifestoTitle {
+    font-size: 38px;
+  }
+  .formatLayout,
+  .rulesLayout,
+  .commitLayout {
+    gap: 35px;
+  }
+  .sectionTitle {
+    font-size: 53px;
+  }
+  .sectionIntro {
+    font-size: 12px;
+  }
+  .sixPanel {
+    padding: 20px;
+  }
+  .sixNumber {
+    font-size: 180px;
+  }
+  .sixNumber > span {
+    margin-left: 10px;
+    font-size: 40px;
+  }
+  .sixHeader,
+  .sixFooter {
+    font-size: 7px;
+  }
+  .pointsRow {
+    margin-top: 55px;
+  }
+  .point {
+    padding-inline: 20px;
+  }
+  .point > strong {
+    font-size: 50px;
+  }
+  .sectionHeading {
+    gap: 25px;
+  }
+  .sectionHeading .sectionIntro {
+    max-width: 200px;
+    font-size: 11px;
+  }
+  .pathway {
+    padding: 24px;
+  }
+  .pathwayTop {
+    margin-bottom: 25px;
+  }
+  .pathway h3 {
+    font-size: 17px;
+  }
+  .pathway p {
+    font-size: 11px;
+    min-height: 55px;
+  }
+  .rank {
+    font-size: 78px;
+  }
+  .qualificationSum {
+    padding: 20px 14px;
+    gap: 15px;
+    font-size: 7px;
+  }
+  .qualificationSum > span {
+    gap: 8px;
+  }
+  .qualificationSum b {
+    font-size: 38px;
+  }
+  .knockoutTrack {
+    gap: 20px;
+  }
+  .knockoutStep > strong {
+    font-size: 105px;
+  }
+  .stepIndex {
+    font-size: 7px;
+  }
+  .stepBottom h3 {
+    font-size: 10px;
+  }
+  .stepBottom svg {
+    width: 17px;
+  }
+  .formatRecap {
+    gap: 16px;
+    font-size: 8px;
+  }
+  .banHeading > span:last-child {
+    display: none;
+  }
+  .banRow {
+    min-height: 68px;
+  }
+  .banRow > strong {
+    font-size: 31px;
+  }
+  .integrity {
+    padding: 18px;
+  }
+  .integrity h3 {
+    font-size: 11px;
+  }
+  .integrity > div > span {
+    font-size: 7px;
+  }
+  .commitNotice {
+    padding: 20px;
+    gap: 12px;
+  }
+  .commitNotice h3 {
+    font-size: 14px;
+  }
+  .commitNotice p {
+    font-size: 11px;
+  }
+  .walkoverScores strong {
+    font-size: 59px;
+  }
+  .walkoverScores span,
+  .walkoverScores small {
+    font-size: 7px;
+  }
+  .rewardEyebrow {
+    font-size: 8px;
+    max-width: 145px;
+  }
+  .grandPrize {
+    padding: 35px;
+  }
+  .prizeNumber {
+    font-size: 115px;
+  }
+  .prizeCurrency {
+    letter-spacing: 2px;
+    font-size: 10px;
+  }
+  .rewardRow {
+    grid-template-columns: 65px 1fr 24px 1.3fr;
+    gap: 10px;
+  }
+  .rewardPlace {
+    font-size: 8px;
+  }
+  .rewardRow > strong {
+    font-size: 19px;
+  }
+  .rewardRow small {
+    margin-left: 7px;
+    font-size: 10px;
+  }
+  .squadLayout {
+    gap: 30px;
+  }
+  .squadLayout .sectionTitle {
+    font-size: 48px;
+  }
+  .squadPlayer {
+    height: 140px;
+    gap: 7px;
+  }
+  .squadPlayer strong {
+    font-size: 45px;
+  }
+  .squadPlayers {
+    gap: 7px;
+  }
+  .squadPlayer svg {
+    width: 22px;
+  }
+}
+
+@media (max-width: 600px) {
+  .container,
+  .heroInner,
+  .chapterInner,
+  .endline {
+    width: calc(100% - 40px);
+  }
+  .heroInner {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding-top: 20px;
+  }
+  .heroMeta {
+    flex-wrap: wrap;
+    gap: 15px;
+    font-size: 7px;
+    letter-spacing: 0.4px;
+  }
+  .heroCopy {
+    width: 100%;
+    padding-top: 48px;
+  }
+  .kicker {
+    font-size: 9px;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+  .heroTitle {
+    font-size: 41vw;
+    line-height: 0.8;
+    margin-left: -4px;
+    margin-bottom: 26px;
+    letter-spacing: -4px;
+  }
+  .heroTitle > span:last-child {
+    margin-top: 18px;
+    font-size: 0.325em;
+    letter-spacing: -1px;
+    gap: 13px;
+  }
+  .titleStar {
+    font-size: 0.65em;
+  }
+  .heroDescription {
+    max-width: 310px;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+  .heroActions {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+  }
+  .heroActions .primaryButton {
+    font-size: 11px;
+    min-height: 49px;
+    gap: 12px;
+    padding: 12px 15px;
+  }
+  .heroActions .simpleLink {
+    font-size: 10px;
+    gap: 4px;
+    border: 0;
+  }
+  .heroArt {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    height: 390px;
+    flex-shrink: 0;
+    margin-block: 52px 40px;
+  }
+  .orbitDisc {
+    top: 25px;
+    left: 17%;
+    width: 69%;
+  }
+  .orbitRing {
+    top: 145px;
+    width: 95%;
+    left: 4%;
+  }
+  .trophyLayer {
+    inset: -20px 8px 0;
+  }
+  .prizeTag {
+    bottom: 15px;
+    left: 8px;
+    padding: 13px 15px;
+  }
+  .artCross {
+    top: 0;
+    left: 15px;
+  }
+  .artCoordinate {
+    top: 5px;
+    right: 8px;
+  }
+  .artCaption {
+    bottom: -14px;
+    right: 30px;
+  }
+  .heroBottom {
+    position: static;
+    padding-bottom: 24px;
+    font-size: 7px;
+    gap: 10px;
+  }
+  .heroBottom > span:last-child {
+    display: none;
+  }
+  .scrollIcon {
+    width: 21px;
+    height: 30px;
+  }
+  .ticker {
+    padding-block: 12px;
+    margin-bottom: 15px;
+  }
+  .tickerTrack > span {
+    font-size: 26px;
+    gap: 24px;
+    padding-right: 24px;
+  }
+  .tickerTrack > span > span {
+    font-size: 20px;
+  }
+  .chapterInner {
+    width: calc(100% - 24px);
+    gap: 10px;
+    min-height: 58px;
+  }
+  .chapterNav {
+    gap: 4px;
+  }
+  .chapterNav a {
+    font-size: 10px;
+    padding: 0 10px;
+    min-height: 52px;
+  }
+  .motionButton {
+    flex-basis: 36px;
+    height: 36px;
+  }
+  .chapter {
+    scroll-margin-top: 58px;
+    padding-block: 30px 64px;
+  }
+  .chapterLabel {
+    margin-bottom: 36px;
+    gap: 12px;
+    font-size: 8px;
+    letter-spacing: 0.6px;
+  }
+  .chapterLabel > span:first-child {
+    width: 25px;
+    height: 25px;
+    font-size: 9px;
+  }
+  .chapterLabel > span:last-child {
+    font-size: 18px;
+  }
+  .manifesto {
+    grid-template-columns: 1fr;
+    padding-block: 60px 65px;
+    gap: 32px;
+  }
+  .manifestoTitle {
+    font-size: 45px;
+  }
+  .objectives {
+    gap: 25px;
+  }
+  .objective {
+    gap: 16px;
+  }
+  .objective h3 {
+    font-size: 14px;
+  }
+  .objective p {
+    font-size: 11px;
+  }
+  .formatLayout,
+  .rulesLayout,
+  .commitLayout,
+  .squadLayout {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+  .sectionTitle {
+    font-size: clamp(43px, 12vw, 64px);
+    letter-spacing: -1px;
+    margin-bottom: 22px;
+  }
+  .sectionIntro {
+    max-width: 340px;
+    font-size: 12px;
+    margin-bottom: 24px;
+  }
+  .formatBadges > span {
+    font-size: 8px;
+  }
+  .sixPanel {
+    width: 88%;
+    margin: 8px auto 5px;
+    padding: 22px;
+  }
+  .sixNumber {
+    font-size: 205px;
+  }
+  .sixNumber > span {
+    font-size: 49px;
+    margin-bottom: 26px;
+  }
+  .sixHeader,
+  .sixFooter {
+    font-size: 8px;
+  }
+  .pointsRow {
+    margin-top: 42px;
+  }
+  .point {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px 14px;
+  }
+  .point > strong {
+    font-size: 56px;
+  }
+  .pointLabel {
+    font-size: 8px;
+    gap: 6px;
+  }
+  .point small {
+    display: inline;
+    font-size: 7px;
+    margin-left: 6px;
+  }
+  .point > span:last-child {
+    align-self: start;
+    font-size: 10px;
+  }
+  .sectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 23px;
+    margin-bottom: 32px;
+  }
+  .sectionHeading .sectionIntro {
+    max-width: 300px;
+    font-size: 12px;
+  }
+  .pathways {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .pathway {
+    padding: 25px;
+  }
+  .pathwayTop {
+    margin-bottom: 25px;
+  }
+  .rank {
+    font-size: 99px;
+  }
+  .pathway h3 {
+    font-size: 19px;
+  }
+  .pathway p {
+    min-height: 0;
+    font-size: 12px;
+  }
+  .qualificationSum {
+    flex-wrap: wrap;
+    gap: 17px 12px;
+    padding: 22px 12px;
+    margin-top: 22px;
+  }
+  .qualificationSum > span {
+    flex-direction: column;
+    gap: 7px;
+    text-align: center;
+    max-width: 82px;
+    font-size: 7px;
+  }
+  .qualificationSum b {
+    font-size: 45px;
+  }
+  .qualificationSum i {
+    font-size: 20px;
+  }
+  .knockoutSection .sectionHeading {
+    position: relative;
+  }
+  .knockoutSection .sectionTitle {
+    max-width: 100%;
+  }
+  .bo5Badge {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 38px;
+    text-align: left;
+  }
+  .bo5Badge > span {
+    margin: 0;
+    font-size: 7px;
+    max-width: 140px;
+    line-height: 1.6;
+  }
+  .knockoutTrack {
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 24px;
+    margin-top: 35px;
+  }
+  .knockoutStep {
+    padding-top: 0;
+  }
+  .knockoutStep > strong {
+    font-size: 120px;
+  }
+  .stepIndex {
+    font-size: 8px;
+  }
+  .stepBottom h3 {
+    font-size: 11px;
+  }
+  .stepBottom svg {
+    width: 21px;
+  }
+  .stepLine {
+    margin-top: 17px;
+    height: 3px;
+  }
+  .formatRecap {
+    gap: 12px;
+    padding-top: 22px;
+    margin-top: 32px;
+    font-size: 7px;
+  }
+  .formatRecap b {
+    font-size: 9px;
+  }
+  .formatRecap svg {
+    width: 11px;
+    flex-shrink: 0;
+  }
+  .rulesHeading > svg {
+    width: 34px;
+    height: 34px;
+    margin-bottom: 20px;
+  }
+  .noCheatStamp {
+    position: absolute;
+    top: 38px;
+    right: 10px;
+    font-size: 20px;
+    padding: 10px 14px;
+    margin: 0;
+  }
+  .rulesHeading {
+    position: relative;
+  }
+  .rulesHeading .sectionIntro {
+    max-width: 280px;
+    margin-bottom: 0;
+  }
+  .banHeading {
+    padding-top: 5px;
+  }
+  .banHeading > span:last-child {
+    display: block;
+    font-size: 6px;
+  }
+  .banRow {
+    min-height: 75px;
+  }
+  .banRow > strong {
+    font-size: 36px;
+  }
+  .integrity h3 {
+    font-size: 12px;
+  }
+  .integrity > div > span {
+    font-size: 8px;
+  }
+  .commitLayout {
+    gap: 26px;
+  }
+  .commitLayout .sectionTitle {
+    font-size: 68px;
+    margin-bottom: 0;
+  }
+  .warningLabel {
+    font-size: 8px;
+    letter-spacing: 0.2px;
+  }
+  .commitNotice {
+    padding: 22px;
+  }
+  .commitNotice h3 {
+    font-size: 16px;
+  }
+  .commitNotice p {
+    font-size: 12px;
+  }
+  .walkoverScores strong {
+    font-size: 75px;
+  }
+  .walkoverScores span,
+  .walkoverScores small {
+    font-size: 8px;
+  }
+  .rewardSection .sectionTitle {
+    font-size: clamp(39px, 10.3vw, 60px);
+  }
+  .rewardEyebrow {
+    max-width: none;
+    font-size: 8px;
+  }
+  .grandPrize {
+    grid-template-columns: 1fr;
+    padding: 30px 25px 20px;
+  }
+  .prizeNumber {
+    font-size: 136px;
+    margin-top: 25px;
+  }
+  .prizeCurrency {
+    font-size: 11px;
+    letter-spacing: 3px;
+  }
+  .grandPrizeCopy p {
+    font-size: 10px;
+  }
+  .prizeArt {
+    height: 220px;
+    margin-top: 20px;
+  }
+  .gem {
+    width: 72%;
+    max-width: 240px;
+  }
+  .gemHalo {
+    width: 76%;
+    max-width: 250px;
+  }
+  .prizeSpark {
+    right: 7%;
+    font-size: 26px;
+  }
+  .rewardRow {
+    grid-template-columns: 54px 1fr 25px;
+    padding-block: 20px;
+    gap: 7px 10px;
+    min-height: 100px;
+  }
+  .rewardRank {
+    grid-row: span 2;
+    font-size: 29px;
+  }
+  .rewardRow > svg {
+    grid-column: 3;
+    grid-row: 1 / 3;
+  }
+  .rewardRow > strong {
+    grid-column: 2;
+    grid-row: 2;
+    font-size: 22px;
+  }
+  .rewardPlace {
+    grid-column: 2;
+    font-size: 8px;
+  }
+  .rewardRow small {
+    font-size: 11px;
+    margin-left: 10px;
+  }
+  .squadLayout .sectionTitle {
+    font-size: 55px;
+  }
+  .squadLayout .sectionIntro {
+    margin-bottom: 0;
+  }
+  .squadVisual {
+    min-height: 340px;
+    margin-block: 10px;
+  }
+  .squadPlayer {
+    height: 170px;
+    max-width: 90px;
+  }
+  .squadPlayer strong {
+    font-size: 53px;
+  }
+  .squadPlayer svg {
+    width: 27px;
+  }
+  .squadPlayers {
+    gap: 10px;
+  }
+  .squadWordmark {
+    margin-top: 40px;
+  }
+  .squadCondition {
+    margin-top: 25px;
+    gap: 15px;
+  }
+  .squadCondition h3 {
+    font-size: 13px;
+  }
+  .squadCondition p {
+    font-size: 11px;
+  }
+  .finale {
+    padding-block: 80px 65px;
+  }
+  .finale h2 {
+    font-size: clamp(45px, 11.7vw, 65px);
+    letter-spacing: -1px;
+  }
+  .finale p {
+    max-width: 330px;
+    font-size: 12px;
+  }
+  .finaleText {
+    top: 60px;
+    font-size: 190px;
+    letter-spacing: -5px;
+  }
+  .finaleSignoff {
+    font-size: 8px;
+    margin-top: 30px;
+  }
+  .endline {
+    gap: 12px;
+    font-size: 7px;
+    padding-block: 20px;
+  }
+  .endline a {
+    gap: 6px;
+  }
+}
+
+@media (max-width: 360px) {
+  .container,
+  .heroInner,
+  .endline {
+    width: calc(100% - 32px);
+  }
+  .heroInner {
+    min-height: 0;
+  }
+  .heroMeta {
+    font-size: 6px;
+  }
+  .heroArt {
+    height: 345px;
+  }
+  .heroActions {
+    gap: 12px;
+  }
+  .heroActions .primaryButton {
+    font-size: 10px;
+    padding-inline: 12px;
+  }
+  .heroActions .simpleLink {
+    font-size: 9px;
+  }
+  .heroBottom {
+    font-size: 6px;
+  }
+  .point {
+    padding-inline: 10px;
+  }
+  .point > strong {
+    font-size: 49px;
+  }
+  .sixPanel {
+    width: 92%;
+  }
+  .sixNumber {
+    font-size: 180px;
+  }
+  .qualificationSum {
+    gap: 10px;
+  }
+  .qualificationSum > span {
+    max-width: 65px;
+    font-size: 6px;
+  }
+  .rank {
+    font-size: 86px;
+  }
+  .knockoutStep > strong {
+    font-size: 105px;
+  }
+  .noCheatStamp {
+    right: 0;
+    font-size: 17px;
+    padding: 8px 10px;
+  }
+  .commitLayout .sectionTitle {
+    font-size: 62px;
+  }
+  .prizeNumber {
+    font-size: 120px;
+  }
+  .squadLayout .sectionTitle {
+    font-size: 49px;
+  }
+  .squadPlayers {
+    gap: 7px;
+  }
+  .squadPlayer {
+    height: 150px;
+  }
+  .endline {
+    flex-wrap: wrap;
+  }
+}
+
+/* Reading typography stays consistent across responsive layouts. */
+.page
+  :is(
+    .heroDescription,
+    .objective p,
+    .sectionIntro,
+    .pathway p,
+    .integrity p,
+    .commitNotice p,
+    .walkoverText,
+    .grandPrizeCopy p,
+    .squadCondition p,
+    .finale p
+  ) {
+  font-size: var(--solo-body-size);
+  line-height: 1.8;
+}
+
+.page :is(.objective h3, .commitNotice h3, .squadCondition h3) {
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.page
+  :is(
+    .primaryButton,
+    .simpleLink,
+    .chapterNav a,
+    .point > span:last-child,
+    .rewardRow small,
+    .stepBottom h3,
+    .integrity h3
+  ) {
+  font-size: var(--solo-small-size);
+  line-height: 1.5;
+}
+
+.page
+  :is(
+    .kicker,
+    .chapterLabel,
+    .formatBadges > span,
+    .sixHeader,
+    .sixFooter,
+    .pointLabel,
+    .point small,
+    .pathwayTop,
+    .rankLabel,
+    .slotTag,
+    .qualificationSum,
+    .qualificationSum > span,
+    .bo5Badge > span,
+    .stepIndex,
+    .formatRecap,
+    .banHeading,
+    .banHeading > span:last-child,
+    .banNumber,
+    .integrity > div > span,
+    .warningLabel,
+    .walkoverScores span,
+    .walkoverScores small,
+    .rewardEyebrow,
+    .winnerBadge,
+    .rewardPlace,
+    .squadCaption,
+    .squadPlayer > span,
+    .finaleSignoff,
+    .endline
+  ) {
+  font-size: var(--solo-label-size);
+  line-height: 1.6;
+}
+
+.page .heroMeta {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.page .heroBottom {
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.page .heroDescription {
+  max-width: 355px;
+}
+
+.page .sectionHeading .sectionIntro {
+  max-width: 315px;
+}
+
+.page .objective p {
+  max-width: 390px;
+}
+
+.page .pathway p {
+  min-height: 0;
+}
+
+.page .rewardEyebrow {
+  max-width: 200px;
+}
+
+.page .chapterNav a {
+  min-height: 52px;
+}
+
+.page .chapterNav a > span {
+  font-size: 10px;
+}
+
+.page .stepIndex {
+  min-height: 52px;
+}
+
+.page .formatRecap b {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 800px) and (min-width: 601px) {
+  .page .heroDescription {
+    max-width: 280px;
+  }
+  .page .sectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .page .sectionHeading .sectionIntro {
+    max-width: 430px;
+  }
+  .page .squadLayout {
+    grid-template-columns: 1fr;
+  }
+  .page .squadLayout .sectionIntro {
+    max-width: 600px;
+  }
+  .page .squadVisual {
+    width: min(100%, 450px);
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .page .heroActions {
+    flex-wrap: wrap;
+    gap: 10px 20px;
+  }
+  .page .heroMeta {
+    gap: 8px 20px;
+  }
+  .page .heroBottom {
+    flex-wrap: wrap;
+    gap: 8px 20px;
+  }
+  .page .primaryButton {
+    min-height: 52px;
+    padding: 14px 18px;
+  }
+  .page .motionButton {
+    flex-basis: 44px;
+    height: 44px;
+  }
+  .page .point small {
+    display: block;
+    margin: 6px 0 0;
+    text-align: left;
+  }
+  .page .qualificationSum > span {
+    font-size: 11px;
+  }
+  .page .rewardEyebrow {
+    max-width: none;
+  }
+  .page .banHeading {
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .page .formatRecap {
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: flex-start;
+  }
+  .page .formatRecap > span {
+    min-width: 90px;
+  }
+  .page .formatRecap > svg {
+    display: none;
+  }
+  .page .endline {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html):has(.page) {
+    scroll-behavior: auto;
+  }
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .page [data-reveal] {
+    opacity: 1 !important;
+    translate: none !important;
+  }
+  .page [data-parallax] {
+    --parallax: 0px !important;
+  }
+}

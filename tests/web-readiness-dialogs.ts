@@ -4,12 +4,14 @@ import { hash } from "bcryptjs";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createStages } from "../src/lib/configuration";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
 import { RULE_LABELS } from "../src/lib/domain";
 
 // Run through web-isolated.ts --readiness-dialogs. PLAYWRIGHT_MODULE can point
 // to the desktop's bundled package when Playwright is not installed locally.
 assert.equal(process.env.PAILANGZ_ISOLATED_WEB_TEST, "true");
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
+
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE ?? "playwright"
 );
@@ -297,9 +299,63 @@ try {
   await checkTarget('[aria-label="Select all assigned players"]');
   assert.equal(
     await dialog
-      .getByRole("button", { name: "Edit eligibility", exact: true })
+      .getByRole("button", { name: "Ineligible", exact: true })
       .count(),
     32,
+  );
+  const firstPlayer = await owner.participant.findFirstOrThrow({
+    where: { tournamentId: tournament.id },
+    orderBy: { code: "asc" },
+    include: { member: true },
+  });
+  const toggleRow = page.getByRole("row").filter({
+    has: page.getByText(firstPlayer.member.displayIgn, { exact: true }),
+  });
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const eligible of [true, false]) {
+      const response = page.waitForResponse(
+        (response: {
+          url: () => string;
+          request: () => { method: () => string };
+        }) =>
+          response.url().endsWith("/api/staff") &&
+          response.request().method() === "POST",
+      );
+      await toggleRow
+        .getByRole("button", {
+          name: eligible ? "Ineligible" : "Eligible",
+          exact: true,
+        })
+        .click();
+      assert.equal((await response).status(), 200);
+      const toggle = toggleRow.getByRole("button", {
+        name: eligible ? "Eligible" : "Ineligible",
+        exact: true,
+      });
+      await toggle.waitFor();
+      assert.equal(await toggle.getAttribute("aria-pressed"), String(eligible));
+      assert.equal(
+        (
+          await owner.participant.findUniqueOrThrow({
+            where: { id: firstPlayer.id },
+          })
+        ).eligible,
+        eligible,
+      );
+      assert.equal(
+        await page.getByRole("dialog").count(),
+        1,
+        "Eligibility toggles without opening another dialog",
+      );
+      if (eligible)
+        await page.screenshot({
+          path: `/tmp/pailangz-player-toggles-${width}.png`,
+        });
+    }
+  }
+  console.log(
+    "PASS desktop/mobile eligibility toggles persist both states with one click and no additional dialog",
   );
   await page.keyboard.press("Escape");
   const teamCategory = await owner.category.findFirstOrThrow({
@@ -404,6 +460,188 @@ try {
     .getByRole("link", { name: "View all teams" })
     .click();
   await page.waitForURL(/\/moderator\/teams$/);
+
+  // Removal must use the entrant ID rather than its separate signup ID and
+  // free capacity without deleting community membership or signup history.
+  const [signupPlayer, assignedPlayer] = await owner.participant.findMany({
+    where: { tournamentId: tournament.id },
+    orderBy: { code: "asc" },
+    take: 2,
+    include: { member: true },
+  });
+  const signup = await owner.participationRequest.create({
+    data: { tournamentId: tournament.id, memberId: signupPlayer.memberId },
+  });
+  assert.notEqual(signup.id, signupPlayer.id);
+  await owner.tournament.update({
+    where: { id: tournament.id },
+    data: {
+      registrationEnabled: true,
+      status: "REGISTRATION_OPEN",
+      published: true,
+    },
+  });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(
+    `${origin}/moderator/participation?q=${encodeURIComponent(signupPlayer.member.displayIgn)}`,
+  );
+  const signupRow = page.getByRole("row").filter({
+    has: page.getByText(signupPlayer.member.displayIgn, { exact: true }),
+  });
+  await signupRow.waitFor();
+  assert.equal(
+    await signupRow
+      .getByRole("button", { name: "Remove player", exact: true })
+      .isEnabled(),
+    false,
+  );
+  await owner.tournament.update({
+    where: { id: tournament.id },
+    data: { published: false },
+  });
+  const [beforeRemoval] = await owner.$queryRaw<{ status: string }[]>`
+    SELECT app_participation_status(${tournament.slug}) AS status
+  `;
+  assert.equal(beforeRemoval.status, "FULL");
+  await page.reload();
+  await signupRow
+    .getByRole("button", { name: "Remove player", exact: true })
+    .click();
+  let removal = page.getByRole("dialog");
+  await removal
+    .getByLabel("Reason", { exact: true })
+    .fill("Player cannot attend");
+  assert.ok(
+    await removal
+      .locator('[class*="body"]')
+      .evaluate(
+        (element: HTMLElement) =>
+          element.scrollWidth <= element.clientWidth + 1,
+      ),
+  );
+  await page.screenshot({ path: "/tmp/pailangz-remove-player-desktop.png" });
+  let removed = page.waitForResponse(
+    (response: {
+      url: () => string;
+      request: () => { method: () => string };
+    }) =>
+      response.url().endsWith("/api/staff") &&
+      response.request().method() === "POST",
+  );
+  await removal
+    .getByRole("button", { name: "Remove player from tournament", exact: true })
+    .click();
+  let removalResponse = await removed;
+  assert.equal(removalResponse.status(), 200);
+  assert.equal(
+    removalResponse.request().postDataJSON().data.id,
+    signupPlayer.id,
+  );
+  await signupRow
+    .getByText(`${signupPlayer.code} · Withdrawn`, { exact: true })
+    .waitFor();
+  assert.equal(
+    await signupRow
+      .getByRole("button", { name: "Remove player", exact: true })
+      .count(),
+    0,
+  );
+  assert.equal(
+    (
+      await owner.participant.findUniqueOrThrow({
+        where: { id: signupPlayer.id },
+      })
+    ).withdrawn,
+    true,
+  );
+  assert.equal(
+    await owner.member.count({
+      where: { id: signupPlayer.memberId, verified: true, archived: false },
+    }),
+    1,
+  );
+  assert.equal(
+    await owner.participationRequest.count({ where: { id: signup.id } }),
+    1,
+  );
+  const [availability] = await owner.$queryRaw<
+    { status: string }[]
+  >`SELECT app_participation_status(${tournament.slug}) AS status`;
+  assert.equal(availability.status, "OPEN");
+
+  // The same action works from the assigned-player dialog on mobile.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(workspace);
+  await page.getByRole("tab", { name: "Players & teams", exact: true }).click();
+  await page
+    .getByRole("button", {
+      name: "Review assigned players & eligibility",
+      exact: true,
+    })
+    .click();
+  const playerRow = page.getByRole("row").filter({
+    has: page.getByText(assignedPlayer.member.displayIgn, { exact: true }),
+  });
+  await playerRow
+    .getByRole("button", { name: "Remove player", exact: true })
+    .click();
+  removal = page.getByRole("dialog", {
+    name: `Remove player · ${assignedPlayer.code} · ${assignedPlayer.member.displayIgn}`,
+    exact: true,
+  });
+  await removal
+    .getByLabel("Reason", { exact: true })
+    .fill("Free a place for another player");
+  assert.ok(
+    await removal
+      .locator('[class*="body"]')
+      .evaluate(
+        (element: HTMLElement) =>
+          element.scrollWidth <= element.clientWidth + 1,
+      ),
+  );
+  await page.screenshot({ path: "/tmp/pailangz-remove-player-mobile.png" });
+  removed = page.waitForResponse(
+    (response: {
+      url: () => string;
+      request: () => { method: () => string };
+    }) =>
+      response.url().endsWith("/api/staff") &&
+      response.request().method() === "POST",
+  );
+  await removal
+    .getByRole("button", { name: "Remove player from tournament", exact: true })
+    .click();
+  removalResponse = await removed;
+  assert.equal(removalResponse.status(), 200);
+  await page
+    .getByRole("heading", { name: "Assigned players · 30 of 32", exact: true })
+    .waitFor();
+  assert.equal(await playerRow.count(), 0);
+  assert.equal(
+    (
+      await owner.participant.findUniqueOrThrow({
+        where: { id: assignedPlayer.id },
+      })
+    ).withdrawn,
+    true,
+  );
+  assert.equal(
+    await owner.auditEvent.count({
+      where: {
+        entityId: { in: [signupPlayer.id, assignedPlayer.id] },
+        action: "PARTICIPANT_WITHDRAW",
+      },
+    }),
+    2,
+  );
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close dialog", exact: true })
+    .click();
+  console.log(
+    "PASS desktop signup removal and mobile assigned-player removal free slots, retain members/history, record audits and prevent published edits",
+  );
   assert.deepEqual(errors, []);
   console.log(
     `${opened + 9} readiness dialog checks passed at desktop and mobile widths; saving confirms configured rules, repeated saves retain confirmation, clearing restores incomplete readiness, scrolling, temporary highlights, completed items, reduced motion, keyboard, focus restoration, unsaved changes and team navigation passed.`,

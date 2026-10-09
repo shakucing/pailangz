@@ -12,6 +12,7 @@ export function PublicNavigation({ locale }: { locale: Locale }) {
       {[
         ["/", t("Komuniti", "Community")],
         ["/tournaments", t("Kejohanan", "Tournaments")],
+        ["/solo", "Solo"],
       ].map(([href, label]) => (
         <NavigationLink
           key={href}

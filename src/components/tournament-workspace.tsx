@@ -15,7 +15,7 @@ const sections = [
   {
     key: "overview",
     label: "Overview & schedule",
-    hint: "Dates, registration and publication",
+    hint: "Dates and registration",
     icon: CalendarDays,
   },
   {
@@ -61,7 +61,8 @@ export function TournamentWorkspace({
   stages,
   updates,
   readiness,
-}: Record<Section | "readiness", ReactNode>) {
+  format,
+}: Record<Section | "readiness", ReactNode> & { format?: "SOLO" | "TEAM" }) {
   const [active, setActive] = useState<Section>("overview");
   const uid = useId();
   const root = useRef<HTMLDivElement>(null);
@@ -133,7 +134,11 @@ export function TournamentWorkspace({
                 }}
               >
                 <section.icon size={18} aria-hidden="true" />
-                <span>{section.label}</span>
+                <span>
+                  {section.key === "players" && format === "SOLO"
+                    ? "Players"
+                    : section.label}
+                </span>
               </button>
             ))}
           </div>

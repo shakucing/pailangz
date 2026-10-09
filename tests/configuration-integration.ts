@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type pg from "pg";
 import { privateTx, type Actor } from "../src/lib/db";
 import {
-  newTournamentConfiguration,
+  newTournamentConfiguration as soloDefaults,
   originalConfiguration,
   configuration,
 } from "../src/lib/tournament-config";
@@ -26,6 +26,8 @@ import {
   createSoloBracket,
 } from "../src/lib/competition";
 import { teamUpdate, createTeamBracket } from "../src/lib/operations";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 export async function checkConfigurations(
   owner: pg.Client,

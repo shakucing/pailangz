@@ -4,7 +4,9 @@ import { readFile } from "node:fs/promises";
 import type pg from "pg";
 import { encrypt } from "../src/lib/crypto";
 import type { Actor } from "../src/lib/db";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 export async function checkParticipation(
   owner: pg.Client,

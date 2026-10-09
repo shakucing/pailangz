@@ -3,6 +3,7 @@ import type { Tx } from "@/lib/db";
 import { operationalTime } from "@/lib/public-data";
 import { SectionPages } from "./operations-sections";
 import { staffParticipation } from "@/lib/staff-participation";
+import { RemoveTournamentPlayer } from "./remove-tournament-player";
 
 export async function renderParticipation(
   tx: Tx,
@@ -15,12 +16,13 @@ export async function renderParticipation(
   return (
     <div className="stack">
       <p className="muted">
-        Players added from tournament drafts and player signups for both SOLO
-        &amp; TEAM, using each tournament’s configured capacity. Matching
-        approved, active members receive a tournament slot automatically.
-        Approved players can register teams and apply to join them; owners
-        approve their applications. Staff can manage assignments in Team
-        rosters.
+        Players added from tournament drafts and signups, using each event’s own
+        format and capacity. Matching approved, active members receive a
+        tournament slot automatically. Approved TEAM players can register teams
+        and apply to join them; owners approve their applications. Staff can
+        manage assignments in Team rosters. Use Remove player to withdraw an
+        entrant and free their tournament slot while retaining their member
+        record. Unpublish the tournament before removing players.
       </p>
       <form className="filter" method="get">
         <label className="sr-only" htmlFor="participation-search">
@@ -45,11 +47,12 @@ export async function renderParticipation(
               <tr>
                 <th>Player</th>
                 <th>Tournament</th>
-                <th>Categories</th>
-                <th>SOLO slot</th>
+                <th>Format</th>
+                <th>Player slot</th>
                 <th>TEAM assignment</th>
                 <th>Added through</th>
                 <th>Received</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -73,22 +76,46 @@ export async function renderParticipation(
                         {row.tournamentName}
                       </Link>
                     </td>
-                    <td>SOLO &amp; TEAM</td>
+                    <td>{row.format ?? "SOLO & TEAM"}</td>
                     <td>
                       {solo
                         ? `${solo.code} · ${solo.withdrawn ? "Withdrawn" : solo.eligible ? "Eligible" : "Needs confirmation"}`
                         : "Awaiting slot"}
                     </td>
                     <td>
-                      <Link href={`${base}/teams`}>
-                        {team?.team.name ?? "Awaiting assignment"}
-                      </Link>
+                      {row.format === "SOLO" ? (
+                        "—"
+                      ) : (
+                        <Link href={`${base}/teams`}>
+                          {team?.team.name ?? "Awaiting assignment"}
+                        </Link>
+                      )}
                     </td>
                     <td>
                       {row.receivedAt ? "Player signup" : "Staff assignment"}
                     </td>
                     <td>
                       {row.receivedAt ? operationalTime(row.receivedAt) : "—"}
+                    </td>
+                    <td>
+                      {solo && !solo.withdrawn ? (
+                        <>
+                          <RemoveTournamentPlayer
+                            participantId={solo.id}
+                            playerName={row.member.displayIgn}
+                            code={solo.code}
+                            tournamentName={row.tournamentName}
+                            disabled={row.tournamentPublished}
+                          />
+                          {row.tournamentPublished && (
+                            <p className="muted text-sm">
+                              Unpublish before removing players.
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                   </tr>
                 );

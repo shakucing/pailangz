@@ -335,10 +335,15 @@ try {
         const direct = leagueRows.slice(0, 4),
           playoff = ranked.slice(0, 4);
         const pairs = direct.map((r, i) => ({ a: r.id, b: playoff[3 - i].id }));
-        const stats = await persistBracket(tx, knockout.id, 8, pairs, "SOLO", [
-          leagueSnapshot.id,
-          snapshot.id,
-        ]);
+        const stats = await persistBracket(
+          tx,
+          knockout.id,
+          8,
+          pairs,
+          "SOLO",
+          config,
+          [leagueSnapshot.id, snapshot.id],
+        );
         await audit(
           tx,
           null,

@@ -9,8 +9,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { audit } from "../src/lib/db";
 import { decrypt, encrypt } from "../src/lib/crypto";
 import { createStages } from "../src/lib/configuration";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
 import { emptyTournamentUpgrade } from "./neon-data-upgrade";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 // Operator-only reset for the named, unplayed event. Member identities, private
 // registrations, applications and immutable audit history are never deleted.
@@ -83,6 +85,9 @@ export async function resetOfficialTournament(
         applicationsRetained: tournament.participationRequests.length,
         configuration: newTournamentConfiguration,
       };
+      // Independent events supersede this historical combined-event reset.
+      if ((tournament.configuration as { format?: string }).format)
+        return { applied: false, alreadyApplied: true, ...summary };
       // Check the durable marker before reset guards: future migrations must
       // leave new entrants, published events and played matches untouched.
       if (

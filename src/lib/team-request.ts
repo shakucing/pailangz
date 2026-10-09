@@ -39,6 +39,7 @@ const errors = new Set([
   "ORIGIN",
   "NOT_APPROVED",
   "CLOSED",
+  "STAFF_MANAGED",
   "NOT_FOUND",
   "OWNER_ONLY",
   "ALREADY_IN_TEAM",

@@ -5,6 +5,10 @@ import { Check, GitBranch, Medal, RotateCcw, Trophy } from "lucide-react";
 import { useLocale } from "./locale-context";
 import { TeamAvatar } from "./team-avatar";
 import { BracketQualification } from "./bracket-qualification";
+import {
+  TournamentPlayerName,
+  useTournamentPlayerResults,
+} from "./tournament-player-results";
 import { bracketQualification } from "@/lib/bracket-qualification";
 import type { EventMatch, EventStage } from "@/lib/event-presentation-data";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
@@ -49,6 +53,7 @@ export function InteractiveBracket({
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const id = useId();
+  const playerResults = useTournamentPlayerResults();
   const hasOfficial = rounds.some((round) => round.matches.length);
   const [mode, setMode] = useState<"official" | "picks">(
     hasOfficial ? "official" : "picks",
@@ -294,9 +299,11 @@ export function InteractiveBracket({
                 : t("Juara", "Champion")}
             </small>
             <strong>
-              {champion
-                ? display(champion)
-                : t("Menunggu pemenang final", "Awaiting final winner")}
+              {champion ? (
+                <TournamentPlayerName value={display(champion)} />
+              ) : (
+                t("Menunggu pemenang final", "Awaiting final winner")
+              )}
             </strong>
           </span>
         </div>
@@ -310,9 +317,11 @@ export function InteractiveBracket({
                 : t("Naib juara", "Runner-up")}
             </small>
             <strong>
-              {runnerUp
-                ? display(runnerUp)
-                : t("Menunggu final", "Awaiting final")}
+              {runnerUp ? (
+                <TournamentPlayerName value={display(runnerUp)} />
+              ) : (
+                t("Menunggu final", "Awaiting final")
+              )}
             </strong>
           </span>
         </div>
@@ -413,6 +422,14 @@ export function InteractiveBracket({
                             entrant && !entrant.seed
                               ? origins.get(entrant.label.split(" · ")[0])
                               : undefined;
+                          const hasPlayerResults = Boolean(
+                            category === "SOLO" &&
+                            entrant &&
+                            !entrant.seed &&
+                            playerResults?.players.has(
+                              entrant.label.split(" · ")[0],
+                            ),
+                          );
                           const contents = (
                             <>
                               {category === "TEAM" && entrant ? (
@@ -423,7 +440,12 @@ export function InteractiveBracket({
                                 </span>
                               )}
                               <span className={styles.entrantName}>
-                                {name}
+                                {activeMode === "official" ||
+                                hasPlayerResults ? (
+                                  <TournamentPlayerName value={name} />
+                                ) : (
+                                  name
+                                )}
                                 {origin && (
                                   <small className={styles.origin}>
                                     {origin.stage === "league"
@@ -433,10 +455,36 @@ export function InteractiveBracket({
                                   </small>
                                 )}
                               </span>
-                              {winner && <Check size={15} aria-hidden="true" />}
+                              {winner &&
+                                (activeMode === "official" ||
+                                  !hasPlayerResults) && (
+                                  <Check size={15} aria-hidden="true" />
+                                )}
                             </>
                           );
-                          return activeMode === "picks" ? (
+                          return activeMode === "picks" && hasPlayerResults ? (
+                            <div
+                              key={side}
+                              className={`${styles.entrant}${winner ? ` ${styles.winner}` : ""}`}
+                            >
+                              {contents}
+                              <button
+                                type="button"
+                                className={styles.pick}
+                                disabled={!canPick}
+                                aria-pressed={winner}
+                                aria-label={t(
+                                  `Pilih ${name} sebagai pemenang ${label}`,
+                                  `Pick ${name} as winner of ${label}`,
+                                )}
+                                onClick={() =>
+                                  entrant && choose(match.id, entrant, label)
+                                }
+                              >
+                                <Check size={15} aria-hidden="true" />
+                              </button>
+                            </div>
+                          ) : activeMode === "picks" ? (
                             <button
                               type="button"
                               key={side}
@@ -467,7 +515,10 @@ export function InteractiveBracket({
                         <div className={styles.matchFooter}>
                           {match.winner ? (
                             <span>
-                              {t("Pemenang", "Winner")}: {display(match.winner)}
+                              {t("Pemenang", "Winner")}:{" "}
+                              <TournamentPlayerName
+                                value={display(match.winner)}
+                              />
                               {score &&
                               !match.result?.outcome.includes("FORFEIT")
                                 ? ` · ${score}`

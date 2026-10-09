@@ -1,11 +1,17 @@
 import type { Tx } from "./db";
-import { knockoutRoundNames, type ScheduledPair } from "./tournament-config";
+import {
+  knockoutBestOf,
+  knockoutRoundNames,
+  type ScheduledPair,
+  type TournamentConfiguration,
+} from "./tournament-config";
 export async function persistBracket(
   tx: Tx,
   stageId: string,
   size: number,
   pairs: ScheduledPair[],
   kind: "SOLO" | "TEAM",
+  config: TournamentConfiguration,
   snapshotIds: string[] = [],
 ) {
   const names = knockoutRoundNames(size);
@@ -24,7 +30,7 @@ export async function persistBracket(
           sideKind: kind === "TEAM" ? "TEAM" : "PARTICIPANT",
           sideAId: pair?.a,
           sideBId: pair?.b,
-          bestOf: kind === "SOLO" || r === names.length - 1 ? 5 : 3,
+          bestOf: knockoutBestOf(config, kind, r === names.length - 1),
           status: pair && pair.b === null ? "BYE" : "SCHEDULED",
         },
       });

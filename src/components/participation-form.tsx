@@ -12,10 +12,12 @@ export function ParticipationClosed({
   status,
   slug,
   focus = false,
+  format,
 }: {
   status: Exclude<ParticipationStatus, "OPEN">;
   slug: string;
   focus?: boolean;
+  format?: "SOLO" | "TEAM" | null;
 }) {
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
@@ -31,22 +33,32 @@ export function ParticipationClosed({
       <p className="muted">
         {status === "FULL"
           ? t(
-              "Semua slot pemain kejohanan telah diisi. Permohonan baharu untuk SOLO & TEAM telah ditutup.",
-              "All tournament player slots are filled. New applications for SOLO & TEAM are closed.",
+              "Semua slot pemain kejohanan telah diisi. Permohonan baharu untuk kejohanan ini telah ditutup.",
+              "All tournament player slots are filled. New applications for this tournament are closed.",
             )
           : t(
               "Pendaftaran kejohanan ini tidak tersedia atau telah ditutup. Hubungi moderator untuk maklumat lanjut.",
               "Tournament registration is unavailable or closed. Contact a moderator for more information.",
             )}
       </p>
-      <Link className="button secondary" href={`/tournaments/${slug}/teams`}>
-        {t("Lihat pasukan", "Browse teams")}
-      </Link>
+      {format !== "SOLO" && (
+        <Link className="button secondary" href={`/tournaments/${slug}/teams`}>
+          {t("Lihat pasukan", "Browse teams")}
+        </Link>
+      )}
     </section>
   );
 }
 
-export function ParticipationForm({ slug }: { slug: string }) {
+export function ParticipationForm({
+  slug,
+  format,
+  teamRosterManagement = "PLAYER",
+}: {
+  slug: string;
+  format?: "SOLO" | "TEAM" | null;
+  teamRosterManagement?: "PLAYER" | "STAFF";
+}) {
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const [busy, setBusy] = useState(false);
@@ -78,17 +90,37 @@ export function ParticipationForm({ slug }: { slug: string }) {
         </h2>
         <p className="muted">
           {t(
-            "IGN dan ID TikTok anda sepadan dengan rekod ahli aktif. Slot kejohanan SOLO & TEAM anda telah diluluskan secara automatik. Anda boleh terus daftar pasukan atau mohon sertai pasukan.",
-            "Your IGN and TikTok ID match your active member record. Your SOLO & TEAM tournament slot is automatically approved. You can now register a team or apply to join one.",
+            `IGN dan ID TikTok anda sepadan dengan rekod ahli aktif. Penyertaan ${format ?? "SOLO & TEAM"} anda telah diluluskan.`,
+            `Your IGN and TikTok ID match your active member record. Your ${format ?? "SOLO & TEAM"} tournament entry is approved.`,
           )}
+          {format !== "SOLO" &&
+            teamRosterManagement === "STAFF" &&
+            t(
+              " Pihak staf akan menetapkan anda ke pasukan. Anda boleh melihat roster selepas penetapan dibuat.",
+              " Staff will assign you to a team. You can view the rosters once assignments are made.",
+            )}
+          {format !== "SOLO" &&
+            teamRosterManagement === "PLAYER" &&
+            t(
+              " Anda boleh daftar pasukan atau mohon sertai pasukan.",
+              " You can now register a team or apply to join one.",
+            )}
         </p>
-        <Link className="button secondary" href={`/tournaments/${slug}/teams`}>
-          {t("Lihat pasukan", "Browse teams")}
-        </Link>
+        {format !== "SOLO" && (
+          <Link
+            className="button secondary"
+            href={`/tournaments/${slug}/teams`}
+          >
+            {t("Lihat pasukan", "Browse teams")}
+          </Link>
+        )}
       </section>
     );
 
-  if (closed) return <ParticipationClosed status={closed} slug={slug} focus />;
+  if (closed)
+    return (
+      <ParticipationClosed status={closed} slug={slug} format={format} focus />
+    );
 
   return (
     <form
@@ -163,9 +195,8 @@ export function ParticipationForm({ slug }: { slug: string }) {
       }}
     >
       <div className={participation.included}>
-        <strong>SOLO</strong>
-        <strong>TEAM</strong>
-        <span>{t("Kedua-duanya termasuk", "Both included")}</span>
+        <strong>{format ?? "SOLO & TEAM"}</strong>
+        <span>{t("Penyertaan kejohanan", "Tournament entry")}</span>
       </div>
       <div className={participation.fields}>
         {(
@@ -223,8 +254,8 @@ export function ParticipationForm({ slug }: { slug: string }) {
         <p className={styles.privacy}>
           <ShieldCheck size={18} aria-hidden="true" />
           {t(
-            "ID TikTok digunakan untuk padanan rekod dan tidak dipaparkan secara awam. Ahli aktif yang sepadan diluluskan secara automatik selagi slot tersedia. Permohonan menyertai pasukan diluluskan oleh pemilik pasukan.",
-            "Your TikTok ID is used to match your record and is never shown publicly. Matching active members are automatically approved while slots are available. Team owners approve requests to join their teams.",
+            "ID TikTok digunakan untuk padanan rekod dan tidak dipaparkan secara awam. Ahli aktif yang sepadan diluluskan secara automatik selagi slot tersedia.",
+            "Your TikTok ID is used to match your record and is never shown publicly. Matching active members are automatically approved while slots are available.",
           )}
         </p>
         {error && (

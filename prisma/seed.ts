@@ -2,6 +2,7 @@ import {
   newTournamentConfiguration,
   originalConfiguration,
 } from "../src/lib/tournament-config";
+import { createOfficialTeamTournament } from "../scripts/split-official-tournament";
 import { createStages } from "../src/lib/configuration";
 import "dotenv/config";
 import { pathToFileURL } from "node:url";
@@ -39,13 +40,16 @@ export async function seed({ legacyFixtures = false } = {}) {
         tournament = await tx.tournament.create({
           data: {
             slug: "pailangz-solo-team",
-            name: "PAILANGZ & PAILANGZZ — Solo & Team Tournament",
+            name: legacyFixtures
+              ? "PAILANGZ & PAILANGZZ — Solo & Team Tournament"
+              : "PAILANGZ & PAILANGZZ — Solo Tournament",
             registrationEnabled: true,
             configuration: legacyFixtures
               ? originalConfiguration
               : newTournamentConfiguration,
-            overview:
-              "Aktiviti bersama dan persaingan sihat untuk mengenal pasti pemain solo serta pasukan terkuat PAILANGZ dan PAILANGZZ. Pemain bebas memilih weapons dan weapon modes.",
+            overview: legacyFixtures
+              ? "Aktiviti bersama dan persaingan sihat untuk mengenal pasti pemain solo serta pasukan terkuat PAILANGZ dan PAILANGZZ. Pemain bebas memilih weapons dan weapon modes."
+              : "Kejohanan SOLO PAILANGZ dan PAILANGZZ: liga, kelayakan dan knockout. Pemain bebas memilih weapons dan weapon modes.",
           },
         });
         await audit(
@@ -64,6 +68,14 @@ export async function seed({ legacyFixtures = false } = {}) {
         update: {},
         create: { key: "officialSeedTournament", value: tournament.id },
       });
+      if ((tournament.configuration as { format?: string }).format === "SOLO") {
+        const team = await createOfficialTeamTournament(tx);
+        if (!(await tx.category.count({ where: { tournamentId: team.id } })))
+          await createStages(tx, team.id, {
+            ...newTournamentConfiguration,
+            format: "TEAM",
+          });
+      }
       if (tournament.configurationVersion > 1) {
         revised = true;
         return;
@@ -237,7 +249,7 @@ export async function seed({ legacyFixtures = false } = {}) {
     revised
       ? "Official seed retained; applied configuration revisions were not changed."
       : emptyDraft
-        ? "Official draft ready: 32 SOLO players / eight teams of four; no assignments or fixtures generated."
+        ? "Independent drafts ready: 32-player SOLO and eight-team TEAM; no assignments or fixtures generated."
         : "Official draft seed verified: 64 provisional players; 6 rounds; 192 distinct series. No results or staff credentials seeded.",
   );
 }

@@ -9,8 +9,27 @@ import {
   qualificationRange,
   configuredByes,
 } from "../src/lib/tournament-presentation";
+import { previewBracket } from "../src/lib/interactive-bracket";
 
 describe("tournament presentation follows configuration", () => {
+  it.each(["SOLO", "TEAM"] as const)(
+    "shows BO5 knockout rounds and a separate BO7 %s final",
+    (kind) => {
+      const config = configuration({
+        ...newTournamentConfiguration,
+        soloKnockoutBestOf: 5,
+        soloFinalBestOf: 7,
+        teamKnockoutBestOf: 5,
+        teamFinalBestOf: 7,
+      });
+      expect(progressionRounds(config, kind).map((r) => r.bestOf)).toEqual([
+        5, 5, 7,
+      ]);
+      expect(
+        previewBracket(config, kind).map((r) => r.matches.map((m) => m.bestOf)),
+      ).toEqual([[5, 5, 5, 5], [5, 5], [7]]);
+    },
+  );
   it("shows the original league qualification range and BO5 SOLO progression", () => {
     expect(qualificationRange(originalConfiguration)).toEqual({
       from: 9,

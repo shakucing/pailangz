@@ -1,5 +1,6 @@
 import { caseFold } from "unicode-case-folding";
 import { z } from "zod";
+import { BEST_OF_HELP, isValidBestOf, MAX_BEST_OF } from "./best-of";
 
 export class DomainError extends Error {
   constructor(
@@ -32,7 +33,7 @@ export function optionalNote(value: unknown) {
 export const resultSchema = z.object({
   matchId: z.string().uuid(),
   outcome: z.enum(["A_WIN", "B_WIN", "DRAW", "A_FORFEIT", "B_FORFEIT"]),
-  games: z.array(gameSchema).max(5),
+  games: z.array(gameSchema).max(MAX_BEST_OF),
   reason: noteSchema,
   idempotencyKey: z.string().uuid(),
 });
@@ -44,7 +45,7 @@ export type Rules = {
   tiebreakers?: string[];
   qualificationBestOf?: number;
   qualificationCarry?: boolean;
-  qualificationPairing?: string;
+  qualificationPairing?: "manual" | "auto";
   qualificationTiebreakers?: string[];
   knockoutPairing?: string;
   teamSeeding?: string;
@@ -79,8 +80,7 @@ export function validateSeries(
     throw new DomainError(
       "Confirm draw policy and series-level scoring first.",
     );
-  if (![3, 5].includes(bestOf))
-    throw new DomainError("A confirmed BO3 or BO5 series is required.");
+  if (!isValidBestOf(bestOf)) throw new DomainError(BEST_OF_HELP);
   const needed = Math.floor(bestOf / 2) + 1;
   let a = 0,
     b = 0;
@@ -257,17 +257,17 @@ export function stageRankingRules(
     : { rules, confirmed };
 }
 
-const transitions: Record<string, string[]> = {
-  DRAFT: ["REGISTRATION_OPEN", "ARCHIVED"],
-  REGISTRATION_OPEN: ["REGISTRATION_CLOSED", "ARCHIVED"],
-  REGISTRATION_CLOSED: ["IN_PROGRESS", "ARCHIVED"],
-  IN_PROGRESS: ["COMPLETED", "ARCHIVED"],
-  COMPLETED: ["ARCHIVED"],
-  ARCHIVED: [],
-};
+const tournamentStatuses = [
+  "DRAFT",
+  "REGISTRATION_OPEN",
+  "REGISTRATION_CLOSED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "ARCHIVED",
+];
 export function assertTransition(from: string, to: string) {
-  if (from !== to && !transitions[from]?.includes(to))
-    throw new DomainError(`Cannot transition ${from} to ${to}.`);
+  if (!tournamentStatuses.includes(from) || !tournamentStatuses.includes(to))
+    throw new DomainError("Unknown tournament status.");
 }
 export function canAccess(
   role: string,
@@ -294,10 +294,24 @@ export function readiness(
   stages: { confirmedRules: string[] }[],
   eligible: number,
   teams: number,
-  targets: { soloCapacity: number; teamCapacity: number },
+  targets: {
+    soloCapacity: number;
+    teamCapacity: number;
+    format?: "SOLO" | "TEAM";
+  },
 ) {
   const confirmed = new Set(stages.flatMap((s) => s.confirmedRules));
+  const solo = targets.format !== "TEAM";
+  const team = targets.format !== "SOLO";
   return Object.entries(RULE_LABELS)
+    .filter(([key]) =>
+      key === "teamSeeding"
+        ? team
+        : ["tiebreakers", "knockoutPairing"].includes(key) ||
+            key.startsWith("qualification")
+          ? solo
+          : true,
+    )
     .map(([key, label]) => ({
       key,
       label,
@@ -309,20 +323,28 @@ export function readiness(
             : confirmed.has(key),
     }))
     .concat([
-      {
-        key: "mapping",
-        label: "Player list confirmed",
-        done: t.mappingConfirmed,
-      },
-      {
-        key: "eligibility",
-        label: `${targets.soloCapacity} approved and eligible SOLO players`,
-        done: eligible === targets.soloCapacity,
-      },
-      {
-        key: "teams",
-        label: `${targets.teamCapacity} teams with four eligible players each`,
-        done: teams === targets.teamCapacity,
-      },
+      ...(solo
+        ? [
+            {
+              key: "mapping",
+              label: "Player list confirmed",
+              done: t.mappingConfirmed,
+            },
+            {
+              key: "eligibility",
+              label: `${targets.soloCapacity} approved and eligible SOLO players`,
+              done: eligible === targets.soloCapacity,
+            },
+          ]
+        : []),
+      ...(team
+        ? [
+            {
+              key: "teams",
+              label: `${targets.teamCapacity} teams with four eligible players each`,
+              done: teams === targets.teamCapacity,
+            },
+          ]
+        : []),
     ]);
 }

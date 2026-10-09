@@ -1,4 +1,5 @@
 import type { TournamentConfiguration } from "./tournament-config";
+import { defaultSeriesLengths } from "./best-of";
 
 export type Choice = { value: string; label: string; disabled?: boolean };
 
@@ -38,6 +39,7 @@ const labels: Record<string, string> = {
   slug: "Tournament link",
   startsAt: "Tournament starts",
   registrationDeadline: "Registration closes",
+  teamRosterManagement: "Team roster management",
   configuration: "Tournament sizes",
   MISSING: "No phone number provided",
   INVALID_REQUIRES_REVIEW: "Phone number needs checking",
@@ -61,6 +63,7 @@ const labels: Record<string, string> = {
   moderated_draw: "Draws allowed after review",
   none: "None",
   manual: "Chosen by staff",
+  auto: "Automatically assigned",
   ranked_cross: "Pair by final rankings",
   rotating_no_points: "Everyone takes a rest round; no points awarded",
   seeded_top: "Top-ranked entrants advance without playing",
@@ -95,11 +98,20 @@ export const sizeFields = [
   ["qualificationMatchesPerPlayer", "Playoff matches for each player", 1],
 ] as const;
 
+export const seriesFields = [
+  ["leagueBestOf", "SOLO league best of"],
+  ["soloKnockoutBestOf", "SOLO knockout best of"],
+  ["soloFinalBestOf", "SOLO final best of"],
+  ["teamKnockoutBestOf", "TEAM knockout best of"],
+  ["teamFinalBestOf", "TEAM final best of"],
+] as const;
+
 export const ruleFields: {
   key: string;
   label: string;
   choices?: Choice[];
   order?: boolean;
+  bestOf?: boolean;
 }[] = [
   {
     key: "seriesPoints",
@@ -122,10 +134,7 @@ export const ruleFields: {
   {
     key: "qualificationBestOf",
     label: "Playoff match length",
-    choices: [
-      { value: "3", label: "Best of 3 games" },
-      { value: "5", label: "Best of 5 games" },
-    ],
+    bestOf: true,
   },
   {
     key: "qualificationCarry",
@@ -138,7 +147,10 @@ export const ruleFields: {
   {
     key: "qualificationPairing",
     label: "Playoff opponents",
-    choices: [{ value: "manual", label: "Staff choose each pairing" }],
+    choices: [
+      { value: "manual", label: "Staff choose each pairing" },
+      { value: "auto", label: "Auto assign balanced opponents" },
+    ],
   },
   {
     key: "qualificationTiebreakers",
@@ -198,18 +210,38 @@ export function displayValue(value: unknown): string {
 export function configurationRows(value: unknown) {
   const c = value as Partial<TournamentConfiguration>;
   return [
-    ...sizeFields.map(([key, label]) => ({
-      key,
-      label,
-      value: String(c?.[key] ?? "Not set"),
-    })),
-    ...(["leagueByePolicy", "bracketByePolicy", "scheduleSource"] as const).map(
-      (key, i) => ({
+    ...(c?.format
+      ? [{ key: "format", label: "Tournament format", value: c.format }]
+      : []),
+    ...sizeFields
+      .filter(([key]) =>
+        key.startsWith("team") ? c?.format !== "SOLO" : c?.format !== "TEAM",
+      )
+      .map(([key, label]) => ({
         key,
-        label: ["League rest rounds", "Knockout rest rounds", "Schedule"][i],
+        label,
+        value: String(c?.[key] ?? "Not set"),
+      })),
+    ...seriesFields
+      .filter(([key]) =>
+        key.startsWith("team") ? c?.format !== "SOLO" : c?.format !== "TEAM",
+      )
+      .map(([key, label]) => ({
+        key,
+        label,
+        value: `BO${c?.[key] ?? defaultSeriesLengths[key]}`,
+      })),
+    ...(["leagueByePolicy", "bracketByePolicy", "scheduleSource"] as const)
+      .filter((key) => c?.format !== "TEAM" || key === "bracketByePolicy")
+      .map((key) => ({
+        key,
+        label: {
+          leagueByePolicy: "League rest rounds",
+          bracketByePolicy: "Knockout rest rounds",
+          scheduleSource: "Schedule",
+        }[key],
         value: displayValue(c?.[key]),
-      }),
-    ),
+      })),
   ];
 }
 

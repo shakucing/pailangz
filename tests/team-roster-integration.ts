@@ -4,7 +4,9 @@ import type pg from "pg";
 import type { Actor } from "../src/lib/db";
 import { teamUpdate } from "../src/lib/operations";
 import { saveTournament } from "../src/lib/competition";
-import { newTournamentConfiguration } from "../src/lib/tournament-config";
+import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
+
+const { format: _format, ...newTournamentConfiguration } = soloDefaults;
 
 export async function checkTeamRosterRegistration(
   owner: pg.Client,

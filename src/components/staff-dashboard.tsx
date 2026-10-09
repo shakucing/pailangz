@@ -1,4 +1,5 @@
 import { TaskDialog, TaskDialogButton } from "./workspace-dialog";
+import { AnnouncementForm } from "./announcement-form";
 import { TeamRosterForm } from "./team-roster-form";
 import { TeamAvatar } from "./team-avatar";
 import {
@@ -19,6 +20,7 @@ import { MatchResultForm } from "./match-result-form";
 import {
   configuration,
   newTournamentConfiguration,
+  playerCapacity,
 } from "@/lib/tournament-config";
 import Link from "next/link";
 import Form from "next/form";
@@ -252,8 +254,49 @@ async function renderSection(
       const rows = await tx.tournament.findMany({
         orderBy: { createdAt: "desc" },
       });
+      const highlights = await tx.landingHighlight.findMany();
       return (
         <div className="stack">
+          <div className="panel">
+            <h3>Landing page highlights</h3>
+            <p className="muted text-sm">
+              Choose up to one SOLO and one TEAM tournament for the landing page
+              event centre. Select None to hide that format. With both set to
+              None, the section is hidden. Unpublished tournaments show a
+              schedule preview; results require publication.
+            </p>
+            <ActionForm
+              key={JSON.stringify(highlights)}
+              action="landingHighlights"
+              fixed={{ soloId: null, teamId: null }}
+              fields={[
+                ...(["SOLO", "TEAM"] as const).map((format) => ({
+                  name: format === "SOLO" ? "soloId" : "teamId",
+                  label: `${format} highlight`,
+                  type: "select" as const,
+                  value:
+                    highlights.find((highlight) => highlight.format === format)
+                      ?.tournamentId ?? "",
+                  options: [
+                    { value: "", label: "None" },
+                    ...rows
+                      .filter(
+                        (tournament) =>
+                          tournament.status !== "ARCHIVED" &&
+                          configuration(tournament.configuration).format ===
+                            format,
+                      )
+                      .map((tournament) => ({
+                        value: tournament.id,
+                        label: `${tournament.name} · ${friendlyLabel(tournament.status)}`,
+                      })),
+                  ],
+                })),
+                reason,
+              ]}
+              label="Save landing highlights"
+            />
+          </div>
           {rows.map((t) => (
             <Link
               className="panel"
@@ -261,6 +304,7 @@ async function renderSection(
               key={t.id}
             >
               <span className="badge neutral">
+                {configuration(t.configuration).format ?? "SOLO & TEAM"} ·{" "}
                 {friendlyLabel(t.status)} ·{" "}
                 {t.published ? "Published" : "Private draft"}
               </span>
@@ -303,10 +347,9 @@ async function renderSection(
     const { t, checks } = await tournamentReadiness(tx, q.id);
     const stages = t.categories.flatMap((c) => c.stages);
     const config = configuration(t.configuration);
-    const remainingPlayerPlaces = Math.max(
-      0,
-      config.soloCapacity - t.participants.length,
-    );
+    const solo = config.format !== "TEAM";
+    const capacity = playerCapacity(config);
+    const remainingPlayerPlaces = Math.max(0, capacity - t.participants.length);
     const teamCategory = t.categories.find(
       (category) => category.kind === "TEAM",
     );
@@ -412,9 +455,9 @@ async function renderSection(
                   : config.bracketByePolicy))
           );
         });
-      return leagueStage;
+      return leagueStage ?? stages[0];
     };
-    const readinessAction = (check: (typeof checks)[number]) => {
+    const readinessTarget = (check: (typeof checks)[number]) => {
       const target =
         check.key === "teams"
           ? "tournament-teams"
@@ -447,12 +490,13 @@ async function renderSection(
                   : check.key === "gameTitle"
                     ? '[name="gameTitle"]'
                     : `[name="rule:${check.key === "byes" ? "byePolicy" : check.key}"]`;
-      return (
-        <TaskDialogButton target={target} fieldTarget={fieldTarget}>
-          {check.label}
-        </TaskDialogButton>
-      );
+      return { target, fieldTarget };
     };
+    const readinessAction = (check: (typeof checks)[number]) => (
+      <TaskDialogButton {...readinessTarget(check)}>
+        {check.label}
+      </TaskDialogButton>
+    );
     return (
       <div className="stack">
         <Link className="text-link" href={`${base}/tournaments`}>
@@ -482,14 +526,21 @@ async function renderSection(
               {t.published ? "Public" : "Private draft"}
             </h3>
             <p className="muted text-sm">
-              {t.participants.length}/{config.soloCapacity} players ·{" "}
-              {
-                t.categories
-                  .flatMap((c) => c.teams)
-                  .filter((team) => !team.archived).length
-              }
-              /{config.teamCapacity} teams · Sizes update{" "}
-              {t.configurationVersion}
+              {config.format ?? "SOLO & TEAM"} · {t.participants.length}/
+              {capacity} players
+              {teamCategory && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {
+                    t.categories
+                      .flatMap((c) => c.teams)
+                      .filter((team) => !team.archived).length
+                  }
+                  /{config.teamCapacity} teams
+                </>
+              )}{" "}
+              · Sizes update {t.configurationVersion}
             </p>
           </div>
           <div className="actions">
@@ -502,9 +553,47 @@ async function renderSection(
           </div>
         </div>
         <TournamentWorkspace
+          format={config.format}
           readiness={
-            <>
-              {" "}
+            <div className="stack">
+              <div className="panel">
+                <h3>Publication</h3>
+                <p className="muted text-sm">
+                  {t.published
+                    ? "Fixtures and results are public. Unpublishing returns them to staff access and keeps saved players and match history."
+                    : "Fixtures and results are private. Publishing requires every readiness check to be complete."}
+                </p>
+                <ActionForm
+                  action="publish"
+                  fixed={{ id: t.id, published: !t.published }}
+                  fields={[reason]}
+                  label={
+                    t.published ? "Unpublish tournament" : "Publish tournament"
+                  }
+                  errorActions={[
+                    {
+                      when: "Change the tournament to an active state before publishing.",
+                      target: "tournament-overview",
+                      fieldTarget: '[name="status"]',
+                    },
+                    ...checks.map((check) => ({
+                      when: check.label,
+                      label: check.label,
+                      ...readinessTarget(check),
+                    })),
+                  ]}
+                />
+                <p className="muted text-sm mt-4 mb-0">
+                  Registration is controlled separately in{" "}
+                  <TaskDialogButton
+                    target="tournament-overview"
+                    fieldTarget='[name="registrationEnabled"]'
+                  >
+                    Overview & schedule
+                  </TaskDialogButton>
+                  .
+                </p>
+              </div>
               <div className="panel">
                 <h3>
                   Ready to publish · {checks.filter((c) => c.done).length}/
@@ -546,16 +635,21 @@ async function renderSection(
                   </div>
                 </details>
               </div>
-            </>
+            </div>
           }
           overview={
             <>
               {" "}
               <div className="panel" id="tournament-registration-links">
-                <h3>SOLO &amp; TEAM registration links</h3>
+                <h3>{config.format ?? "SOLO & TEAM"} registration links</h3>
                 <p className="muted text-sm">
                   {t.registrationEnabled ? "Links enabled" : "Links disabled"} ·
-                  One player registration for SOLO &amp; TEAM.
+                  Player registration for this {config.format ?? "SOLO & TEAM"}{" "}
+                  event.
+                  {teamCategory &&
+                    (t.teamRosterManagement === "STAFF"
+                      ? " Players register individually; staff create teams and assign rosters in Players & teams."
+                      : " Approved players can create teams and team owners review join requests.")}
                   {!t.registrationEnabled &&
                     " Enable player registration in Overview & schedule to make these pages available."}
                 </p>
@@ -572,9 +666,9 @@ async function renderSection(
                 <p className="muted text-sm mt-4 mb-0">
                   Share /participate/{t.slug} with players. Enabled registration
                   also appears on the landing page for its featured event.
-                  Player entry closes at the deadline, when all{" "}
-                  {config.soloCapacity} places are filled, or when registration
-                  closes or the tournament is published.
+                  Player entry closes at the deadline, when all {capacity}{" "}
+                  places are filled, or when registration closes or the
+                  tournament is published.
                 </p>
               </div>
               <div className="panel">
@@ -628,10 +722,27 @@ async function renderSection(
                       {
                         name: "registrationEnabled",
                         label:
-                          "Enable player registration and shareable team pages",
+                          solo && !teamCategory
+                            ? "Enable player registration"
+                            : "Enable player registration and shareable team pages",
                         type: "checkbox",
                         value: t.registrationEnabled,
                       },
+                      ...(teamCategory
+                        ? [
+                            {
+                              name: "teamRosterManagement",
+                              label: "Team roster management",
+                              type: "select" as const,
+                              value: t.teamRosterManagement,
+                              help: "Players register individually in both modes. Choose who creates teams and assigns their rosters. Existing teams and assignments are retained.",
+                              options: [
+                                { value: "PLAYER", label: "Player-managed" },
+                                { value: "STAFF", label: "Staff-managed" },
+                              ],
+                            },
+                          ]
+                        : []),
                       {
                         name: "gameTitle",
                         label: "Game title",
@@ -655,6 +766,7 @@ async function renderSection(
                         label: "Tournament status",
                         type: "select",
                         value: t.status,
+                        help: "Choose any status to correct the event. Draft and Archived hide it from public view; saved players, fixtures and results are retained.",
                         options: [
                           "DRAFT",
                           "REGISTRATION_OPEN",
@@ -675,19 +787,6 @@ async function renderSection(
                   />
                 </TaskDialog>
               </div>
-              <div className="panel">
-                <h3>Publication</h3>
-                <p className="muted text-sm">
-                  Publication is blocked until readiness is complete. Draft
-                  fixture previews are available in the staff workspace.
-                </p>
-                <ActionForm
-                  action="publish"
-                  fixed={{ id: t.id, published: !t.published }}
-                  fields={[reason]}
-                  label={t.published ? "Unpublish" : "Publish tournament"}
-                />
-              </div>
             </>
           }
           players={
@@ -695,7 +794,11 @@ async function renderSection(
               {" "}
               <TaskDialog
                 id="tournament-players"
-                label="Choose players and create league matches"
+                label={
+                  solo
+                    ? "Choose players and create league matches"
+                    : "Choose players for team rosters"
+                }
                 title={`Assign players · ${t.name}`}
               >
                 {remainingPlayerPlaces > 0 ? (
@@ -724,22 +827,28 @@ async function renderSection(
                       },
                       reason,
                     ]}
-                    label="Assign SOLO entrants"
+                    label={
+                      solo ? "Assign SOLO entrants" : "Assign TEAM players"
+                    }
                   />
                 ) : (
                   <p className="feedback" role="status">
-                    All {config.soloCapacity} player places are filled. Review
-                    the assigned player list below, or use “Withdraw or replace
-                    a player” to change an entrant.
+                    All {capacity} player places are filled. Review the assigned
+                    player list below, or use “Withdraw or replace a player” to
+                    change an entrant.
                   </p>
                 )}
-                <hr className="divider" />
-                <ActionForm
-                  action="generateLeague"
-                  fixed={{ id: t.id }}
-                  fields={[reason]}
-                  label="Create league matches"
-                />
+                {solo && (
+                  <>
+                    <hr className="divider" />
+                    <ActionForm
+                      action="generateLeague"
+                      fixed={{ id: t.id }}
+                      fields={[reason]}
+                      label="Create league matches"
+                    />
+                  </>
+                )}
               </TaskDialog>
               {teamCategory && (
                 <TaskDialog
@@ -802,51 +911,53 @@ async function renderSection(
                       archived: p.member.archived,
                     },
                   }))}
-                  capacity={config.soloCapacity}
+                  capacity={capacity}
                   mappingConfirmed={t.mappingConfirmed}
                   published={t.published}
                 />
               </TaskDialog>
-              <div className="panel">
-                <h3>Player list confirmation</h3>
-                <p className="muted text-sm">
-                  Check that the player names and codes match your approved
-                  list. Approve registrations and confirm each player can
-                  compete before publishing.
-                </p>
-                <TaskDialog
-                  id="player-list-confirmation"
-                  label="Confirm player list"
-                  title={`Player list confirmation · ${t.name}`}
-                >
+              {solo && (
+                <div className="panel">
+                  <h3>Player list confirmation</h3>
                   <p className="muted text-sm">
-                    Check the assigned players and their eligibility before
-                    confirming the list.
+                    Check that the player names and codes match your approved
+                    list. Approve registrations and confirm each player can
+                    compete before publishing.
                   </p>
-                  <TournamentPlayerList
-                    tournamentId={t.id}
-                    participants={t.participants.map((p) => ({
-                      id: p.id,
-                      code: p.code,
-                      eligible: p.eligible,
-                      member: {
-                        displayIgn: p.member.displayIgn,
-                        verified: p.member.verified,
-                        archived: p.member.archived,
-                      },
-                    }))}
-                    capacity={config.soloCapacity}
-                    mappingConfirmed={t.mappingConfirmed}
-                    published={t.published}
-                  />
-                  <ActionForm
-                    action="mapping"
-                    fixed={{ id: t.id }}
-                    fields={[reason]}
+                  <TaskDialog
+                    id="player-list-confirmation"
                     label="Confirm player list"
-                  />
-                </TaskDialog>
-              </div>
+                    title={`Player list confirmation · ${t.name}`}
+                  >
+                    <p className="muted text-sm">
+                      Check the assigned players and their eligibility before
+                      confirming the list.
+                    </p>
+                    <TournamentPlayerList
+                      tournamentId={t.id}
+                      participants={t.participants.map((p) => ({
+                        id: p.id,
+                        code: p.code,
+                        eligible: p.eligible,
+                        member: {
+                          displayIgn: p.member.displayIgn,
+                          verified: p.member.verified,
+                          archived: p.member.archived,
+                        },
+                      }))}
+                      capacity={capacity}
+                      mappingConfirmed={t.mappingConfirmed}
+                      published={t.published}
+                    />
+                    <ActionForm
+                      action="mapping"
+                      fixed={{ id: t.id }}
+                      fields={[reason]}
+                      label="Confirm player list"
+                    />
+                  </TaskDialog>
+                </div>
+              )}
               <TaskDialog
                 label="Withdraw or replace a player"
                 title="Withdraw or replace a player"
@@ -969,26 +1080,48 @@ async function renderSection(
                           {s.key === "qualification" && (
                             <>
                               <hr className="divider" />
+                              {(s.rules as Rules).qualificationPairing ===
+                                "auto" && (
+                                <p className="muted text-sm">
+                                  Auto assign gives every playoff entrant{" "}
+                                  {config.qualificationMatchesPerPlayer}{" "}
+                                  {config.qualificationMatchesPerPlayer === 1
+                                    ? "match"
+                                    : "matches"}{" "}
+                                  against different opponents, using the frozen
+                                  league ranking.
+                                </p>
+                              )}
                               <ActionForm
                                 action="qualification"
                                 fixed={{ stageId: s.id }}
-                                label="Create qualification fixtures"
-                                fields={[
-                                  {
-                                    name: "pairs",
-                                    label: "Choose playoff opponents",
-                                    type: "pairs",
-                                    pairCount:
-                                      (config.playoffEntrants *
-                                        config.qualificationMatchesPerPlayer) /
-                                      2,
-                                    matchesPerPlayer:
-                                      config.qualificationMatchesPerPlayer,
-                                    options: playoffChoices,
-                                    required: true,
-                                  },
-                                  reason,
-                                ]}
+                                label={
+                                  (s.rules as Rules).qualificationPairing ===
+                                  "auto"
+                                    ? "Auto assign & create fixtures"
+                                    : "Create qualification fixtures"
+                                }
+                                fields={
+                                  (s.rules as Rules).qualificationPairing ===
+                                  "auto"
+                                    ? [reason]
+                                    : [
+                                        {
+                                          name: "pairs",
+                                          label: "Choose playoff opponents",
+                                          type: "pairs",
+                                          pairCount:
+                                            (config.playoffEntrants *
+                                              config.qualificationMatchesPerPlayer) /
+                                            2,
+                                          matchesPerPlayer:
+                                            config.qualificationMatchesPerPlayer,
+                                          options: playoffChoices,
+                                          required: true,
+                                        },
+                                        reason,
+                                      ]
+                                }
                               />
                             </>
                           )}
@@ -1937,27 +2070,7 @@ async function renderSection(
     return (
       <div className="stack">
         <TaskDialog label="Create announcement" title="Create announcement">
-          <ActionForm
-            action="announcement"
-            fixed={{ published: false }}
-            fields={[
-              { name: "title", label: "Title", required: true },
-              {
-                name: "body",
-                label: "Bahasa Melayu copy",
-                type: "textarea",
-                required: true,
-              },
-              { name: "published", label: "Publish", type: "checkbox" },
-              { name: "titleEn", label: "English title" },
-              {
-                name: "bodyEn",
-                label: "English announcement",
-                type: "textarea",
-              },
-              reason,
-            ]}
-          />
+          <AnnouncementForm />
         </TaskDialog>
         {!rows.length && (
           <p className="empty">
@@ -1965,55 +2078,27 @@ async function renderSection(
           </p>
         )}
         {rows.map((r) => (
-          <TaskDialog
-            key={r.id}
-            label={`${r.title} · ${r.published ? "Published" : "Draft"}`}
-            title={`Announcement · ${r.title}`}
-          >
+          <div key={r.id} className="flex flex-wrap items-center gap-2">
+            <TaskDialog
+              label={`${r.title} · ${r.archived ? "Archived" : r.published ? "Published" : "Draft"}`}
+              title={`Announcement · ${r.title}`}
+            >
+              <AnnouncementForm initial={r} />
+            </TaskDialog>
             <ActionForm
               action="announcement"
-              fixed={{ id: r.id, published: r.published }}
-              fields={[
-                {
-                  name: "title",
-                  label: "Title",
-                  value: r.title,
-                  required: true,
-                },
-                {
-                  name: "body",
-                  label: "Body",
-                  type: "textarea",
-                  value: r.body,
-                  required: true,
-                },
-                {
-                  name: "published",
-                  label: "Published",
-                  type: "checkbox",
-                  value: r.published,
-                },
-                {
-                  name: "archived",
-                  label: "Archived",
-                  type: "checkbox",
-                  value: r.archived,
-                },
-                {
-                  name: "titleEn",
-                  label: "English title",
-                  value: r.titleEn ?? "",
-                },
-                {
-                  name: "bodyEn",
-                  label: "English announcement",
-                  type: "textarea",
-                  value: r.bodyEn ?? "",
-                },
-                reason,
-              ]}
+              label={r.archived ? "Restore to draft" : "Archive"}
+              compact
+              fixed={{
+                id: r.id,
+                title: r.title,
+                body: r.body,
+                published: r.archived ? false : r.published,
+                archived: !r.archived,
+              }}
+              fields={[]}
             />
-          </TaskDialog>
+          </div>
         ))}
       </div>
     );

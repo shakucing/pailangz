@@ -2,6 +2,7 @@
 import { useState, useId, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useDialogForm } from "./workspace-dialog";
+import { ActionFeedback, type FeedbackAction } from "./action-feedback";
 import {
   SelectionField,
   OrderField,
@@ -60,6 +61,7 @@ export function ActionForm({
   compact = false,
   onSuccess,
   resetOnSuccess = false,
+  errorActions,
 }: {
   action: string;
   fields: Field[];
@@ -68,6 +70,7 @@ export function ActionForm({
   compact?: boolean;
   onSuccess?: () => void;
   resetOnSuccess?: boolean;
+  errorActions?: FeedbackAction[];
 }) {
   const [formVersion, setFormVersion] = useState(0);
   const [decision, setDecision] = useState(
@@ -173,6 +176,7 @@ export function ActionForm({
               <SizesFields
                 key={f.name}
                 configuration={f.value as TournamentConfiguration}
+                chooseFormat={action === "tournament" && !fixed.id}
               />
             );
           if (f.type === "rules")
@@ -198,7 +202,7 @@ export function ActionForm({
               htmlFor={`${uid}-${f.name}`}
               className={f.type === "checkbox" ? "choice-row" : undefined}
             >
-              <span>
+              <span id={`${uid}-${f.name}-label`}>
                 {f.name === "reason" && required ? "Reason" : f.label}
                 {!required &&
                   !["checkbox", "select"].includes(f.type ?? "") && (
@@ -217,6 +221,7 @@ export function ActionForm({
               ) : f.type === "select" ? (
                 <select
                   id={`${uid}-${f.name}`}
+                  aria-labelledby={`${uid}-${f.name}-label`}
                   name={f.name}
                   defaultValue={String(f.value ?? "")}
                   required={required}
@@ -226,11 +231,13 @@ export function ActionForm({
                       : undefined
                   }
                 >
-                  <option value="">
-                    {required
-                      ? "Choose an option…"
-                      : "Keep current / no selection"}
-                  </option>
+                  {!f.options?.some((option) => option.value === "") && (
+                    <option value="">
+                      {required
+                        ? "Choose an option…"
+                        : "Keep current / no selection"}
+                    </option>
+                  )}
                   {f.options?.map((o) => (
                     <option value={o.value} key={o.value} disabled={o.disabled}>
                       {o.label}
@@ -277,12 +284,11 @@ export function ActionForm({
         })}
       </fieldset>
       {feedback && (
-        <div
-          role={feedback.error ? "alert" : "status"}
-          className={`feedback ${feedback.error ? "error" : ""}`}
-        >
-          {feedback.text}
-        </div>
+        <ActionFeedback
+          text={feedback.text}
+          error={feedback.error}
+          actions={errorActions}
+        />
       )}
       <button
         disabled={busy}
