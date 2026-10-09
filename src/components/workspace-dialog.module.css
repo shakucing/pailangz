@@ -61,6 +61,12 @@
 .dialog :is(input, select, textarea, button) {
   scroll-margin: 20px;
 }
+.highlight {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 8px;
+  box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 18%, transparent);
+}
 .footer {
   display: flex;
   align-items: center;

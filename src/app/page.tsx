@@ -7,11 +7,7 @@ import { HeroOrbit } from "@/components/hero-orbit";
 import { EventPresentation } from "@/components/event-presentation";
 import { eventPresentationData } from "@/lib/event-presentation-data";
 import { originalConfiguration } from "@/lib/tournament-config";
-import {
-  publicTeams,
-  publicTeamEvent,
-  teamRegistrationOpen,
-} from "@/lib/team-portal";
+import { publicTeams, publicTeamEvent } from "@/lib/team-portal";
 import {
   participationStatus,
   registrationEvent,
@@ -40,7 +36,6 @@ export default async function Home() {
     participationStatus(teamSlug),
     publicTeamEvent(teamSlug),
   ]);
-  const teamEntryOpen = teamEvent && teamRegistrationOpen(teamEvent);
   const arena = registration ?? featured;
   const config =
     event?.configuration ?? featured?.configuration ?? originalConfiguration;
@@ -168,12 +163,12 @@ export default async function Home() {
                   <p className="text-sm">
                     {entryStatus === "FULL"
                       ? t(
-                          `Semua ${registration.capacity} slot pemain telah diisi. Pemain yang diluluskan masih boleh membentuk pasukan semasa pendaftaran pasukan dibuka.`,
-                          `All ${registration.capacity} player places are filled. Approved players can still form teams while team registration is open.`,
+                          `Semua ${registration.capacity} slot pemain telah diisi.`,
+                          `All ${registration.capacity} player places are filled.`,
                         )
                       : t(
-                          "Satu pendaftaran pemain untuk SOLO & TEAM. Selepas diluluskan, sertai pasukan atau daftar pasukan anda sebagai kapten.",
-                          "One player registration for SOLO & TEAM. Once approved, join a team or register your own as captain.",
+                          "Satu pendaftaran pemain untuk SOLO & TEAM.",
+                          "One player registration for SOLO & TEAM.",
                         )}
                   </p>
                   {registration.registrationDeadline && (
@@ -201,11 +196,9 @@ export default async function Home() {
                     {teamEvent && (
                       <Link
                         className="button secondary"
-                        href={`/tournaments/${registration.slug}/teams${teamEntryOpen ? "/new" : ""}`}
+                        href={`/tournaments/${registration.slug}/teams`}
                       >
-                        {teamEntryOpen
-                          ? t("Daftar pasukan", "Register a team")
-                          : t("Lihat pasukan", "View teams")}
+                        {t("Lihat pasukan", "View teams")}
                       </Link>
                     )}
                   </div>
@@ -251,7 +244,7 @@ export default async function Home() {
           }))}
         />
       </section>
-      <TeamDirectory teams={teams} slug={teamSlug} />
+      <TeamDirectory teams={teams} slug={teamSlug} showRegistration={false} />
       <FadeContent>
         <section className="section" style={{ paddingTop: 0 }}>
           <div className="section-title">

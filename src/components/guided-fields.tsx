@@ -377,8 +377,8 @@ export function RulesFields({
   return (
     <div className="stack">
       <p className="muted text-sm">
-        Choose each rule, then tick “Confirmed” when it is approved. Rules
-        without a choice stay undecided.
+        Saving rules confirms your choices. Leave a rule blank to keep it
+        undecided.
       </p>
       {visible.map((f) => (
         <fieldset className="rule-choice" key={f.key}>
@@ -417,15 +417,6 @@ export function RulesFields({
               />
             </label>
           )}
-          <label className="choice-row">
-            <input
-              type="checkbox"
-              name="confirmedRules"
-              value={f.key}
-              defaultChecked={confirmed.includes(f.key)}
-            />
-            <span>Confirmed</span>
-          </label>
         </fieldset>
       ))}
       <input type="hidden" name="previousRules" value={JSON.stringify(rules)} />

@@ -1,5 +1,7 @@
 # Copy the current local database to Neon
 
+This guide describes the original production transfer. Production remains `pailangz.vercel.app` from `main`. For the separate `test` branch, preview database tier and `pailangz-test.vercel.app` project, use [the test environment walkthrough](test-environment.md) and the `db:test:*` commands. Keep the existing `.local/neon-transfer/` credentials dedicated to production.
+
 This transfer copies the saved database instead of regenerating the original seed. It preserves member approvals and encrypted registration data, tournament revision 2, participant IDs/codes, fixtures, settings, team codes, staff password hashes, sessions and audit history. The only row change is `DeploymentEnvironment.tier`, from `development` to `production`. Prisma migration history is created on Neon from this checkout; PGlite's `local_migrations` table is not copied.
 
 The prepared files are in `.local/neon-transfer/`, ignored by Git. The directory is mode 0700 and files are mode 0600. The snapshot contains private records and password hashes; `vercel.env` contains encryption keys. Keep them local and do not upload them to GitHub, a public bucket or a Page.

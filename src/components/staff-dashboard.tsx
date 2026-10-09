@@ -1,4 +1,4 @@
-import { TaskDialog } from "./workspace-dialog";
+import { TaskDialog, TaskDialogButton } from "./workspace-dialog";
 import { TeamRosterForm } from "./team-roster-form";
 import { TeamAvatar } from "./team-avatar";
 import {
@@ -307,6 +307,21 @@ async function renderSection(
       0,
       config.soloCapacity - t.participants.length,
     );
+    const teamCategory = t.categories.find(
+      (category) => category.kind === "TEAM",
+    );
+    const teamToReview =
+      teamCategory?.teams.find(
+        (team) =>
+          team.memberships.length !== 4 ||
+          team.memberships.some(
+            (membership) =>
+              !membership.member.verified || membership.member.archived,
+          ),
+      ) ??
+      (teamCategory && teamCategory.teams.length >= config.teamCapacity
+        ? teamCategory.teams[0]
+        : undefined);
     const qualification = stages.find((s) => s.key === "qualification");
     const revisions = await tx.configurationRevision.findMany({
       where: { tournamentId: t.id },
@@ -371,16 +386,73 @@ async function renderSection(
         c.teams.map((team) => ({ value: team.id, label: team.name })),
       ]),
     );
-    const readinessHref = (key: string) =>
-      key === "teams"
-        ? `${base}/teams`
-        : key === "mapping"
-          ? "#player-list-confirmation"
-          : ["eligibility", "schedule"].includes(key)
-            ? "#tournament-players"
-            : ["dates", "gameTitle"].includes(key)
-              ? "#tournament-overview"
-              : "#tournament-rules";
+    const ruleStage = (key: string) => {
+      if (key.startsWith("qualification")) return qualification;
+      if (key === "knockoutPairing" || key === "teamSeeding")
+        return t.categories
+          .find((c) => c.kind === (key === "teamSeeding" ? "TEAM" : "SOLO"))
+          ?.stages.find((s) => s.key === "knockout");
+      if (key === "byes")
+        return stages.find((s) => {
+          const affected =
+            s.key === "league"
+              ? config.soloCapacity % 2 !== 0
+              : s.key === "knockout" &&
+                (t.categories.find((c) => c.id === s.categoryId)?.kind ===
+                "TEAM"
+                  ? config.teamCapacity < config.teamBracketSize
+                  : config.directSlots + config.playoffSlots <
+                    config.soloBracketSize);
+          return (
+            affected &&
+            (!s.confirmedRules.includes("byePolicy") ||
+              (s.rules as Rules).byePolicy !==
+                (s.key === "league"
+                  ? config.leagueByePolicy
+                  : config.bracketByePolicy))
+          );
+        });
+      return leagueStage;
+    };
+    const readinessAction = (check: (typeof checks)[number]) => {
+      const target =
+        check.key === "teams"
+          ? "tournament-teams"
+          : check.key === "mapping"
+            ? "player-list-confirmation"
+            : check.key === "eligibility"
+              ? remainingPlayerPlaces > 0
+                ? "tournament-players"
+                : "tournament-eligibility"
+              : check.key === "schedule"
+                ? "tournament-players"
+                : ["dates", "gameTitle"].includes(check.key)
+                  ? "tournament-overview"
+                  : `tournament-rules-${(ruleStage(check.key) ?? stages[0]).id}`;
+      const fieldTarget =
+        check.key === "teams"
+          ? teamToReview
+            ? 'input[type="search"]'
+            : '[name="name"]'
+          : check.key === "mapping"
+            ? '[data-action="mapping"] button[type="submit"]'
+            : check.key === "eligibility"
+              ? remainingPlayerPlaces > 0
+                ? 'input[type="search"]'
+                : '[aria-label="Select all assigned players"]'
+              : check.key === "schedule"
+                ? '[data-action="generateLeague"] button[type="submit"]'
+                : check.key === "dates"
+                  ? `[name="${t.startsAt ? "registrationDeadline" : "startsAt"}"]`
+                  : check.key === "gameTitle"
+                    ? '[name="gameTitle"]'
+                    : `[name="rule:${check.key === "byes" ? "byePolicy" : check.key}"]`;
+      return (
+        <TaskDialogButton target={target} fieldTarget={fieldTarget}>
+          {check.label}
+        </TaskDialogButton>
+      );
+    };
     return (
       <div className="stack">
         <Link className="text-link" href={`${base}/tournaments`}>
@@ -455,9 +527,7 @@ async function renderSection(
                     .map((c) => (
                       <div className="check" key={c.key}>
                         <span>○</span>
-                        <a className="text-link" href={readinessHref(c.key)}>
-                          {c.label} ↗
-                        </a>
+                        {readinessAction(c)}
                       </div>
                     ))}
                 </div>
@@ -470,13 +540,7 @@ async function renderSection(
                         key={c.key}
                       >
                         <span>{c.done ? "✓" : "○"}</span>
-                        {c.done ? (
-                          c.label
-                        ) : (
-                          <a className="text-link" href={readinessHref(c.key)}>
-                            {c.label} ↗
-                          </a>
-                        )}
+                        {readinessAction(c)}
                       </div>
                     ))}
                   </div>
@@ -491,8 +555,7 @@ async function renderSection(
                 <h3>SOLO &amp; TEAM registration links</h3>
                 <p className="muted text-sm">
                   {t.registrationEnabled ? "Links enabled" : "Links disabled"} ·
-                  One player registration for SOLO &amp; TEAM. Approved players
-                  can then create or join a team.
+                  One player registration for SOLO &amp; TEAM.
                   {!t.registrationEnabled &&
                     " Enable player registration in Overview & schedule to make these pages available."}
                 </p>
@@ -504,14 +567,6 @@ async function renderSection(
                     rel="noopener noreferrer"
                   >
                     Player registration ↗
-                  </Link>
-                  <Link
-                    className="button secondary"
-                    href={`/tournaments/${t.slug}/teams/new`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Team registration ↗
                   </Link>
                 </div>
                 <p className="muted text-sm mt-4 mb-0">
@@ -686,36 +741,111 @@ async function renderSection(
                   label="Create league matches"
                 />
               </TaskDialog>
-              <TournamentPlayerList
-                key={t.id}
-                tournamentId={t.id}
-                participants={t.participants.map((p) => ({
-                  id: p.id,
-                  code: p.code,
-                  eligible: p.eligible,
-                  member: {
-                    displayIgn: p.member.displayIgn,
-                    verified: p.member.verified,
-                    archived: p.member.archived,
-                  },
-                }))}
-                capacity={config.soloCapacity}
-                mappingConfirmed={t.mappingConfirmed}
-                published={t.published}
-              />
+              {teamCategory && (
+                <TaskDialog
+                  id="tournament-teams"
+                  label="Complete team rosters"
+                  title={
+                    teamToReview
+                      ? `Edit roster · ${teamToReview.name}`
+                      : `Create a team · ${t.name}`
+                  }
+                >
+                  <TeamRosterForm
+                    categoryId={teamCategory.id}
+                    team={
+                      teamToReview
+                        ? {
+                            id: teamToReview.id,
+                            name: teamToReview.name,
+                            avatarImage: teamToReview.avatarImage,
+                            archived: teamToReview.archived,
+                            memberIds: teamToReview.memberships.map(
+                              (membership) => membership.memberId,
+                            ),
+                          }
+                        : undefined
+                    }
+                    players={t.participants.map((player) => ({
+                      value: player.memberId,
+                      label: `${player.code} · ${player.member.displayIgn}`,
+                      disabled: teamCategory.teams.some(
+                        (team) =>
+                          team.id !== teamToReview?.id &&
+                          team.memberships.some(
+                            (membership) =>
+                              membership.memberId === player.memberId,
+                          ),
+                      ),
+                    }))}
+                  />
+                  <Link className="text-link" href={`${base}/teams`}>
+                    View all teams ↗
+                  </Link>
+                </TaskDialog>
+              )}
+              <TaskDialog
+                id="tournament-eligibility"
+                label="Review assigned players & eligibility"
+                title={`Player eligibility · ${t.name}`}
+              >
+                <TournamentPlayerList
+                  key={t.id}
+                  tournamentId={t.id}
+                  participants={t.participants.map((p) => ({
+                    id: p.id,
+                    code: p.code,
+                    eligible: p.eligible,
+                    member: {
+                      displayIgn: p.member.displayIgn,
+                      verified: p.member.verified,
+                      archived: p.member.archived,
+                    },
+                  }))}
+                  capacity={config.soloCapacity}
+                  mappingConfirmed={t.mappingConfirmed}
+                  published={t.published}
+                />
+              </TaskDialog>
               <div className="panel">
-                <h3 id="player-list-confirmation">Player list confirmation</h3>
+                <h3>Player list confirmation</h3>
                 <p className="muted text-sm">
                   Check that the player names and codes match your approved
                   list. Approve registrations and confirm each player can
                   compete before publishing.
                 </p>
-                <ActionForm
-                  action="mapping"
-                  fixed={{ id: t.id }}
-                  fields={[reason]}
+                <TaskDialog
+                  id="player-list-confirmation"
                   label="Confirm player list"
-                />
+                  title={`Player list confirmation · ${t.name}`}
+                >
+                  <p className="muted text-sm">
+                    Check the assigned players and their eligibility before
+                    confirming the list.
+                  </p>
+                  <TournamentPlayerList
+                    tournamentId={t.id}
+                    participants={t.participants.map((p) => ({
+                      id: p.id,
+                      code: p.code,
+                      eligible: p.eligible,
+                      member: {
+                        displayIgn: p.member.displayIgn,
+                        verified: p.member.verified,
+                        archived: p.member.archived,
+                      },
+                    }))}
+                    capacity={config.soloCapacity}
+                    mappingConfirmed={t.mappingConfirmed}
+                    published={t.published}
+                  />
+                  <ActionForm
+                    action="mapping"
+                    fixed={{ id: t.id }}
+                    fields={[reason]}
+                    label="Confirm player list"
+                  />
+                </TaskDialog>
               </div>
               <TaskDialog
                 label="Withdraw or replace a player"
@@ -779,7 +909,7 @@ async function renderSection(
                   </p>
                   <div className="tournament-stage-actions">
                     <TaskDialog
-                      id={s === stages[0] ? "tournament-rules" : undefined}
+                      id={`tournament-rules-${s.id}`}
                       label="Edit tournament rules"
                       title={`Tournament rules · ${s.name}`}
                       description={t.name}

@@ -50,7 +50,7 @@ describe("guided staff forms", () => {
       ),
     ).toThrow("no more than 4");
   });
-  it("preserves unrelated rules and only confirms explicitly checked choices", () => {
+  it("confirms saved choices, including false, and preserves unrelated rules", () => {
     const result = staffFormData(
       [{ name: "rules", label: "Rules", type: "rules" }],
       form({
@@ -60,7 +60,6 @@ describe("guided staff forms", () => {
         "rule:qualificationCarry": "false",
         "rule:qualificationBestOf": "5",
         "rule:tiebreakers": '["wins","gameWins"]',
-        confirmedRules: ["qualificationCarry", "qualificationBestOf"],
       }),
     );
     expect(result).toEqual({
@@ -73,24 +72,51 @@ describe("guided staff forms", () => {
       },
       confirmedRules: [
         "teamSeeding",
-        "qualificationCarry",
+        "drawPolicy",
+        "tiebreakers",
         "qualificationBestOf",
+        "qualificationCarry",
       ],
     });
   });
-  it("requires a rule choice before confirming it", () => {
-    expect(() =>
+  it("leaves blank choices undecided and removes confirmation when a rule is cleared", () => {
+    expect(
       staffFormData(
         [{ name: "rules", label: "Rules", type: "rules" }],
-        form({ "rule:drawPolicy": "", confirmedRules: "drawPolicy" }),
+        form({
+          previousRules:
+            '{"drawPolicy":"no_draws","tiebreakers":["wins"],"evidenceDeadline":"24 hours"}',
+          previousConfirmed: '["drawPolicy","tiebreakers","evidenceDeadline"]',
+          "rule:drawPolicy": "",
+          "rule:tiebreakers": "[]",
+          "rule:evidenceDeadline": "   ",
+        }),
       ),
-    ).toThrow("before confirming");
-    expect(() =>
-      staffFormData(
-        [{ name: "rules", label: "Rules", type: "rules" }],
-        form({ "rule:tiebreakers": "[]", confirmedRules: "tiebreakers" }),
-      ),
-    ).toThrow("before confirming");
+    ).toEqual({ rules: { tiebreakers: [] }, confirmedRules: [] });
+  });
+  it("keeps confirmation on repeated saves without confirming rules outside the dialog", () => {
+    const fields = [{ name: "rules", label: "Rules", type: "rules" }];
+    const first = staffFormData(
+      fields,
+      form({
+        previousRules: '{"qualificationCarry":false}',
+        "rule:drawPolicy": "no_draws",
+      }),
+    );
+    const second = staffFormData(
+      fields,
+      form({
+        previousRules: JSON.stringify(first.rules),
+        previousConfirmed: JSON.stringify(first.confirmedRules),
+        "rule:drawPolicy": "no_draws",
+      }),
+    );
+    expect(second).toEqual(first);
+    expect(second.confirmedRules).toEqual(["drawPolicy"]);
+    expect(second.rules).toEqual({
+      qualificationCarry: false,
+      drawPolicy: "no_draws",
+    });
   });
   it("catches duplicate opponents and unequal playoff match counts", () => {
     const fields = [

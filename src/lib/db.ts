@@ -26,6 +26,28 @@ export function assertEnvironment() {
     process.env.DATABASE_ENV === "production"
   )
     throw new Error("Non-production cannot access the production database.");
+  if (app !== "production" && process.env.VERCEL) {
+    if (app !== "preview" || process.env.DATABASE_ENV !== "preview")
+      throw new Error(
+        "Hosted test deployments require the preview database environment.",
+      );
+    if (
+      new URL(process.env.NEXTAUTH_URL ?? "http://localhost").protocol !==
+      "https:"
+    )
+      throw new Error("Hosted test authentication requires HTTPS.");
+    const url = new URL(process.env.DATABASE_URL ?? "");
+    if (
+      !["require", "verify-full"].includes(
+        url.searchParams.get("sslmode") ?? "",
+      )
+    )
+      throw new Error("Hosted test database TLS is required.");
+    if (process.env.EVIDENCE_STORAGE !== "s3")
+      throw new Error(
+        "Hosted test deployments require persistent private S3 evidence storage.",
+      );
+  }
   if (app === "production") {
     if (process.env.DATABASE_ENV !== "production")
       throw new Error("Production database environment is required.");

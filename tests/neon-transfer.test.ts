@@ -1,11 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { randomBytes } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
 import { readFile } from "node:fs/promises";
 import {
   captureSnapshot,
   envText,
+  deploymentTier,
+  encryptedFields,
   migrations,
   neonUrl,
+  rekeySnapshot,
   restoreSnapshot,
   validateSnapshot,
   verifySnapshot,
@@ -13,6 +17,7 @@ import {
   type Snapshot,
 } from "../scripts/neon-transfer";
 import { parse } from "dotenv";
+import { encrypt, decrypt } from "../src/lib/crypto";
 
 const databases: PGlite[] = [];
 const queryFor =
@@ -75,6 +80,77 @@ afterAll(async () => {
 });
 
 describe("Neon copy of the current local database", () => {
+  it("imports test data with a preview label and refuses production verification", async () => {
+    const target = await migrated();
+    await restoreSnapshot(queryFor(target), snapshot, "preview");
+    await verifySnapshot(queryFor(target), snapshot, "preview");
+    expect(
+      (
+        await target.query<{ tier: string }>(
+          'SELECT tier FROM "DeploymentEnvironment"',
+        )
+      ).rows,
+    ).toEqual([{ tier: "preview" }]);
+    await expect(
+      verifySnapshot(queryFor(target), snapshot, "production"),
+    ).rejects.toThrow("DeploymentEnvironment");
+    expect(() => deploymentTier("test")).toThrow("preview or production");
+  }, 60000);
+
+  it("re-encrypts every private field with its original context and an independent test key", async () => {
+    const sourceKeys = { original: randomBytes(32).toString("base64") };
+    const targetKeys = { test_v1: randomBytes(32).toString("base64") };
+    vi.stubEnv("DATA_ENCRYPTION_KEYS", JSON.stringify(sourceKeys));
+    vi.stubEnv("ACTIVE_ENCRYPTION_KEY", "original");
+    try {
+      const source = structuredClone(snapshot);
+      for (const [table, field, purpose, identifier] of encryptedFields) {
+        source.tables[table] ??= { columns: [], rows: [] };
+        source.tables[table].rows[0] ??= {};
+        const row = source.tables[table].rows[0];
+        row[identifier] = `${table}-context`;
+        row[field] = encrypt(
+          `private ${table}.${field}`,
+          `${purpose}:${row[identifier]}`,
+        );
+      }
+      const original = structuredClone(source);
+      const copied = rekeySnapshot(source, sourceKeys, targetKeys, "test_v1");
+      expect(source).toEqual(original);
+      expect(copied.checksum).not.toBe(source.checksum);
+      vi.stubEnv("DATA_ENCRYPTION_KEYS", JSON.stringify(targetKeys));
+      for (const [table, field, purpose, identifier] of encryptedFields) {
+        const row = copied.tables[table].rows[0];
+        expect(String(row[field]).startsWith("test_v1.")).toBe(true);
+        expect(
+          decrypt(String(row[field]), `${purpose}:${row[identifier]}`),
+        ).toBe(`private ${table}.${field}`);
+        expect(() => decrypt(String(row[field]), "wrong-context")).toThrow();
+      }
+      const withNull = structuredClone(source);
+      withNull.tables.MemberPrivate.rows[0].phoneEncrypted = null;
+      expect(
+        rekeySnapshot(withNull, sourceKeys, targetKeys, "test_v1").tables
+          .MemberPrivate.rows[0].phoneEncrypted,
+      ).toBeNull();
+      expect(() => rekeySnapshot(source, {}, targetKeys, "test_v1")).toThrow(
+        "Cannot re-encrypt",
+      );
+      expect(() => rekeySnapshot(source, sourceKeys, {}, "missing")).toThrow(
+        "Invalid test encryption key",
+      );
+      const valid = rekeySnapshot(
+        snapshotWithoutPrivateRows(snapshot),
+        sourceKeys,
+        targetKeys,
+        "test_v1",
+      );
+      validateSnapshot(valid, await migrations());
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("preserves cyclic results, archived history, private rows, revisions, staff and team codes", async () => {
     const target = await migrated();
     const query = queryFor(target);
@@ -177,3 +253,10 @@ describe("Neon copy of the current local database", () => {
     );
   });
 });
+
+function snapshotWithoutPrivateRows(source: Snapshot) {
+  const copied = structuredClone(source);
+  for (const [table] of encryptedFields)
+    if (copied.tables[table]) copied.tables[table].rows = [];
+  return copied;
+}

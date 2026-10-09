@@ -56,18 +56,20 @@ export function staffFormData(
               ? Number(v)
               : v;
       }
+      const hasValue = (key: string) =>
+        rules[key] !== undefined &&
+        rules[key] !== null &&
+        (Array.isArray(rules[key])
+          ? rules[key].length > 0
+          : typeof rules[key] === "string"
+            ? rules[key].trim().length > 0
+            : true);
+      // Saving approves configured fields in this dialog. Other stages' choices
+      // retain their existing confirmation, and cleared fields become undecided.
       const confirmed = [
-        ...oldConfirmed.filter((key) => !edited.includes(key)),
-        ...form.getAll("confirmedRules").map(String),
+        ...oldConfirmed.filter((key) => !edited.includes(key) && hasValue(key)),
+        ...edited.filter(hasValue),
       ];
-      for (const key of confirmed)
-        if (
-          !(key in rules) ||
-          (Array.isArray(rules[key]) && !(rules[key] as unknown[]).length)
-        )
-          throw new Error(
-            `Choose ${ruleFields.find((r) => r.key === key)?.label.toLowerCase() ?? "a rule"} before confirming it.`,
-          );
       data.rules = rules;
       data.confirmedRules = confirmed;
     } else if (f.type === "mapping") {

@@ -8,10 +8,12 @@ export async function TeamDirectory({
   teams,
   slug,
   heading = true,
+  showRegistration = true,
 }: {
   teams: PublicTeam[];
   slug: string;
   heading?: boolean;
+  showRegistration?: boolean;
 }) {
   const locale = await getLocale();
   const t = (ms: string, en: string) => translate(locale, ms, en);
@@ -25,14 +27,20 @@ export async function TeamDirectory({
             <h2>{t("Cari pasukan anda", "Find your team")}</h2>
             <p className="muted">
               {t(
-                "Pemain yang diluluskan boleh cipta pasukan atau mohon untuk menyertai.",
-                "Approved tournament players can create a team or apply to join one.",
+                showRegistration
+                  ? "Pemain yang diluluskan boleh cipta pasukan atau mohon untuk menyertai."
+                  : "Lihat pasukan yang menyertai kejohanan.",
+                showRegistration
+                  ? "Approved tournament players can create a team or apply to join one."
+                  : "View the teams participating in the tournament.",
               )}
             </p>
           </div>
-          <Link className="button secondary" href={`${base}/new`}>
-            {t("Daftar pasukan", "Register a team")}
-          </Link>
+          {showRegistration && (
+            <Link className="button secondary" href={`${base}/new`}>
+              {t("Daftar pasukan", "Register a team")}
+            </Link>
+          )}
         </div>
       )}
       {teams.length ? (
@@ -71,14 +79,22 @@ export async function TeamDirectory({
         <div className="empty">
           <strong>
             {t(
-              "Pasukan pertama bermula dengan anda.",
-              "The first team starts with you.",
+              showRegistration
+                ? "Pasukan pertama bermula dengan anda."
+                : "Pasukan belum tersedia.",
+              showRegistration
+                ? "The first team starts with you."
+                : "No teams available yet.",
             )}
           </strong>
           <p>
             {t(
-              "Selepas penyertaan kejohanan diluluskan, daftar pasukan dan terima permohonan pemain.",
-              "Once your tournament participation is approved, register a team and receive player applications.",
+              showRegistration
+                ? "Selepas penyertaan kejohanan diluluskan, daftar pasukan dan terima permohonan pemain."
+                : "Pasukan kejohanan akan dipaparkan di sini apabila tersedia.",
+              showRegistration
+                ? "Once your tournament participation is approved, register a team and receive player applications."
+                : "Tournament teams will appear here when available.",
             )}
           </p>
         </div>

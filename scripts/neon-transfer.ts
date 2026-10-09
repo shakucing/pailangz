@@ -1,4 +1,9 @@
-import { createHash, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  randomBytes,
+} from "node:crypto";
 import {
   access,
   chmod,
@@ -20,6 +25,12 @@ export type Query = (
 ) => Promise<{ rows: Row[] }>;
 type Migration = { name: string; checksum: string };
 type Table = { columns: string[]; rows: Row[] };
+export type DeploymentTier = "preview" | "production";
+export function deploymentTier(value: string): DeploymentTier {
+  if (value !== "preview" && value !== "production")
+    throw new Error("NEON_DEPLOYMENT_TIER must be preview or production.");
+  return value;
+}
 export type Snapshot = {
   format: "pailangz-local-v1";
   capturedAt: string;
@@ -50,6 +61,72 @@ export function canonical(value: unknown): string {
 const digest = (value: unknown) =>
   createHash("sha256").update(canonical(value)).digest("hex");
 const sortedRows = (rows: Row[]) => rows.map(canonical).sort();
+
+// Copy plaintext faithfully while giving test an independent keyring. These
+// contexts must match the corresponding writes in src/lib; IDs never change.
+export const encryptedFields = [
+  ["MemberPrivate", "registrationEncrypted", "member", "memberId"],
+  ["MemberPrivate", "phoneEncrypted", "member-phone", "memberId"],
+  ["RegistrationSubmission", "payloadEncrypted", "submission", "id"],
+  ["RegistrationSubmission", "phoneEncrypted", "submission-phone", "id"],
+  ["SubmissionDecision", "reason", "decision", "submissionId"],
+  ["SubmissionDecision", "noteEncrypted", "decision", "submissionId"],
+  ["ResultVersion", "reason", "match", "matchId"],
+  ["Dispute", "reasonEncrypted", "match", "matchId"],
+  ["Dispute", "resolutionEncrypted", "dispute", "id"],
+  ["BracketDependency", "resolutionReason", "dependency", "id"],
+  ["ConfigurationRevision", "reasonEncrypted", "tournament", "tournamentId"],
+  ["ConfigurationRevision", "resolutionEncrypted", "revision", "id"],
+] as const;
+
+export function rekeySnapshot(
+  source: Snapshot,
+  sourceKeys: Record<string, string>,
+  targetKeys: Record<string, string>,
+  activeKey: string,
+): Snapshot {
+  const target = Buffer.from(targetKeys[activeKey] ?? "", "base64");
+  if (target.length !== 32) throw new Error("Invalid test encryption key.");
+  const snapshot = structuredClone(source);
+  for (const [table, field, purpose, identifier] of encryptedFields) {
+    for (const row of snapshot.tables[table]?.rows ?? []) {
+      if (row[field] == null) continue;
+      try {
+        const [version, iv, tag, data] = String(row[field]).split(".");
+        const context = Buffer.from(`${purpose}:${row[identifier]}`);
+        const decipher = createDecipheriv(
+          "aes-256-gcm",
+          Buffer.from(sourceKeys[version] ?? "", "base64"),
+          Buffer.from(iv, "base64url"),
+        );
+        decipher.setAAD(context);
+        decipher.setAuthTag(Buffer.from(tag, "base64url"));
+        const plain = Buffer.concat([
+          decipher.update(Buffer.from(data, "base64url")),
+          decipher.final(),
+        ]);
+        const nextIv = randomBytes(12);
+        const cipher = createCipheriv("aes-256-gcm", target, nextIv);
+        cipher.setAAD(context);
+        const sealed = Buffer.concat([cipher.update(plain), cipher.final()]);
+        row[field] = [
+          activeKey,
+          nextIv.toString("base64url"),
+          cipher.getAuthTag().toString("base64url"),
+          sealed.toString("base64url"),
+        ].join(".");
+      } catch {
+        throw new Error(
+          `Cannot re-encrypt ${table}.${field}; no snapshot was written.`,
+        );
+      }
+    }
+  }
+  snapshot.encryptionKeyringChecksum = digest(targetKeys);
+  const { checksum, ...payload } = snapshot;
+  snapshot.checksum = digest(payload);
+  return snapshot;
+}
 
 export async function migrations(): Promise<Migration[]> {
   const names = (await readdir("prisma/migrations"))
@@ -180,7 +257,12 @@ async function requireEmpty(query: Query, tables: string[]) {
   return bootstrapAudit;
 }
 
-export async function verifySnapshot(query: Query, snapshot: Snapshot) {
+export async function verifySnapshot(
+  query: Query,
+  snapshot: Snapshot,
+  tier: DeploymentTier = "production",
+) {
+  deploymentTier(tier);
   // TIMESTAMPTZ renders in the session timezone when converted to JSON.
   await query("SET TIME ZONE 'UTC'");
   for (const [name, table] of Object.entries(snapshot.tables)) {
@@ -188,7 +270,7 @@ export async function verifySnapshot(query: Query, snapshot: Snapshot) {
       `SELECT to_jsonb(t) AS row FROM ${relation(name)} t`,
     );
     const expected = table.rows.map((row) =>
-      name === "DeploymentEnvironment" ? { ...row, tier: "production" } : row,
+      name === "DeploymentEnvironment" ? { ...row, tier } : row,
     );
     if (
       canonical(sortedRows(actual.rows.map((r) => r.row as Row))) !==
@@ -200,7 +282,12 @@ export async function verifySnapshot(query: Query, snapshot: Snapshot) {
 
 // The destination is migrated and empty. Changes to triggers and FK deferral
 // exist only inside this transaction and return to their original definitions.
-export async function restoreSnapshot(query: Query, snapshot: Snapshot) {
+export async function restoreSnapshot(
+  query: Query,
+  snapshot: Snapshot,
+  tier: DeploymentTier = "production",
+) {
+  deploymentTier(tier);
   await query("BEGIN");
   try {
     await query("SET LOCAL TIME ZONE 'UTC'");
@@ -252,7 +339,7 @@ export async function restoreSnapshot(query: Query, snapshot: Snapshot) {
         [JSON.stringify(table.rows)],
       );
     }
-    await query("UPDATE \"DeploymentEnvironment\" SET tier='production'");
+    await query('UPDATE "DeploymentEnvironment" SET tier=$1', [tier]);
     // Validate all references before restoring normal constraint definitions.
     await query("SET CONSTRAINTS ALL IMMEDIATE");
     for (const constraint of constraints.rows)
@@ -269,7 +356,7 @@ export async function restoreSnapshot(query: Query, snapshot: Snapshot) {
           `ALTER TABLE ${relation(String(trigger.table_name))} ${action} TRIGGER ${quote(String(trigger.name))}`,
         );
     }
-    await verifySnapshot(query, snapshot);
+    await verifySnapshot(query, snapshot, tier);
     await query("COMMIT");
   } catch (error) {
     await query("ROLLBACK");
@@ -336,11 +423,13 @@ export const envText = (values: Record<string, string>) =>
     .join("\n") + "\n";
 
 async function exportLocal() {
+  const tier = deploymentTier(process.env.NEON_DEPLOYMENT_TIER ?? "production");
   for (const filename of [
     snapshotPath(),
     `${directory}/target.env`,
     `${directory}/vercel.env`,
     `${directory}/summary.json`,
+    ...(tier === "preview" ? [`${directory}/storage.env`] : []),
   ]) {
     let exists = false;
     try {
@@ -362,7 +451,9 @@ async function exportLocal() {
     !["localhost", "127.0.0.1", "[::1]"].includes(new URL(source).hostname)
   )
     throw new Error("Export requires the loopback local owner connection.");
-  const keys = JSON.parse(local.DATA_ENCRYPTION_KEYS ?? "{}");
+  const keys: Record<string, string> = JSON.parse(
+    local.DATA_ENCRYPTION_KEYS ?? "{}",
+  );
   if (
     !Object.keys(keys).length ||
     Object.values(keys).some(
@@ -375,11 +466,21 @@ async function exportLocal() {
   const client = new pg.Client({ connectionString: source });
   await client.connect();
   try {
-    const snapshot = await captureSnapshot(
+    const captured = await captureSnapshot(
       client.query.bind(client),
       await migrations(),
       digest(keys),
     );
+    const activeKey =
+      tier === "preview" ? "test_v1" : local.ACTIVE_ENCRYPTION_KEY;
+    const targetKeys =
+      tier === "preview"
+        ? { [activeKey]: randomBytes(32).toString("base64") }
+        : keys;
+    const snapshot =
+      tier === "preview"
+        ? rekeySnapshot(captured, keys, targetKeys, activeKey)
+        : captured;
     await privateFile(snapshotPath(), JSON.stringify(snapshot, null, 2) + "\n");
     await privateFile(
       `${directory}/target.env`,
@@ -391,14 +492,17 @@ async function exportLocal() {
     await privateFile(
       `${directory}/vercel.env`,
       envText({
-        APP_ENV: "production",
-        DATABASE_ENV: "production",
+        APP_ENV: tier,
+        DATABASE_ENV: tier,
         LOCAL_PGLITE: "false",
         DATABASE_URL: "FILLED_AFTER_NEON_IMPORT",
-        NEXTAUTH_URL: "https://YOUR_DOMAIN",
+        NEXTAUTH_URL:
+          tier === "preview"
+            ? "https://pailangz-test.vercel.app"
+            : "https://YOUR_DOMAIN",
         NEXTAUTH_SECRET: randomBytes(48).toString("base64url"),
-        DATA_ENCRYPTION_KEYS: JSON.stringify(keys),
-        ACTIVE_ENCRYPTION_KEY: local.ACTIVE_ENCRYPTION_KEY,
+        DATA_ENCRYPTION_KEYS: JSON.stringify(targetKeys),
+        ACTIVE_ENCRYPTION_KEY: activeKey,
         PHONE_DEFAULT_COUNTRY: local.PHONE_DEFAULT_COUNTRY ?? "MY",
         PRIVATE_EXPORT_ENABLED: "false",
         EVIDENCE_STORAGE: "s3",
@@ -409,11 +513,23 @@ async function exportLocal() {
         S3_SECRET_ACCESS_KEY: "",
       }),
     );
+    if (tier === "preview")
+      await privateFile(
+        `${directory}/storage.env`,
+        envText({
+          S3_BUCKET: "pailangz-test-evidence",
+          AWS_ENDPOINT_URL_S3: "",
+          AWS_REGION: "ap-southeast-1",
+          AWS_ACCESS_KEY_ID: "",
+          AWS_SECRET_ACCESS_KEY: "",
+        }),
+      );
     await privateFile(
       `${directory}/summary.json`,
       JSON.stringify(
         {
           capturedAt: snapshot.capturedAt,
+          deploymentTier: tier,
           checksum: snapshot.checksum,
           counts: Object.fromEntries(
             Object.entries(snapshot.tables).map(([name, table]) => [
@@ -454,9 +570,18 @@ async function importNeon() {
     await readFile(snapshotPath(), "utf8"),
   ) as Snapshot;
   validateSnapshot(snapshot, await migrations());
-  const production = parse(await readFile(`${directory}/vercel.env`));
+  const prepared = parse(await readFile(`${directory}/vercel.env`));
+  const tier = deploymentTier(prepared.APP_ENV);
   if (
-    digest(JSON.parse(production.DATA_ENCRYPTION_KEYS ?? "{}")) !==
+    prepared.DATABASE_ENV !== tier ||
+    (process.env.NEON_DEPLOYMENT_TIER &&
+      process.env.NEON_DEPLOYMENT_TIER !== tier)
+  )
+    throw new Error(
+      "Prepared deployment tier does not match the requested import.",
+    );
+  if (
+    digest(JSON.parse(prepared.DATA_ENCRYPTION_KEYS ?? "{}")) !==
     snapshot.encryptionKeyringChecksum
   )
     throw new Error(
@@ -508,7 +633,7 @@ async function importNeon() {
       `GRANT CONNECT ON DATABASE ${quote(decodeURIComponent(url.pathname.slice(1)))} TO pailangz_app`,
     );
     console.log("Copying and comparing every row in one transaction...");
-    await restoreSnapshot(client.query.bind(client), snapshot);
+    await restoreSnapshot(client.query.bind(client), snapshot, tier);
     url.username = "pailangz_app";
     url.password = password;
     const runtime = new pg.Client({ connectionString: url.toString() });
@@ -519,14 +644,14 @@ async function importNeon() {
       );
       if (
         check.rows[0]?.role !== "pailangz_app" ||
-        check.rows[0]?.tier !== "production"
+        check.rows[0]?.tier !== tier
       )
         throw new Error("Runtime role/environment verification failed.");
     } finally {
       await runtime.end();
     }
-    production.DATABASE_URL = url.toString();
-    await privateFile(`${directory}/vercel.env`, envText(production), false);
+    prepared.DATABASE_URL = url.toString();
+    await privateFile(`${directory}/vercel.env`, envText(prepared), false);
     console.log(
       `Verified exact snapshot transfer. Vercel variables: ${directory}/vercel.env`,
     );

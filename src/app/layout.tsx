@@ -74,6 +74,14 @@ export default async function RootLayout({
                   "Play together. Rise together.",
                 )}
               </span>
+              <a
+                href="https://www.tiktok.com/@shafa7164"
+                className="text-link"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Made by Sha Fa
+              </a>
             </div>
           </footer>
         </LocaleProvider>

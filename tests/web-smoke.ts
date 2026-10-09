@@ -732,7 +732,10 @@ try {
         setupText,
         /\bUUIDs?\b|\bJSON\b|ISO 8601|RESTART_AND_RETAIN_HISTORY/,
       );
-      assert.ok(html.includes('type="datetime-local"'));
+      // Forms mount when a task dialog opens. Check the schedule entry point
+      // here; web-readiness-dialogs.ts exercises its actual date input.
+      assert.ok(html.includes("Edit overview &amp; schedule"));
+      assert.ok(html.includes('aria-haspopup="dialog"'));
       assert.ok(html.includes("Final player rankings"));
       const invalid = await post(mod.cookie, "configure", {
         id: tournament.id,

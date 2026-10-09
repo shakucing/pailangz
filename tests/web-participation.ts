@@ -22,7 +22,7 @@ export async function checkParticipationHttp(
       body: JSON.stringify(body),
     });
   await check(
-    "full legacy roster closes the shared tournament link without a public CTA",
+    "full legacy roster closes signup while keeping a registration status link",
     async () => {
       for (const locale of ["en", "ms"]) {
         const response = await fetch(`${origin}${path}`, {
@@ -48,10 +48,14 @@ export async function checkParticipationHttp(
         );
         assert.ok(!html.includes(input.tiktokId));
       }
-      for (const route of ["/", "/tournaments"]) {
-        const html = await (await fetch(`${origin}${route}`)).text();
-        assert.ok(!html.includes(`href="${path}"`));
-      }
+      const home = await (await fetch(`${origin}/`)).text();
+      assert.ok(home.includes(`href="${path}"`));
+      assert.match(home, /View registration status|Lihat status pendaftaran/);
+      assert.ok(
+        !home.includes('href="/tournaments/pailangz-solo-team/teams/new"'),
+      );
+      const listing = await (await fetch(`${origin}/tournaments`)).text();
+      assert.ok(!listing.includes(`href="${path}"`));
     },
   );
   await check(

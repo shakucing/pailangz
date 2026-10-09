@@ -85,6 +85,7 @@ export function ActionForm({
   return (
     <form
       className="form"
+      data-action={action}
       onChange={dialogForm.onChange}
       onClick={dialogForm.onClick}
       onSubmit={async (e) => {

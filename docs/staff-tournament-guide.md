@@ -2,6 +2,8 @@
 
 The page separates setup into four sections. On a laptop, readiness sits beside the selected task. On a phone, it sits above a two-column task selector, with the full checklist collapsed. Edit forms open in dialogs so staff can concentrate on one change. The tournament diagram can be collapsed whenever you need more space.
 
+Click a “Ready to publish” checklist item to open its task dialog, including completed items you want to review. The dialog scrolls to the relevant field or action, focuses it, and highlights it for three seconds. The team check opens an incomplete roster for editing, or a new team form when another team is needed.
+
 ## What the original screenshot means
 
 | Control or information | Meaning and when to use it |
@@ -28,13 +30,13 @@ The main heading is the event name. The new summary shows its status, public/pri
 
 ## Other page actions
 
-**SOLO & TEAM registration links:** the first overview panel links to player entry and captain team registration. Use **Registration links** in the summary to reach it from any tab. Share the event-specific participation URL after enabling registration. The landing page also shows entry links for its featured enabled event, with the current player registration status. Registration/team pages can be available while fixtures and results remain private. The deadline, capacity and event lifecycle also control whether entries are accepted.
+**SOLO & TEAM registration links:** the first overview panel links to player entry. Use **Registration links** in the summary to reach it from any tab. Share the event-specific participation URL after enabling registration. The landing page also shows player entry and team viewing links for its featured enabled event, with the current player registration status; it does not offer team creation or management. Registration/team pages can be available while fixtures and results remain private. The deadline, capacity and event lifecycle also control whether entries are accepted.
 
 **Confirm player list:** record that names and player codes have been reviewed. Do this again after a roster change that invalidates the confirmation.
 
 **Publish tournament / Unpublish:** make official fixtures and results public, or return them to private staff access. Publishing still requires every readiness check. Opening registration is a separate setting.
 
-**Edit tournament rules:** configure and explicitly confirm the rules for the selected stage. “Rules update” is that stage's rules revision. The confirmed-rule summary shows what staff have acknowledged.
+**Edit tournament rules:** configure the rules for the selected stage, then save. Saving automatically confirms each configured rule; there are no separate confirmation checkboxes. Blank rules remain undecided, and clearing a saved choice removes its confirmation. “Rules update” is that stage's rules revision. The confirmed-rule summary shows the saved choices.
 
 **Manage stage progression:** save final rankings for league stages, create qualification fixtures, or create a confirmed SOLO/TEAM bracket as applicable. Resolve ties using the confirmed rules; these controls do not automatically advance an unfinished competition.
 

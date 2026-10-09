@@ -1975,8 +1975,19 @@ a:has(> .navigation-hint.is-pending) {
   gap: 8px;
   color: var(--text);
 }
-.tournament-readiness .check a {
+.tournament-readiness .check :is(a, .readiness-action) {
   color: var(--text);
+}
+.readiness-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  line-height: inherit;
+  cursor: pointer;
+}
+.readiness-action:hover {
+  text-decoration: underline;
 }
 .tournament-readiness .check.done {
   color: var(--muted);

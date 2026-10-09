@@ -171,7 +171,12 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   if (!ready) throw new Error("Isolated test server did not become ready.");
-  await run("tests/web-smoke.ts", env);
+  await run(
+    process.argv.includes("--readiness-dialogs")
+      ? "tests/web-readiness-dialogs.ts"
+      : "tests/web-smoke.ts",
+    env,
+  );
 } finally {
   if (web && web.exitCode === null) {
     const exited = new Promise<void>((resolve) =>

@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -19,6 +20,65 @@ const DialogContext = createContext<{
   dirty: Set<string>;
 } | null>(null);
 const DialogActionsContext = createContext<HTMLDivElement | null>(null);
+const DialogNavigationContext = createContext<{
+  register: (id: string, open: (fieldTarget?: string) => void) => () => void;
+  open: (id: string, fieldTarget?: string) => void;
+} | null>(null);
+
+export function TaskDialogNavigation({
+  children,
+  onOpen,
+}: {
+  children: ReactNode;
+  onOpen: (id: string) => void;
+}) {
+  const openers = useRef(new Map<string, (fieldTarget?: string) => void>());
+  const navigation = useMemo(
+    () => ({
+      register(id: string, open: (fieldTarget?: string) => void) {
+        openers.current.set(id, open);
+        return () => {
+          if (openers.current.get(id) === open) openers.current.delete(id);
+        };
+      },
+      open(id: string, fieldTarget?: string) {
+        const launch = openers.current.get(id);
+        if (launch) {
+          onOpen(id);
+          launch(fieldTarget);
+        }
+      },
+    }),
+    [onOpen],
+  );
+  return (
+    <DialogNavigationContext.Provider value={navigation}>
+      {children}
+    </DialogNavigationContext.Provider>
+  );
+}
+
+export function TaskDialogButton({
+  target,
+  fieldTarget,
+  children,
+}: {
+  target: string;
+  fieldTarget?: string;
+  children: ReactNode;
+}) {
+  const navigation = useContext(DialogNavigationContext);
+  return (
+    <button
+      type="button"
+      className="text-link readiness-action"
+      aria-haspopup="dialog"
+      onClick={() => navigation?.open(target, fieldTarget)}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function DialogActions({ children }: { children: ReactNode }) {
   const target = useContext(DialogActionsContext);
@@ -64,6 +124,7 @@ export function WorkspaceDialog({
   busy = false,
   dirty = false,
   closeLabel = "Close",
+  fieldTarget,
 }: {
   title: string;
   description?: string;
@@ -72,9 +133,11 @@ export function WorkspaceDialog({
   busy?: boolean;
   dirty?: boolean;
   closeLabel?: string;
+  fieldTarget?: string;
 }) {
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
+  const body = useRef<HTMLDivElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const keepEditing = useRef<HTMLButtonElement>(null);
   const [state] = useState(() => ({
@@ -100,6 +163,48 @@ export function WorkspaceDialog({
       target?.focus({ preventScroll: true });
     };
   }, []);
+  useEffect(() => {
+    if (!fieldTarget) return;
+    let highlighted: HTMLElement | null = null;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    // Wait until the dialog is open and its scrollable body has been laid out.
+    const frame = requestAnimationFrame(() => {
+      const target = dialog.current?.querySelector<HTMLElement>(fieldTarget);
+      if (!target) return;
+      highlighted =
+        target.closest<HTMLElement>(".rule-choice") ??
+        target.closest<HTMLElement>(".guided-field, label, th") ??
+        target;
+      const control = target.matches('input[type="hidden"]')
+        ? highlighted.querySelector<HTMLElement>(
+            'button:not(:disabled), input:not([type="hidden"]):not(:disabled), select:not(:disabled), textarea:not(:disabled)',
+          )
+        : target;
+      control?.focus({ preventScroll: true });
+      const scroller = body.current!;
+      const bounds = (control ?? highlighted).getBoundingClientRect();
+      scroller.scrollTo({
+        top:
+          scroller.scrollTop +
+          bounds.top -
+          scroller.getBoundingClientRect().top -
+          (scroller.clientHeight - bounds.height) / 2,
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "instant"
+          : "smooth",
+      });
+      highlighted.classList.add(styles.highlight);
+      timeout = setTimeout(
+        () => highlighted?.classList.remove(styles.highlight),
+        3000,
+      );
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timeout);
+      highlighted?.classList.remove(styles.highlight);
+    };
+  }, [fieldTarget]);
   useEffect(() => {
     if (confirmDiscard) keepEditing.current?.focus({ preventScroll: true });
   }, [confirmDiscard]);
@@ -165,7 +270,7 @@ export function WorkspaceDialog({
           <X size={20} aria-hidden="true" />
         </button>
       </header>
-      <div className={styles.body}>
+      <div ref={body} className={styles.body}>
         <DialogContext.Provider value={state}>
           <DialogActionsContext.Provider value={actions}>
             {children}
@@ -244,6 +349,17 @@ export function TaskDialog({
   readOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [fieldTarget, setFieldTarget] = useState<string>();
+  const navigation = useContext(DialogNavigationContext);
+  useEffect(() => {
+    if (id && navigation)
+      return navigation.register(id, (target) => {
+        if (!disabled) {
+          setFieldTarget(target);
+          setOpen(true);
+        }
+      });
+  }, [id, disabled, navigation]);
   return (
     <div className={styles.trigger} id={id}>
       <button
@@ -251,7 +367,10 @@ export function TaskDialog({
         className="button secondary small"
         aria-haspopup="dialog"
         disabled={disabled}
-        onClick={() => setOpen(true)}
+        onClick={() => {
+          setFieldTarget(undefined);
+          setOpen(true);
+        }}
       >
         {label}
       </button>
@@ -259,6 +378,7 @@ export function TaskDialog({
         <WorkspaceDialog
           title={title}
           description={description}
+          fieldTarget={fieldTarget}
           onClose={() => setOpen(false)}
         >
           {readOnly ? (
