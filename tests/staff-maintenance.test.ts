@@ -9,6 +9,10 @@ import {
   validateStaffPassword,
   updateStaffPasswords,
   removeDisposableStaff,
+  maintenanceTarget,
+  qaCleanupState,
+  qaCleanupPlan,
+  purgeDisposableStaff,
   type StaffAccount,
   type Query,
 } from "../scripts/staff-maintenance";
@@ -207,5 +211,237 @@ describe("disposable QA cleanup", () => {
     expect(disposableQa({ ...qa, suspended: false })).toBe(false);
     expect(disposableQa({ ...qa, email: "real@example.invalid" })).toBe(false);
     expect(disposableQa({ ...qa, name: "Real operator" })).toBe(false);
+  });
+});
+
+describe("explicit QA audit purge", () => {
+  beforeEach(async () => {
+    await db.exec(
+      'ALTER TABLE "AuditEvent" DISABLE TRIGGER immutable_audit; DELETE FROM "AuditEvent"; ALTER TABLE "AuditEvent" ENABLE TRIGGER immutable_audit; DELETE FROM "DevelopmentAuditActor";',
+    );
+    await query(
+      "INSERT INTO \"DevelopmentAuditActor\" (id) VALUES ('qa'),('browser'),('former-qa')",
+    );
+    await query(
+      "INSERT INTO \"StaffUser\" (id,email,name,role,suspended,\"passwordHash\") VALUES ('ordinary','ordinary@synthetic.invalid','Ordinary staff','MODERATOR',true,$1)",
+      [oldHash],
+    );
+    const throttle = `login:${createHash("sha256").update("qa-temp@synthetic.invalid").digest("hex")}`;
+    await query('INSERT INTO "AuthThrottle" (key,count) VALUES ($1,4)', [
+      throttle,
+    ]);
+    for (const [id, actorId, entityType, entityId, action, changes, source] of [
+      ["real-event", "admin", "MEMBER", "member", "MEMBER_UPDATE", {}, "WEB"],
+      ["qa-event", "qa", "MEMBER", "member", "MEMBER_UPDATE", {}, "WEB"],
+      ["qa-login", null, "SECURITY", "qa", "AUTH_LOGIN", {}, "AUTH"],
+      [
+        "qa-target",
+        "admin",
+        "STAFF",
+        "qa",
+        "STAFF_PERMISSION_CHANGE",
+        {},
+        "WEB",
+      ],
+      [
+        "qa-group",
+        null,
+        "STAFF",
+        "synthetic-qa",
+        "QA_ACCOUNT_PROVISION",
+        { accountIds: ["qa", "browser"] },
+        "TEST",
+      ],
+      ["former-event", "former-qa", "PAGE", "members", "STAFF_VIEW", {}, "WEB"],
+      [
+        "mixed-event",
+        null,
+        "STAFF",
+        "bulk",
+        "STAFF_PASSWORD_CHANGE",
+        { accountIds: ["qa", "admin"] },
+        "CLI",
+      ],
+      [
+        "mixed-qa-event",
+        "qa",
+        "STAFF",
+        "bulk",
+        "STAFF_PASSWORD_CHANGE",
+        { accountIds: ["qa", "admin"] },
+        "WEB",
+      ],
+      ["system-event", null, "SYSTEM", "system", "SYSTEM_CHECK", {}, "CLI"],
+      [
+        "unrelated-test",
+        "ordinary",
+        "PAGE",
+        "members",
+        "STAFF_VIEW",
+        {},
+        "TEST",
+      ],
+    ]) {
+      await query(
+        'INSERT INTO "AuditEvent" (id,"actorId","actorRole",action,"entityType","entityId",changes,"correlationId",source) VALUES ($1,$2,\'SYSTEM\',$3,$4,$5,$6::jsonb,$1,$7)',
+        [
+          id,
+          actorId,
+          action,
+          entityType,
+          entityId,
+          JSON.stringify(changes),
+          source,
+        ],
+      );
+    }
+  });
+
+  it("selects QA-only history, including formerly deleted QA identities, and retains real and mixed history", async () => {
+    const plan = qaCleanupPlan(await qaCleanupState(query));
+    expect(plan.counts).toEqual({
+      staff: 2,
+      sessions: 2,
+      throttles: 1,
+      audit: 5,
+      markers: 2,
+      mixedAuditRetained: 2,
+    });
+    expect(plan.auditIds.sort()).toEqual([
+      "former-event",
+      "qa-event",
+      "qa-group",
+      "qa-login",
+      "qa-target",
+    ]);
+    expect(plan.markerIds.sort()).toEqual(["browser", "former-qa"]);
+  });
+
+  it("backs up first, purges selected rows together, preserves other records and restores audit protection", async () => {
+    let saved = false;
+    const result = await purgeDisposableStaff(
+      query,
+      "development",
+      async (backup) => {
+        expect(backup.tables.StaffUser).toHaveLength(5);
+        expect(backup.tables.AuditEvent).toHaveLength(10);
+        expect((await query('SELECT id FROM "StaffUser"')).rows).toHaveLength(
+          5,
+        );
+        saved = true;
+      },
+    );
+    expect(saved).toBe(true);
+    expect(result.after).toEqual({
+      StaffUser: 3,
+      StaffSession: 2,
+      AuthThrottle: 0,
+      AuditEvent: 6,
+      DevelopmentAuditActor: 1,
+    });
+    expect(
+      (await query('SELECT id FROM "StaffUser" ORDER BY id')).rows,
+    ).toEqual([{ id: "admin" }, { id: "mod" }, { id: "ordinary" }]);
+    expect(
+      (
+        await query(
+          "SELECT action,changes FROM \"AuditEvent\" WHERE action='STAFF_QA_CLEANUP'",
+        )
+      ).rows,
+    ).toHaveLength(1);
+    await expect(
+      query("DELETE FROM \"AuditEvent\" WHERE id='real-event'"),
+    ).rejects.toThrow("append-only");
+  });
+
+  it("aborts before mutations if backup writing fails", async () => {
+    const before = await qaCleanupState(query);
+    await expect(
+      purgeDisposableStaff(query, "development", async () => {
+        throw new Error("backup unavailable");
+      }),
+    ).rejects.toThrow("backup unavailable");
+    expect(await qaCleanupState(query)).toEqual(before);
+    await expect(query('DELETE FROM "AuditEvent"')).rejects.toThrow(
+      "append-only",
+    );
+  });
+
+  it("rolls back accounts and audit protection if deleting selected history fails", async () => {
+    const before = await qaCleanupState(query);
+    const failingQuery: Query = (sql, parameters) => {
+      if (sql.startsWith('DELETE FROM "AuditEvent"'))
+        throw new Error("simulated deletion failure");
+      return query(sql, parameters);
+    };
+    await expect(
+      purgeDisposableStaff(failingQuery, "development", async () => {}),
+    ).rejects.toThrow("simulated deletion failure");
+    expect(await qaCleanupState(query)).toEqual(before);
+    await expect(query('DELETE FROM "AuditEvent"')).rejects.toThrow(
+      "append-only",
+    );
+  });
+
+  it("rejects the wrong environment before backup or mutations", async () => {
+    let saved = false;
+    await expect(
+      purgeDisposableStaff(query, "preview", async () => {
+        saved = true;
+      }),
+    ).rejects.toThrow("selected environment");
+    expect(saved).toBe(false);
+    expect((await query('SELECT id FROM "StaffUser"')).rows).toHaveLength(5);
+  });
+
+  it("makes a second purge a no-op while retaining mixed history and the cleanup receipt", async () => {
+    await purgeDisposableStaff(query, "development", async () => {});
+    const before = await qaCleanupState(query);
+    let saved = false;
+    const result = await purgeDisposableStaff(
+      query,
+      "development",
+      async () => {
+        saved = true;
+      },
+    );
+    expect(result.changed).toBe(false);
+    expect(saved).toBe(false);
+    expect(result.counts.staff).toBe(0);
+    expect(result.counts.audit).toBe(0);
+    expect(await qaCleanupState(query)).toEqual(before);
+  });
+
+  it("preserves an active QA account even if it has a historical identity marker", async () => {
+    await query("UPDATE \"StaffUser\" SET suspended=false WHERE id='qa'");
+    await query(
+      "INSERT INTO \"AuditEvent\" (id,\"actorRole\",action,\"entityType\",\"entityId\",changes,\"correlationId\",source) VALUES ('active-qa-provision','SYSTEM','QA_ACCOUNT_PROVISION','STAFF','synthetic-qa','{\"accountIds\":[\"qa\"]}','active-qa-provision','TEST')",
+    );
+    const plan = qaCleanupPlan(await qaCleanupState(query));
+    expect(plan.accountIds).toEqual(["browser"]);
+    expect(plan.auditIds).not.toContain("qa-event");
+    expect(plan.auditIds).not.toContain("qa-login");
+    expect(plan.auditIds).not.toContain("active-qa-provision");
+  });
+});
+
+describe("maintenance environment targets", () => {
+  it("uses separate credential files and tiers for local, test and production", () => {
+    expect(maintenanceTarget(["--local"]).tier).toBe("development");
+    expect(maintenanceTarget(["--test"])).toMatchObject({
+      tier: "preview",
+      file: ".local/test-transfer/target.env",
+    });
+    expect(maintenanceTarget(["--production"])).toMatchObject({
+      tier: "production",
+      file: ".local/neon-transfer/target.env",
+    });
+    expect(maintenanceTarget(["--neon"])).toEqual(
+      maintenanceTarget(["--production"]),
+    );
+    expect(() => maintenanceTarget(["--local", "--production"])).toThrow(
+      "exactly one",
+    );
+    expect(() => maintenanceTarget([])).toThrow("exactly one");
   });
 });

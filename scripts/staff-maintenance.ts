@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
@@ -8,6 +8,7 @@ import { stdin, stdout } from "node:process";
 import { hash, truncates } from "bcryptjs";
 import { parse } from "dotenv";
 import pg from "pg";
+import { canonical } from "./neon-transfer";
 
 export type StaffAccount = {
   id: string;
@@ -34,6 +35,338 @@ export function disposableQa(account: StaffAccount) {
     /^[^@]+@synthetic\.invalid$/.test(account.email) &&
     /^Disposable (synthetic|browser) QA(?:\b|$)/.test(account.name)
   );
+}
+
+export function maintenanceTarget(flags: string[]) {
+  const choices = flags.filter((flag) =>
+    ["--local", "--test", "--production", "--neon"].includes(flag),
+  );
+  if (choices.length !== 1)
+    throw new Error(
+      "Choose exactly one of --local, --test or --production (--neon is a production alias).",
+    );
+  const local = choices[0] === "--local";
+  const test = choices[0] === "--test";
+  return {
+    local,
+    tier: local ? "development" : test ? "preview" : "production",
+    label: local ? "local development" : test ? "Neon test" : "Neon production",
+    file: local
+      ? ".env"
+      : path.join(
+          test ? ".local/test-transfer" : ".local/neon-transfer",
+          "target.env",
+        ),
+  };
+}
+
+const cleanupTables = [
+  "StaffUser",
+  "StaffSession",
+  "AuthThrottle",
+  "AuditEvent",
+  "DevelopmentAuditActor",
+];
+type CleanupState = Record<string, Record<string, unknown>[]>;
+const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
+const sorted = (rows: Record<string, unknown>[]) => rows.map(canonical).sort();
+const sameRows = (a: Record<string, unknown>[], b: Record<string, unknown>[]) =>
+  canonical(sorted(a)) === canonical(sorted(b));
+
+export async function qaCleanupState(query: Query): Promise<CleanupState> {
+  const state: CleanupState = {};
+  for (const name of cleanupTables) {
+    const result = await query(
+      `SELECT to_jsonb(t) AS row FROM public.${quote(name)} t`,
+    );
+    state[name] = result.rows.map(
+      (item) => item.row as Record<string, unknown>,
+    );
+  }
+  return state;
+}
+
+function eventAccounts(event: Record<string, unknown>) {
+  const changes = event.changes as Record<string, unknown> | null;
+  return Array.isArray(changes?.accountIds)
+    ? changes.accountIds.filter((id): id is string => typeof id === "string")
+    : [];
+}
+
+export function qaCleanupPlan(state: CleanupState) {
+  const staff = state.StaffUser as StaffAccount[];
+  const accounts = staff.filter(disposableQa);
+  const accountIds = new Set(accounts.map((account) => account.id));
+  const realIds = new Set(
+    staff
+      .filter((account) => !accountIds.has(account.id))
+      .map((account) => account.id),
+  );
+  const verifiedIds = new Set([
+    ...accountIds,
+    ...state.DevelopmentAuditActor.map((row) => String(row.id)).filter(
+      (id) => !realIds.has(id),
+    ),
+  ]);
+  const related = (event: Record<string, unknown>) => {
+    const ids = eventAccounts(event);
+    const references = Array.isArray(event.relatedIds)
+      ? (event.relatedIds as string[])
+      : [];
+    return (
+      verifiedIds.has(String(event.actorId)) ||
+      (["STAFF", "SECURITY"].includes(String(event.entityType)) &&
+        verifiedIds.has(String(event.entityId))) ||
+      ids.some((id) => verifiedIds.has(id)) ||
+      references.some((id) => verifiedIds.has(id))
+    );
+  };
+  const mixed = (event: Record<string, unknown>) => {
+    const ids = eventAccounts(event);
+    const references = Array.isArray(event.relatedIds)
+      ? (event.relatedIds as string[])
+      : [];
+    return (
+      (ids.some((id) => verifiedIds.has(id)) &&
+        ids.some((id) => !verifiedIds.has(id))) ||
+      (references.some((id) => verifiedIds.has(id)) &&
+        references.some((id) => realIds.has(id)))
+    );
+  };
+  const audit = state.AuditEvent.filter(
+    (event) => related(event) && !mixed(event),
+  );
+  const auditIds = new Set(audit.map((event) => String(event.id)));
+  const remainingAudit = state.AuditEvent.filter(
+    (event) => !auditIds.has(String(event.id)),
+  );
+  const markerIds = state.DevelopmentAuditActor.map((row) =>
+    String(row.id),
+  ).filter(
+    (id) =>
+      verifiedIds.has(id) &&
+      !remainingAudit.some(
+        (event) =>
+          event.actorId === id ||
+          event.entityId === id ||
+          eventAccounts(event).includes(id) ||
+          (Array.isArray(event.relatedIds) && event.relatedIds.includes(id)),
+      ),
+  );
+  const throttles = new Set(accounts.map((account) => loginKey(account.email)));
+  return {
+    accounts,
+    accountIds: [...accountIds],
+    auditIds: [...auditIds],
+    markerIds,
+    throttleKeys: [...throttles],
+    counts: {
+      staff: accounts.length,
+      sessions: state.StaffSession.filter((row) =>
+        accountIds.has(String(row.userId)),
+      ).length,
+      throttles: state.AuthThrottle.filter((row) =>
+        throttles.has(String(row.key)),
+      ).length,
+      audit: audit.length,
+      markers: markerIds.length,
+      mixedAuditRetained: state.AuditEvent.filter(
+        (event) => related(event) && mixed(event),
+      ).length,
+    },
+  };
+}
+
+export type QaCleanupBackup = {
+  format: "pailangz-qa-cleanup-v1";
+  capturedAt: string;
+  tier: string;
+  tables: CleanupState;
+  counts: ReturnType<typeof qaCleanupPlan>["counts"];
+  checksum: string;
+};
+
+async function otherTableDigests(query: Query) {
+  const tables = await query(
+    "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename",
+  );
+  const result: Record<string, string> = {};
+  for (const row of tables.rows) {
+    const name = String(row.tablename);
+    if (cleanupTables.includes(name)) continue;
+    const records = await query(
+      `SELECT to_jsonb(t) AS row FROM public.${quote(name)} t`,
+    );
+    result[name] = createHash("sha256")
+      .update(
+        canonical(
+          sorted(
+            records.rows.map((item) => item.row as Record<string, unknown>),
+          ),
+        ),
+      )
+      .digest("hex");
+  }
+  return result;
+}
+
+export async function purgeDisposableStaff(
+  query: Query,
+  expectedTier: string,
+  saveBackup: (backup: QaCleanupBackup) => Promise<void>,
+) {
+  await query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+  try {
+    await query("SET LOCAL TIME ZONE 'UTC'");
+    await query("SET LOCAL lock_timeout = '10s'");
+    await query(
+      `LOCK TABLE ${cleanupTables.map(quote).join(",")} IN ACCESS EXCLUSIVE MODE`,
+    );
+    const identity = await query(
+      'SELECT tier,(SELECT pg_get_userbyid(relowner)=current_user FROM pg_class WHERE oid=\'"StaffUser"\'::regclass) AS owns_staff,(SELECT pg_get_userbyid(relowner)=current_user FROM pg_class WHERE oid=\'"AuditEvent"\'::regclass) AS owns_audit FROM "DeploymentEnvironment"',
+    );
+    if (
+      identity.rows[0]?.tier !== expectedTier ||
+      !identity.rows[0]?.owns_staff ||
+      !identity.rows[0]?.owns_audit
+    )
+      throw new Error(
+        "QA audit purge requires the owner of both tables in the selected environment.",
+      );
+    const before = await qaCleanupState(query);
+    const plan = qaCleanupPlan(before);
+    if (!plan.counts.staff && !plan.counts.audit && !plan.counts.markers) {
+      await query("COMMIT");
+      return {
+        counts: plan.counts,
+        before: Object.fromEntries(
+          cleanupTables.map((name) => [name, before[name].length]),
+        ),
+        after: Object.fromEntries(
+          cleanupTables.map((name) => [name, before[name].length]),
+        ),
+        changed: false,
+      };
+    }
+    const trigger = await query(
+      "SELECT tgenabled FROM pg_trigger WHERE tgrelid='\"AuditEvent\"'::regclass AND tgname='immutable_audit' AND NOT tgisinternal",
+    );
+    const triggerMode = String(trigger.rows[0]?.tgenabled);
+    const restore = (
+      { O: "ENABLE", R: "ENABLE REPLICA", A: "ENABLE ALWAYS" } as Record<
+        string,
+        string
+      >
+    )[triggerMode];
+    if (!restore)
+      throw new Error(
+        "Audit immutability must already be enabled before an operator purge.",
+      );
+    const untouched = await otherTableDigests(query);
+    const payload = {
+      format: "pailangz-qa-cleanup-v1" as const,
+      capturedAt: new Date().toISOString(),
+      tier: expectedTier,
+      tables: before,
+      counts: plan.counts,
+    };
+    const backup = {
+      ...payload,
+      checksum: createHash("sha256").update(canonical(payload)).digest("hex"),
+    };
+    // A failed backup aborts before any records or protections change.
+    await saveBackup(backup);
+    await query('DELETE FROM "StaffSession" WHERE "userId"=ANY($1::text[])', [
+      plan.accountIds,
+    ]);
+    await query('DELETE FROM "AuthThrottle" WHERE key=ANY($1::text[])', [
+      plan.throttleKeys,
+    ]);
+    await query('DELETE FROM "StaffUser" WHERE id=ANY($1::text[])', [
+      plan.accountIds,
+    ]);
+    await query('ALTER TABLE "AuditEvent" DISABLE TRIGGER immutable_audit');
+    await query('DELETE FROM "AuditEvent" WHERE id=ANY($1::text[])', [
+      plan.auditIds,
+    ]);
+    await query(`ALTER TABLE "AuditEvent" ${restore} TRIGGER immutable_audit`);
+    await query(
+      'DELETE FROM "DevelopmentAuditActor" WHERE id=ANY($1::text[])',
+      [plan.markerIds],
+    );
+    const receiptId = randomUUID();
+    await query(
+      "INSERT INTO \"AuditEvent\" (id,\"actorRole\",action,\"entityType\",\"entityId\",changes,reason,\"correlationId\",source,outcome) VALUES ($1,'SYSTEM','STAFF_QA_CLEANUP','STAFF','staff-maintenance',$2::jsonb,'Operator requested removal of verified disposable staff and their QA audit history.',$3,'CLI','SUCCESS')",
+      [
+        receiptId,
+        JSON.stringify({
+          removedStaff: plan.counts.staff,
+          removedSessions: plan.counts.sessions,
+          removedLoginThrottles: plan.counts.throttles,
+          removedAuditEvents: plan.counts.audit,
+          retainedMixedAuditEvents: plan.counts.mixedAuditRetained,
+          backupChecksum: backup.checksum,
+        }),
+        randomUUID(),
+      ],
+    );
+    const after = await qaCleanupState(query);
+    const expected: CleanupState = {
+      StaffUser: before.StaffUser.filter(
+        (row) => !plan.accountIds.includes(String(row.id)),
+      ),
+      StaffSession: before.StaffSession.filter(
+        (row) => !plan.accountIds.includes(String(row.userId)),
+      ),
+      AuthThrottle: before.AuthThrottle.filter(
+        (row) => !plan.throttleKeys.includes(String(row.key)),
+      ),
+      AuditEvent: before.AuditEvent.filter(
+        (row) => !plan.auditIds.includes(String(row.id)),
+      ),
+      DevelopmentAuditActor: before.DevelopmentAuditActor.filter(
+        (row) => !plan.markerIds.includes(String(row.id)),
+      ),
+    };
+    for (const name of cleanupTables) {
+      const actual =
+        name === "AuditEvent"
+          ? after[name].filter((row) => row.id !== receiptId)
+          : after[name];
+      if (!sameRows(expected[name], actual))
+        throw new Error(
+          `QA purge verification failed for ${name}; transaction rolled back.`,
+        );
+    }
+    if (
+      after.AuditEvent.filter((row) => row.id === receiptId).length !== 1 ||
+      canonical(await otherTableDigests(query)) !== canonical(untouched)
+    )
+      throw new Error(
+        "QA purge verification failed; other application records must be unchanged.",
+      );
+    const finalTrigger = await query(
+      "SELECT tgenabled FROM pg_trigger WHERE tgrelid='\"AuditEvent\"'::regclass AND tgname='immutable_audit'",
+    );
+    if (finalTrigger.rows[0]?.tgenabled !== triggerMode)
+      throw new Error(
+        "Audit immutability was not restored; transaction rolled back.",
+      );
+    await query("COMMIT");
+    return {
+      counts: plan.counts,
+      before: Object.fromEntries(
+        cleanupTables.map((name) => [name, before[name].length]),
+      ),
+      after: Object.fromEntries(
+        cleanupTables.map((name) => [name, after[name].length]),
+      ),
+      changed: true,
+    };
+  } catch (error) {
+    await query("ROLLBACK");
+    throw error;
+  }
 }
 
 export function validateStaffPassword(password: string) {
@@ -181,20 +514,26 @@ async function main() {
   const [action, ...flags] = process.argv.slice(2);
   if (
     !["check", "passwords", "cleanup"].includes(action) ||
-    flags.some((flag) => !["--neon", "--local", "--apply"].includes(flag)) ||
-    flags.includes("--neon") === flags.includes("--local") ||
-    (flags.includes("--apply") && action !== "cleanup")
+    flags.some(
+      (flag) =>
+        ![
+          "--neon",
+          "--production",
+          "--test",
+          "--local",
+          "--apply",
+          "--purge-audit",
+        ].includes(flag),
+    ) ||
+    ((flags.includes("--apply") || flags.includes("--purge-audit")) &&
+      action !== "cleanup")
   )
     throw new Error(
-      "Choose --neon or --local. Only cleanup accepts --apply. Passwords are prompted privately, never passed as arguments.",
+      "Choose --local, --test or --production. Only cleanup accepts --apply and --purge-audit. Passwords are prompted privately, never passed as arguments.",
     );
-  const neon = flags.includes("--neon");
-  const directory = path.resolve(
-    process.env.NEON_TRANSFER_DIR ?? ".local/neon-transfer",
-  );
-  const env = parse(
-    await readFile(neon ? path.join(directory, "target.env") : ".env"),
-  );
+  const target = maintenanceTarget(flags);
+  const neon = !target.local;
+  const env = parse(await readFile(target.file));
   const connection = neon ? env.NEON_DATABASE_URL : env.MIGRATION_DATABASE_URL;
   let url: URL;
   try {
@@ -226,13 +565,71 @@ async function main() {
     const identity = await query(
       'SELECT current_user AS role,tier,(SELECT pg_get_userbyid(relowner)=current_user FROM pg_class WHERE oid=\'"StaffUser"\'::regclass) AS owns_staff FROM "DeploymentEnvironment"',
     );
-    if (
-      identity.rows[0]?.tier !== (neon ? "production" : "development") ||
-      !identity.rows[0]?.owns_staff
-    )
+    if (identity.rows[0]?.tier !== target.tier || !identity.rows[0]?.owns_staff)
       throw new Error(
         "The connection must be the table owner in the selected database environment.",
       );
+    if (action === "cleanup" && flags.includes("--purge-audit")) {
+      await query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      let state: CleanupState;
+      try {
+        await query("SET LOCAL TIME ZONE 'UTC'");
+        state = await qaCleanupState(query);
+        await query("COMMIT");
+      } catch (error) {
+        await query("ROLLBACK");
+        throw error;
+      }
+      const plan = qaCleanupPlan(state);
+      const describe = (counts: Record<string, number>) =>
+        Object.entries(counts)
+          .map(([name, count]) => `${name}=${count}`)
+          .join(", ");
+      console.log(`Target: ${target.label} (${target.tier}).`);
+      console.log(
+        `Before: ${describe(Object.fromEntries(cleanupTables.map((name) => [name, state[name].length])))}`,
+      );
+      console.log(`Plan: ${describe(plan.counts)}`);
+      if (!flags.includes("--apply")) {
+        console.log(
+          "Preview only. Add --apply to back up and remove verified QA staff and QA-only audit history. Mixed staff history is retained.",
+        );
+        return;
+      }
+      let backupFile = "";
+      const result = await purgeDisposableStaff(
+        query,
+        target.tier,
+        async (backup) => {
+          const directory = path.resolve(".local/qa-cleanup", target.tier);
+          await mkdir(directory, { recursive: true, mode: 0o700 });
+          await chmod(directory, 0o700);
+          backupFile = path.join(
+            directory,
+            `${backup.capturedAt.replace(/[:.]/g, "-")}-${randomUUID()}.json`,
+          );
+          const text = JSON.stringify(backup, null, 2) + "\n";
+          await writeFile(backupFile, text, { mode: 0o600, flag: "wx" });
+          await chmod(backupFile, 0o600);
+          if (
+            canonical(JSON.parse(await readFile(backupFile, "utf8"))) !==
+            canonical(backup)
+          )
+            throw new Error(
+              "Private backup verification failed; no cleanup was applied.",
+            );
+          console.log(`Backup: ${backupFile} (mode 0600).`);
+        },
+      );
+      console.log(`Removed: ${describe(result.counts)}`);
+      console.log(`After: ${describe(result.after)}`);
+      console.log(
+        result.changed
+          ? "Verified retained staff, sessions, throttles and audit rows; all other application records unchanged; audit immutability restored. One cleanup receipt retained."
+          : "No verified QA accounts or QA-only audit records remain; no changes made.",
+      );
+      return;
+    }
     const all = (
       await query(
         `SELECT ${columns} FROM "StaffUser" ORDER BY suspended,name,id`,
@@ -241,7 +638,7 @@ async function main() {
     const qa = all.filter(disposableQa);
     const active = all.filter((account) => !account.suspended);
     console.log(
-      `Target: ${neon ? "Neon production" : "local development"}. ${active.length} active staff; ${qa.length} suspended disposable QA accounts.`,
+      `Target: ${target.label}. ${active.length} active staff; ${qa.length} suspended disposable QA accounts.`,
     );
     console.table(
       active.map(({ name, email, role }) => ({ name, email, role })),

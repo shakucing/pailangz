@@ -61,6 +61,36 @@ The command only accepts accounts that are **suspended**, have names starting **
 
 You can also run the cleanup with **--local --apply** to remove the old test accounts locally. Cleanup does not prevent future development tests from creating their own disposable accounts.
 
+### Remove QA accounts and their audit history
+
+Use `--purge-audit` only when the operator intends to delete QA history as well as the disposable accounts. Preview and apply each database separately:
+
+```sh
+# Local: .env, actual database tier development
+pnpm staff:cleanup --local --purge-audit
+pnpm staff:cleanup --local --purge-audit --apply
+
+# Test: .local/test-transfer/target.env, actual database tier preview
+pnpm staff:cleanup --test --purge-audit
+pnpm staff:cleanup --test --purge-audit --apply
+
+# Production: .local/neon-transfer/target.env, actual database tier production
+pnpm staff:cleanup --production --purge-audit
+pnpm staff:cleanup --production --purge-audit --apply
+```
+
+`--neon` remains an alias for `--production`. Each target uses its own credential file; the command checks the actual database tier and table ownership. Hosted maintenance requires the direct owner URL with verified TLS. These commands run locally against the selected database and require no application deployment.
+
+The purge identifies staff using all three QA markers above. It also recognizes former QA identities already recorded in `DevelopmentAuditActor`, while protecting any identity that now belongs to a non-disposable or active account. It removes audit entries authored by those QA identities, entries about their staff/security identity, and QA-only maintenance groups. Entries involving both QA and other staff remain intact. A generic `source=TEST` flag alone does not authorize deleting unrelated history.
+
+Before deletion, the command saves and reads back a private backup of all staff, staff sessions, login throttles, audit rows and development identity markers under `.local/qa-cleanup/<database-tier>/`. Files are mode `0600`; directories are mode `0700`. The backup contains password hashes and must remain private and ignored by Git.
+
+Changes run in one transaction. The owner temporarily disables only the `immutable_audit` trigger while deleting the selected audit rows, then restores its exact enabled state before committing. Backup or verification failures roll back. All retained staff, sessions, throttles and audit rows are compared with their prior values, and all other application tables are checked for unchanged contents. No application permission or permanent audit protection is relaxed.
+
+One `STAFF_QA_CLEANUP` receipt remains with removal counts and a backup checksum. It contains no deleted account identifiers or passwords. Development identity markers are removed only when no retained audit entry still refers to them; markers needed for mixed history remain. Repeat previews are safe and should show no removable accounts or QA-only history after a successful purge.
+
+Saved database-transfer snapshots predate later cleanups. Rebuild or retire those snapshots before reusing them, so a new import does not restore deleted QA accounts. Cleaning local does not alter test or production, and merging Git branches does not synchronize database records.
+
 ## Deploy the interface and login fix
 
 Review, commit and push the changed source files to the Git-connected Vercel project. A new production deployment includes `/staff`, the logo shortcut, the eye button and the corrected authentication audit writes. Password updates and QA cleanup change Neon immediately and require no redeploy.
