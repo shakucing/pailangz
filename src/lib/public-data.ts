@@ -265,6 +265,11 @@ export async function publicTournament(slug: string) {
           s.confirmedRules.includes("qualificationBestOf")
             ? ((s.rules as Rules).qualificationBestOf ?? null)
             : null,
+        qualificationCarry:
+          s.key === "qualification" &&
+          s.confirmedRules.includes("qualificationCarry")
+            ? ((s.rules as Rules).qualificationCarry ?? null)
+            : null,
         rankingsStale: snapshots.some(
           (r) =>
             r.stale &&

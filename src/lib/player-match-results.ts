@@ -52,7 +52,7 @@ export function playerMatchResults(stages: EventStage[], playerCode: string) {
                   losses: games.filter((g) => g.scoreFor < g.scoreAgainst)
                     .length,
                   points:
-                    stage.key === "league" && outcome
+                    ["league", "qualification"].includes(stage.key) && outcome
                       ? won
                         ? 3
                         : lost
@@ -64,4 +64,52 @@ export function playerMatchResults(stages: EventStage[], playerCode: string) {
             }),
         ),
     );
+}
+
+export function playerMatchResultSections(
+  stages: EventStage[],
+  playerCode: string,
+) {
+  const carry = stages.find(
+    (s) => s.key === "qualification",
+  )?.qualificationCarry;
+  const matches = playerMatchResults(stages, playerCode);
+  const sections = new Map<
+    string,
+    { key: string; stageKeys: string[]; matches: typeof matches }
+  >();
+  for (const match of matches) {
+    const combined =
+      carry === true && ["league", "qualification"].includes(match.stageKey);
+    const key = combined ? "league-qualification" : match.stageKey;
+    let section = sections.get(key);
+    if (!section) {
+      section = {
+        key,
+        stageKeys: combined ? ["league", "qualification"] : [match.stageKey],
+        matches: [],
+      };
+      sections.set(key, section);
+    }
+    section.matches.push(match);
+  }
+  return [...sections.values()].map((section) => {
+    const completed = section.matches.filter((match) => match.outcome);
+    return {
+      ...section,
+      summary: {
+        played: completed.length,
+        wins: completed.filter((match) => match.outcome === "win").length,
+        draws: completed.filter((match) => match.outcome === "draw").length,
+        losses: completed.filter((match) => match.outcome === "loss").length,
+        // Count each match once; qualification standings may already include
+        // the carried league points.
+        points: section.stageKeys.some((key) =>
+          ["league", "qualification"].includes(key),
+        )
+          ? completed.reduce((total, match) => total + (match.points ?? 0), 0)
+          : null,
+      },
+    };
+  });
 }

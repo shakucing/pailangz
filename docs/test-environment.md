@@ -190,6 +190,8 @@ Both the hosted test and production databases have schema migrations 024–028. 
 
 On 10 October 2026, test received schema-only migration `202610100029_published_solo_player_names`. It extends the public name view to approved, eligible entrants in published SOLO tournaments, preserving the original event's existing preview. Other drafts and withdrawn, ineligible, unverified or archived entrants stay excluded. All application records across 33 tables matched their pre-migration signatures. The test landing page showed all 32 names in the player list and fixtures after reloading. Verification passed 106 native PostgreSQL integration checks, 29 focused page/data tests and TypeScript. Production remains on migration 028; migration 029 must be applied separately during production promotion.
 
+Migration `202610100030_player_results_carry_rule` adds the confirmed qualification carry-forward choice to the safe event preview. Apply it through the schema-only process before deploying player-result sections for draft previews; published events receive the choice through the application query. Unconfirmed rules keep league and qualification results separate. The migration changes only the view and preserves application records. It has been checked on a disposable database and has not been applied to hosted test or production.
+
 ## Provider references
 
 - [Vercel production branch tracking](https://vercel.com/docs/git#production-branch)

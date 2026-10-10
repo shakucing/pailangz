@@ -176,6 +176,57 @@ try {
   );
   let submissionId = "";
   await check(
+    "safe event previews expose only confirmed carry-forward rules",
+    async () => {
+      await owner.query("BEGIN");
+      try {
+        const { slug } = (
+          await owner.query('SELECT slug FROM "Tournament" WHERE id=$1', [
+            tournament.id,
+          ])
+        ).rows[0];
+        const qualification = (
+          await owner.query(
+            'SELECT id FROM "Stage" WHERE key=\'qualification\' AND "categoryId" IN (SELECT id FROM "Category" WHERE "tournamentId"=$1) LIMIT 1',
+            [tournament.id],
+          )
+        ).rows[0];
+        assert.ok(qualification);
+        for (const { carry, confirmed, expected } of [
+          { carry: true, confirmed: true, expected: true },
+          { carry: false, confirmed: true, expected: false },
+          { carry: true, confirmed: false, expected: null },
+        ]) {
+          await owner.query(
+            'UPDATE "Stage" SET rules=jsonb_build_object(\'qualificationCarry\',$2::boolean),"confirmedRules"=$3 WHERE id=$1',
+            [qualification.id, carry, confirmed ? ["qualificationCarry"] : []],
+          );
+          await owner.query("SET LOCAL ROLE pailangz_app");
+          const preview = (
+            await owner.query(
+              "SELECT data FROM \"PublicEventPreview\" WHERE data->>'slug'=$1",
+              [slug],
+            )
+          ).rows;
+          // Read the original seeded event's safe projection as the runtime role.
+          const stages = preview[0]?.data.categories.flatMap(
+            (c: {
+              stages: { key: string; qualificationCarry: boolean | null }[];
+            }) => c.stages,
+          );
+          assert.equal(
+            stages?.find((s: { key: string }) => s.key === "qualification")
+              ?.qualificationCarry,
+            expected,
+          );
+          await owner.query("RESET ROLE");
+        }
+      } finally {
+        await owner.query("ROLLBACK");
+      }
+    },
+  );
+  await check(
     "anonymous event preview uses saved codes and hides player names and draft results",
     async () => {
       await owner.query("BEGIN");

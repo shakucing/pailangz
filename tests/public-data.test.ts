@@ -23,6 +23,51 @@ describe("public tournament player privacy", () => {
   });
   afterEach(() => vi.unstubAllEnvs());
 
+  it.each([
+    { carry: false, confirmed: true, expected: false },
+    { carry: true, confirmed: true, expected: true },
+    { carry: true, confirmed: false, expected: null },
+    { carry: undefined, confirmed: true, expected: null },
+  ])(
+    "exposes only confirmed carry-forward rules: $carry / $confirmed",
+    async ({ carry, confirmed, expected }) => {
+      mocks.queryRaw.mockResolvedValue([]);
+      mocks.getLocale.mockResolvedValue("en");
+      mocks.findFirst.mockResolvedValue({
+        name: "Test",
+        slug: "test",
+        overview: "Test",
+        overviewEn: "",
+        startsAt: null,
+        status: "IN_PROGRESS",
+        gameTitle: "Test",
+        configuration: originalConfiguration,
+        participants: [],
+        categories: [
+          {
+            kind: "SOLO",
+            teams: [],
+            stages: [
+              {
+                id: "qualification",
+                key: "qualification",
+                name: "Qualification",
+                format: "LEAGUE",
+                rules: { qualificationCarry: carry },
+                confirmedRules: confirmed ? ["qualificationCarry"] : [],
+                rounds: [],
+              },
+            ],
+          },
+        ],
+      });
+      const tournament = await publicTournament("test");
+      expect(tournament?.categories[0].stages[0].qualificationCarry).toBe(
+        expected,
+      );
+    },
+  );
+
   it.each(["ms", "en"])(
     "excludes IGNs from public data and queries in %s",
     async (locale) => {

@@ -26,6 +26,7 @@ export type EventStage = {
   name: string;
   format: string;
   qualificationBestOf: number | null;
+  qualificationCarry?: boolean | null;
   rankingsFinalized?: boolean;
   rankingsStale?: boolean;
   standings: {

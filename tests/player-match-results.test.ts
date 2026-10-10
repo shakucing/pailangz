@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { playerMatchResults } from "../src/lib/player-match-results";
+import {
+  playerMatchResults,
+  playerMatchResultSections,
+} from "../src/lib/player-match-results";
 import type {
   EventMatch,
   EventStage,
@@ -105,7 +108,7 @@ describe("player match results", () => {
     },
   );
 
-  it("orders all stages and rounds and awards league points only", () => {
+  it("orders all stages and rounds and awards points in league and qualification", () => {
     const league = stage([{ ...match, id: "round-6" }], "league", 6);
     league.rounds.push(stage([match]).rounds[0]);
     const stages = [
@@ -120,6 +123,108 @@ describe("player match results", () => {
       "qualification",
       "knockout",
     ]);
-    expect(results.map((r) => r.points)).toEqual([3, 3, null, null]);
+    expect(results.map((r) => r.points)).toEqual([3, 3, 3, null]);
+  });
+});
+
+describe("player result sections", () => {
+  function stages(carry?: boolean | null) {
+    const qualification = stage(
+      [
+        {
+          ...match,
+          id: "qualification",
+          result: { outcome: "A_FORFEIT", games: [] },
+        },
+        { ...match, id: "pending", status: "RESULT_SUBMITTED" },
+      ],
+      "qualification",
+    );
+    qualification.qualificationCarry = carry;
+    // These points already include the league result when carry is enabled.
+    qualification.standings = [
+      {
+        code: "P01",
+        rank: 1,
+        played: 1,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+        points: carry ? 3 : 0,
+      },
+    ];
+    return [
+      stage([{ ...match, id: "knockout" }], "knockout"),
+      qualification,
+      stage([match]),
+    ];
+  }
+
+  it.each([false, null, undefined])(
+    "separates stage results and totals when carry is %s",
+    (carry) => {
+      const sections = playerMatchResultSections(stages(carry), "P01");
+      expect(sections.map((s) => s.key)).toEqual([
+        "league",
+        "qualification",
+        "knockout",
+      ]);
+      expect(sections[0].summary).toEqual({
+        played: 1,
+        wins: 1,
+        draws: 0,
+        losses: 0,
+        points: 3,
+      });
+      expect(sections[1].summary).toEqual({
+        played: 1,
+        wins: 0,
+        draws: 0,
+        losses: 1,
+        points: 0,
+      });
+      expect(sections[1].matches.map((m) => m.id)).toEqual([
+        "qualification",
+        "pending",
+      ]);
+      expect(sections[2].summary.points).toBeNull();
+    },
+  );
+
+  it("combines carried league and qualification results without double-counting points", () => {
+    const sections = playerMatchResultSections(stages(true), "P01");
+    expect(sections.map((s) => s.key)).toEqual([
+      "league-qualification",
+      "knockout",
+    ]);
+    expect(sections[0].matches.map((m) => m.id)).toEqual([
+      "match-1",
+      "qualification",
+      "pending",
+    ]);
+    expect(sections[0].summary).toEqual({
+      played: 2,
+      wins: 1,
+      draws: 0,
+      losses: 1,
+      points: 3,
+    });
+    expect(playerMatchResultSections(stages(true), "P02")[0].summary).toEqual({
+      played: 2,
+      wins: 1,
+      draws: 0,
+      losses: 1,
+      points: 3,
+    });
+  });
+
+  it("keeps non-qualifiers in their league history and returns no sections for unknown players", () => {
+    const data = stages(false);
+    data[1].rounds = [];
+    data[0].rounds = [];
+    expect(playerMatchResultSections(data, "P01").map((s) => s.key)).toEqual([
+      "league",
+    ]);
+    expect(playerMatchResultSections(data, "P99")).toEqual([]);
   });
 });
