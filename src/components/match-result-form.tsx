@@ -51,7 +51,7 @@ export function MatchResultForm({
       : "played";
   const [resultType, setResultType] = useState<ResultType>(initialType);
   const [includeGames, setIncludeGames] = useState(
-    Boolean(initialResult?.games.length),
+    initialType === "DRAW" || Boolean(initialResult?.games.length),
   );
   const [drafts, setDrafts] = useState<WinnerDraft[]>(() =>
     winnerDrafts(initialResult?.games ?? [], bestOf),
@@ -229,7 +229,9 @@ export function MatchResultForm({
             id={`${uid}-type`}
             value={resultType}
             onChange={(event) => {
-              setResultType(event.target.value as ResultType);
+              const nextType = event.target.value as ResultType;
+              setResultType(nextType);
+              if (nextType === "DRAW") setIncludeGames(true);
               setFeedback(null);
             }}
           >
