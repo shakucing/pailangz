@@ -168,6 +168,10 @@ Fast-forward only is a release rule; auto-deploy happens because Vercel tracks `
 
 If a production hotfix advances `main`, bring it into `test`, resolve conflicts and test the new resulting commit before releasing. Do not force-reset either shared branch to make `--ff-only` succeed. Freeze changes on `test` while validating a release, or promote the recorded SHA rather than its moving branch tip.
 
+## Production web analytics
+
+Vercel Web Analytics is mounted only when `APP_ENV=production`, `VERCEL_ENV=production`, and the request host is exactly `pailangz.vercel.app`. The client also drops events whose URL is outside that HTTPS origin and removes query parameters and fragments before sending. Keep the default same-origin Vercel analytics endpoints; do not point test traffic at the production project. The test project's `APP_ENV=preview` disables analytics even though Vercel calls its stable deployment Production. Preview deployment aliases and local development are excluded as well. Enable Web Analytics in the `pailangz` project's dashboard before deploying this integration.
+
 ## Database migrations and rollback
 
 Git promotion transfers code, schema and migration files. **It never transfers test database records or evidence objects into production.** Production keeps its own registrations, players, teams and results.

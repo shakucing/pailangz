@@ -8,6 +8,8 @@ import { ThemeSwitch } from "@/components/theme-switch";
 import { PublicNavigation } from "@/components/public-navigation";
 import { getLocale, translate } from "@/lib/i18n";
 import { LocaleProvider } from "@/components/locale-context";
+import { ProductionAnalytics } from "@/components/production-analytics";
+import { isProductionAnalyticsEnabled } from "@/lib/analytics";
 import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getLocale();
@@ -33,7 +35,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   const locale = await getLocale();
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  const requestHeaders = await headers();
+  const nonce = requestHeaders.get("x-nonce") ?? undefined;
+  const analyticsEnabled = isProductionAnalyticsEnabled(
+    { APP_ENV: process.env.APP_ENV, VERCEL_ENV: process.env.VERCEL_ENV },
+    requestHeaders.get("host"),
+  );
   const t = (ms: string, en: string) => translate(locale, ms, en);
   return (
     <html lang={locale} suppressHydrationWarning>
@@ -85,6 +92,7 @@ export default async function RootLayout({
             </div>
           </footer>
         </LocaleProvider>
+        {analyticsEnabled ? <ProductionAnalytics /> : null}
       </body>
     </html>
   );

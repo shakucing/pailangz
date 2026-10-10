@@ -38,6 +38,7 @@
     "@tiptap/pm": "^3.31.4",
     "@tiptap/react": "^3.31.4",
     "@tiptap/starter-kit": "^3.31.4",
+    "@vercel/analytics": "^2.0.1",
     "bcryptjs": "^3.0.2",
     "csv-parse": "^7.0.2",
     "hast-util-to-html": "^9.0.5",
