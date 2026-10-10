@@ -172,19 +172,21 @@ try {
   }
   if (!ready) throw new Error("Isolated test server did not become ready.");
   await run(
-    process.argv.includes("--team-rosters")
-      ? "tests/web-team-rosters.ts"
-      : process.argv.includes("--landing-highlights")
-        ? "tests/web-landing-highlights.ts"
-        : process.argv.includes("--announcements")
-          ? "tests/web-announcements.ts"
-          : process.argv.includes("--tournament-formats")
-            ? "tests/web-tournament-formats.ts"
-            : process.argv.includes("--readiness-dialogs")
-              ? "tests/web-readiness-dialogs.ts"
-              : process.argv.includes("--stage-progression")
-                ? "tests/web-stage-progression.ts"
-                : "tests/web-smoke.ts",
+    process.argv.includes("--live-results")
+      ? "tests/web-live-results.ts"
+      : process.argv.includes("--team-rosters")
+        ? "tests/web-team-rosters.ts"
+        : process.argv.includes("--landing-highlights")
+          ? "tests/web-landing-highlights.ts"
+          : process.argv.includes("--announcements")
+            ? "tests/web-announcements.ts"
+            : process.argv.includes("--tournament-formats")
+              ? "tests/web-tournament-formats.ts"
+              : process.argv.includes("--readiness-dialogs")
+                ? "tests/web-readiness-dialogs.ts"
+                : process.argv.includes("--stage-progression")
+                  ? "tests/web-stage-progression.ts"
+                  : "tests/web-smoke.ts",
     env,
   );
 } finally {

@@ -19,6 +19,7 @@ import { TournamentProgression } from "./tournament-progression";
 import { FixtureBrowser } from "./fixture-browser";
 import { FixtureStageFields } from "./fixture-stage-fields";
 import { MatchResultForm } from "./match-result-form";
+import { LiveResultsRefresh } from "./live-results-refresh";
 import {
   configuration,
   newTournamentConfiguration,
@@ -91,6 +92,7 @@ export async function StaffDashboard({
   const base = actor.role === "ADMIN" ? "/admin" : "/moderator";
   return (
     <>
+      {section === "matches" && <LiveResultsRefresh />}
       <div className="eyebrow">PAILANGZ operations</div>
       <h1>{nav.find(([key]) => key === section)?.[1]}</h1>
       <Suspense

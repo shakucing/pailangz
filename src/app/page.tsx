@@ -5,6 +5,7 @@ import { SpotlightCard } from "@/components/react-bits/spotlight-card";
 import { Wordmark } from "@/components/wordmark";
 import { HeroOrbit } from "@/components/hero-orbit";
 import { LandingEventCentre } from "@/components/landing-event-centre";
+import { LiveResultsRefresh } from "@/components/live-results-refresh";
 import { landingEventPresentations } from "@/lib/event-presentation-data";
 import { newTournamentConfiguration } from "@/lib/tournament-config";
 import { publicTeams, publicTeamEvent } from "@/lib/team-portal";
@@ -71,6 +72,7 @@ export default async function Home() {
     newTournamentConfiguration;
   return (
     <div className="wrap">
+      <LiveResultsRefresh />
       <section className="hero">
         <FadeContent>
           <div className="eyebrow">PAILANGZ & PAILANGZZ · Gaming community</div>
