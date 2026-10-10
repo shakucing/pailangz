@@ -2066,6 +2066,26 @@ a:has(> .navigation-hint.is-pending) {
   font-size: 18px;
   margin-bottom: 4px;
 }
+.tournament-stage-card.is-current {
+  border-color: var(--accent-line);
+  background: linear-gradient(110deg, var(--surface-green), var(--panel) 65%);
+}
+.tournament-stage-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.tournament-stage-heading h3 {
+  margin: 0;
+}
+.tournament-stage-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .tournament-stage-actions {
   display: flex;
   flex-wrap: wrap;

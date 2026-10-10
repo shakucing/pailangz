@@ -147,12 +147,48 @@ try {
       await page.waitForURL(new RegExp(`/${area}$`));
       await page.goto(`${origin}/${area}/tournaments?id=${tournament.id}`);
       await page.getByRole("tab", { name: "Rules & stages" }).click();
-      const progressionButtons = page.getByRole("button", {
-        name: "Manage stage progression",
-        exact: true,
-      });
-      const stageIndex = solo.stages.findIndex((s) => s.id === league.id);
-      await progressionButtons.nth(stageIndex).click();
+      const cards = page.locator(".tournament-stage-card");
+      assert.deepEqual(await cards.locator("h3").allTextContents(), [
+        league.name,
+        qualification.name,
+        knockout.name,
+        ...tournament.categories
+          .filter((category) => category.kind === "TEAM")
+          .flatMap((category) => category.stages.map((stage) => stage.name)),
+      ]);
+      assert.deepEqual(
+        await cards
+          .locator(".tournament-stage-badges > :first-child")
+          .allTextContents(),
+        ["Completed", "Completed", "Current stage", "Current stage"],
+      );
+      assert.equal(
+        await cards
+          .filter({ hasText: knockout.name })
+          .getAttribute("aria-current"),
+        "step",
+      );
+      assert.equal(
+        await cards
+          .filter({ hasText: knockout.name })
+          .evaluate((element: HTMLElement) =>
+            element.classList.contains("is-current"),
+          ),
+        true,
+      );
+      const progressionButton = (name: string) =>
+        cards
+          .filter({ has: page.getByRole("heading", { name, exact: true }) })
+          .getByRole("button", {
+            name: "Manage stage progression",
+            exact: true,
+          });
+      if (process.env.PAILANGZ_QA_SCREENSHOT_DIR)
+        await page.screenshot({
+          path: `${process.env.PAILANGZ_QA_SCREENSHOT_DIR}/stage-cards-${area}-${width}.png`,
+          fullPage: true,
+        });
+      await progressionButton(league.name).click();
       const progression = page.getByRole("dialog", {
         name: `Stage progression · ${league.name}`,
         exact: true,
@@ -207,7 +243,7 @@ try {
       await progression.waitFor({ state: "detached" });
 
       // Opening results is read-only; actual ranking edits still survive it.
-      await progressionButtons.nth(stageIndex).click();
+      await progressionButton(league.name).click();
       await progression.locator(".order-buttons button").nth(1).click();
       const changedOrder = await order.inputValue();
       assert.notEqual(changedOrder, originalOrder);
@@ -223,9 +259,7 @@ try {
 
       // The playoff pool and manual SOLO seeding use the same results dialog.
       for (const stage of [qualification, knockout]) {
-        await progressionButtons
-          .nth(solo.stages.findIndex((s) => s.id === stage.id))
-          .click();
+        await progressionButton(stage.name).click();
         const dialog = page.getByRole("dialog", {
           name: `Stage progression · ${stage.name}`,
           exact: true,

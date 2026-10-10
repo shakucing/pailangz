@@ -16,6 +16,7 @@ import { TournamentPlayerList } from "./tournament-player-list";
 import { TournamentPlayerResults } from "./tournament-player-results";
 import type { EventStage } from "@/lib/event-presentation-data";
 import { TournamentProgression } from "./tournament-progression";
+import { tournamentStageCards } from "@/lib/tournament-stage-display";
 import { FixtureBrowser } from "./fixture-browser";
 import { FixtureStageFields } from "./fixture-stage-fields";
 import { MatchResultForm } from "./match-result-form";
@@ -422,6 +423,10 @@ async function renderSection(
                 },
               },
             },
+            dependencies: {
+              where: { stale: true },
+              select: { id: true },
+            },
           },
         },
       },
@@ -483,6 +488,17 @@ async function renderSection(
       where: { stageId: { in: stages.map((s) => s.id) }, stale: false },
       orderBy: { version: "desc" },
     });
+    const stageCards = [...t.categories]
+      .sort((a, b) => a.kind.localeCompare(b.kind))
+      .flatMap((category) =>
+        tournamentStageCards(
+          category.stages.map((stage) => ({
+            ...stage,
+            rankingsFinalized: snapshots.some((s) => s.stageId === stage.id),
+            rounds: resultRounds.filter((round) => round.stageId === stage.id),
+          })),
+        ),
+      );
     const leagueStage = stages.find((s) => s.key === "league");
     const leagueRanks = (snapshots.find((s) => s.stageId === leagueStage?.id)
       ?.rankings ?? []) as { id: string; code: string; ign: string }[];
@@ -1089,13 +1105,26 @@ async function renderSection(
               stages={playerResultStages}
             >
               {" "}
-              {stages.map((s) => (
-                <div className="panel" key={s.id}>
-                  <div className="row">
+              {stageCards.map((s) => (
+                <div
+                  className={`panel tournament-stage-card${s.displayStatus === "Current stage" ? " is-current" : ""}`}
+                  key={s.id}
+                  aria-current={
+                    s.displayStatus === "Current stage" ? "step" : undefined
+                  }
+                >
+                  <div className="tournament-stage-heading">
                     <h3>{s.name}</h3>
-                    <span className="badge neutral ml-auto">
-                      Rules update {s.ruleVersion}
-                    </span>
+                    <div className="tournament-stage-badges">
+                      <span
+                        className={`badge${s.displayStatus === "Current stage" ? "" : " neutral"}`}
+                      >
+                        {s.displayStatus}
+                      </span>
+                      <span className="badge neutral">
+                        Rules update {s.ruleVersion}
+                      </span>
+                    </div>
                   </div>
                   <p className="muted text-sm">
                     Confirmed:{" "}
