@@ -26,6 +26,10 @@ vi.mock("../src/components/navigation-link", () => ({
   NavigationLink: ({ children, ...props }: { children: ReactNode }) =>
     createElement("a", props, children),
 }));
+// This static renderer has no App Router; polling is covered in web-live-results.
+vi.mock("../src/components/live-results-refresh", () => ({
+  LiveResultsRefresh: () => null,
+}));
 import Tournament from "../src/app/tournaments/[slug]/[[...view]]/page";
 
 function event() {

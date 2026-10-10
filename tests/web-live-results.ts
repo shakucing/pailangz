@@ -102,7 +102,7 @@ try {
   const sideA = name(match.sideAId!),
     sideB = name(match.sideBId!);
   const errors: string[] = [];
-  async function newPage(role?: "ADMIN" | "MODERATOR") {
+  async function newPage(role?: "ADMIN" | "MODERATOR", publicPath = "") {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
     });
@@ -132,15 +132,43 @@ try {
         `${origin}/${role.toLowerCase()}/matches?stageId=${stage.id}&round=2&standings=true`,
       );
     } else {
-      await page.goto(origin);
-      await page.getByRole("button", { name: "Round 2", exact: true }).click();
+      await page.goto(`${origin}${publicPath}`);
+      if (!publicPath)
+        await page
+          .getByRole("button", { name: "Round 2", exact: true })
+          .click();
     }
     return page;
   }
   const landing = await newPage();
   const observer = await newPage("MODERATOR");
   const writer = await newPage("ADMIN");
-  const pages = [landing, observer, writer];
+  const overview = await newPage(undefined, `/tournaments/${tournament.slug}`);
+  const fixtures = await newPage(
+    undefined,
+    `/tournaments/${tournament.slug}/fixtures`,
+  );
+  const standings = await newPage(
+    undefined,
+    `/tournaments/${tournament.slug}/standings`,
+  );
+  const brackets = await newPage(
+    undefined,
+    `/tournaments/${tournament.slug}/brackets`,
+  );
+  const tournamentPages = [overview, fixtures, standings, brackets];
+  await fixtures.getByRole("button", { name: "Round 2", exact: true }).click();
+  const pairing = fixtures.locator(".pairing").first();
+  await pairing.locator("summary").click();
+  await overview.getByRole("button", { name: sideA, exact: true }).click();
+  const overviewDialog = overview.getByRole("dialog", {
+    name: sideA,
+    exact: true,
+  });
+  await overviewDialog.waitFor();
+  const standing = standings.locator("tbody tr").filter({ hasText: sideA });
+  const tournamentUrls = tournamentPages.map((page) => page.url());
+  const pages = [landing, observer, writer, ...tournamentPages];
   let documentRequests = 0;
   for (const page of pages) {
     page.on("request", (request: { resourceType(): string }) => {
@@ -203,6 +231,20 @@ try {
   console.log(
     "PASS confirmed results arrive on the landing page and another staff tab without navigation; round, filters and scroll remain intact",
   );
+  await pairing.getByText("Side A wins", { exact: true }).waitFor();
+  await overviewDialog.locator('[data-outcome="win"]').waitFor();
+  await standing.locator("td").nth(6).getByText("3", { exact: true }).waitFor();
+  assert.equal(
+    await fixtures
+      .getByRole("button", { name: "Round 2", exact: true })
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.equal(await pairing.getAttribute("open"), "");
+  assert.equal(await overviewDialog.isVisible(), true);
+  console.log(
+    "PASS tournament fixtures, standings and an open overview player dialog receive confirmed results without losing the selected round or expanded fixture",
+  );
 
   await observerCard
     .getByRole("button", { name: "Enter / correct result", exact: true })
@@ -217,6 +259,9 @@ try {
   await editor.getByRole("heading").click();
   await save(sideB, true);
   await landingRow.getByText("0–2", { exact: true }).waitFor();
+  await pairing.getByText("Side B wins", { exact: true }).waitFor();
+  await overviewDialog.locator('[data-outcome="loss"]').waitFor();
+  await standing.locator("td").nth(6).getByText("0", { exact: true }).waitFor();
   await observer.waitForTimeout(11000);
   assert.equal(await draft.inputValue(), "Unfinished staff note");
   assert.ok((await observerCard.innerText()).includes(`Game 1: ${sideA} wins`));
@@ -248,6 +293,24 @@ try {
     .getByRole("button", { name: "Close dialog", exact: true })
     .click();
   console.log("PASS read-only result dialogs remain open during live updates");
+
+  await owner.tournament.update({
+    where: { id: tournament.id },
+    data: { status: "COMPLETED" },
+  });
+  for (const page of tournamentPages)
+    await page
+      .locator(".page-heading .badge")
+      .getByText("COMPLETED", { exact: true })
+      .waitFor({ state: "attached" });
+  assert.deepEqual(
+    tournamentPages.map((page) => page.url()),
+    tournamentUrls,
+  );
+  assert.equal(documentRequests, 0);
+  console.log(
+    "PASS overview, fixtures, standings and brackets refresh tournament status in place without navigation",
+  );
 
   // Set visibility on this test document to exercise suspension and catch-up.
   let refreshRequests = 0;

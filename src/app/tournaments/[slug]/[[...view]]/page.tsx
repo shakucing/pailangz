@@ -4,6 +4,7 @@ import { getLocale, translate } from "@/lib/i18n";
 import { publicTournament, dateText } from "@/lib/public-data";
 import { TournamentProgression } from "@/components/tournament-progression";
 import { FixtureBrowser } from "@/components/fixture-browser";
+import { LiveResultsRefresh } from "@/components/live-results-refresh";
 import { InteractiveBracket } from "@/components/interactive-bracket";
 import {
   TournamentPlayerName,
@@ -69,6 +70,7 @@ export default async function Tournament({
     }));
   const content = (
     <div className="wrap">
+      <LiveResultsRefresh />
       <div className="page-heading">
         <Link href="/tournaments" className="text-link">
           {copy("← Semua kejohanan", "← All tournaments")}
