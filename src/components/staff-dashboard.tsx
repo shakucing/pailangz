@@ -13,6 +13,8 @@ import {
 import { TournamentConfigForm } from "./tournament-config-form";
 import { TournamentWorkspace } from "./tournament-workspace";
 import { TournamentPlayerList } from "./tournament-player-list";
+import { TournamentPlayerResults } from "./tournament-player-results";
+import type { EventStage } from "@/lib/event-presentation-data";
 import { TournamentProgression } from "./tournament-progression";
 import { FixtureBrowser } from "./fixture-browser";
 import { FixtureStageFields } from "./fixture-stage-fields";
@@ -381,17 +383,89 @@ async function renderSection(
       string,
       { value: string; label: string }[]
     >();
-    const populatedStages = new Set(
-      (
-        await tx.round.findMany({
-          where: {
-            stageId: { in: stages.map((s) => s.id) },
-            matches: { some: {} },
-          },
-          select: { stageId: true },
-        })
-      ).map((r) => r.stageId),
+    const resultPlayers = await tx.participant.findMany({
+      where: { tournamentId: t.id },
+      select: {
+        id: true,
+        code: true,
+        member: { select: { displayIgn: true } },
+      },
+    });
+    const playerNames = new Map(
+      resultPlayers.map((p) => [p.id, `${p.code} · ${p.member.displayIgn}`]),
     );
+    const resultRounds = await tx.round.findMany({
+      where: { stageId: { in: stages.map((s) => s.id) } },
+      select: {
+        stageId: true,
+        number: true,
+        name: true,
+        matches: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true,
+            order: true,
+            sideAId: true,
+            sideBId: true,
+            bestOf: true,
+            status: true,
+            scheduledAt: true,
+            currentResult: {
+              select: {
+                status: true,
+                outcome: true,
+                games: {
+                  orderBy: { number: "asc" },
+                  select: { number: true, scoreA: true, scoreB: true },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { number: "asc" },
+    });
+    const populatedStages = new Set(
+      resultRounds.filter((r) => r.matches.length).map((r) => r.stageId),
+    );
+    const playerResultStages: EventStage[] = t.categories
+      .filter((c) => c.kind === "SOLO")
+      .flatMap((c) => c.stages)
+      .map((s) => ({
+        key: s.key,
+        name: s.name,
+        format: s.format,
+        qualificationBestOf: s.confirmedRules.includes("qualificationBestOf")
+          ? ((s.rules as Rules).qualificationBestOf ?? null)
+          : null,
+        qualificationCarry: s.confirmedRules.includes("qualificationCarry")
+          ? ((s.rules as Rules).qualificationCarry ?? null)
+          : null,
+        standings: [],
+        rounds: resultRounds
+          .filter((r) => r.stageId === s.id)
+          .map((r) => ({
+            number: r.number,
+            name: r.name,
+            matches: r.matches.map((m) => ({
+              id: m.id,
+              order: m.order,
+              a: playerNames.get(m.sideAId ?? "") ?? null,
+              b: playerNames.get(m.sideBId ?? "") ?? null,
+              bestOf: m.bestOf,
+              status: m.status,
+              scheduledAt: m.scheduledAt?.toISOString() ?? null,
+              result:
+                m.status === "FINALIZED" &&
+                m.currentResult?.status === "ACCEPTED"
+                  ? {
+                      outcome: m.currentResult.outcome,
+                      games: m.currentResult.games,
+                    }
+                  : null,
+            })),
+          })),
+      }));
     for (const stage of stages)
       if (stage.format === "LEAGUE" && populatedStages.has(stage.id)) {
         const { rows } = await standingsFor(tx, stage.id);
@@ -1005,7 +1079,13 @@ async function renderSection(
             </>
           }
           stages={
-            <>
+            <TournamentPlayerResults
+              participants={resultPlayers.map((p) => ({
+                code: p.code,
+                ign: p.member.displayIgn,
+              }))}
+              stages={playerResultStages}
+            >
               {" "}
               {stages.map((s) => (
                 <div className="panel" key={s.id}>
@@ -1191,7 +1271,7 @@ async function renderSection(
                   ? "Show active stages"
                   : "Show retained stage / result history"}
               </Link>
-            </>
+            </TournamentPlayerResults>
           }
           updates={
             <>

@@ -182,7 +182,9 @@ try {
             ? "tests/web-tournament-formats.ts"
             : process.argv.includes("--readiness-dialogs")
               ? "tests/web-readiness-dialogs.ts"
-              : "tests/web-smoke.ts",
+              : process.argv.includes("--stage-progression")
+                ? "tests/web-stage-progression.ts"
+                : "tests/web-smoke.ts",
     env,
   );
 } finally {

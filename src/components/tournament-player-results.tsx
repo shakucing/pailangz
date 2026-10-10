@@ -54,18 +54,25 @@ export function TournamentPlayerName({ value }: { value: string }) {
   const context = useTournamentPlayerResults();
   const player = context?.players.get(value.split(" · ")[0]);
   if (!player || !context) return value;
+  const label = player.ign ? `${player.code} · ${player.ign}` : player.code;
+  const suffix = value.startsWith(`${label} · `)
+    ? value.slice(label.length)
+    : "";
   return (
-    <button
-      type="button"
-      className={styles.playerLink}
-      aria-haspopup="dialog"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        context.selectPlayer(player.code);
-      }}
-    >
-      {player.ign ? `${player.code} · ${player.ign}` : player.code}
-    </button>
+    <>
+      <button
+        type="button"
+        className={styles.playerLink}
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          context.selectPlayer(player.code);
+        }}
+      >
+        {label}
+      </button>
+      {suffix}
+    </>
   );
 }

@@ -46,7 +46,7 @@ If publication fails because the event is Draft or Archived, click the error mes
 
 **Edit tournament rules:** configure the rules for the selected stage, then save. Saving automatically confirms each configured rule; there are no separate confirmation checkboxes. Blank rules remain undecided, and clearing a saved choice removes its confirmation. “Rules update” is that stage's rules revision. The confirmed-rule summary shows the saved choices.
 
-**Manage stage progression:** save final rankings for league stages, create qualification fixtures, or create a confirmed SOLO/TEAM bracket as applicable. Resolve ties using the confirmed rules; these controls do not automatically advance an unfinished competition.
+**Manage stage progression:** save final rankings for league stages, create qualification fixtures, or create a confirmed SOLO/TEAM bracket as applicable. Click a player's name in the rankings, playoff player list, or manual SOLO starting order to review their match results. Closing the results returns to progression with any unsaved ranking changes intact. Resolve ties using the confirmed rules; these controls do not automatically advance an unfinished competition.
 
 For playoffs, **Edit tournament rules → Playoff opponents** offers **Staff choose each pairing** and **Auto assign balanced opponents**. After saving the automatic rule and freezing the league ranking, use **Manage stage progression → Auto assign & create fixtures**. Every playoff entrant receives the configured number of matches against distinct opponents. Existing playoff fixtures cannot be overwritten.
 

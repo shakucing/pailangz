@@ -10,6 +10,7 @@ import {
 } from "@/lib/staff-presentation";
 import { BEST_OF_HELP, MAX_BEST_OF, defaultSeriesLengths } from "@/lib/best-of";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
+import { TournamentPlayerName } from "./tournament-player-results";
 
 export function SelectionField({
   name,
@@ -141,7 +142,9 @@ export function OrderField({
               <span className="order-number" aria-hidden="true">
                 {i + 1}
               </span>
-              <span className="order-name">{title}</span>
+              <span className="order-name">
+                <TournamentPlayerName value={title} />
+              </span>
               <div className="order-buttons">
                 <button
                   type="button"
@@ -273,7 +276,8 @@ export function PairsField({
       <div className="muted text-xs">
         {options.map((o) => (
           <p key={o.value}>
-            {o.label}: {pairs.flat().filter((v) => v === o.value).length} of{" "}
+            <TournamentPlayerName value={o.label} />:{" "}
+            {pairs.flat().filter((v) => v === o.value).length} of{" "}
             {matchesPerPlayer} matches
           </p>
         ))}
