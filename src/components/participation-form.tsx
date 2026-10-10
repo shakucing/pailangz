@@ -251,6 +251,48 @@ export function ParticipationForm({
         ))}
       </div>
       <div className={styles.footer}>
+        {format === "SOLO" && (
+          <>
+            <label className={participation.terms}>
+              <input
+                type="checkbox"
+                name="soloTermsRead"
+                required
+                disabled={busy}
+              />
+              <span>
+                {t("Saya telah membaca ", "I have read the ")}
+                <Link href="/solo" target="_blank" rel="noopener noreferrer">
+                  {t("terma dan syarat", "terms and conditions")}
+                  <span className="sr-only">
+                    {t(" (dibuka dalam tab baharu)", " (opens in a new tab)")}
+                  </span>
+                </Link>
+                {t(" kejohanan Solo.", " of the Solo tournament.")}{" "}
+                <span className={styles.required} aria-hidden="true">
+                  *
+                </span>
+              </span>
+            </label>
+            <label className={participation.terms}>
+              <input
+                type="checkbox"
+                name="soloIgnDisplayConsent"
+                required
+                disabled={busy}
+              />
+              <span>
+                {t(
+                  "Saya bersetuju nama dalam game (IGN) saya dipaparkan secara awam apabila kejohanan diterbitkan.",
+                  "I agree to my in-game name (IGN) being displayed publicly when the tournament is published.",
+                )}{" "}
+                <span className={styles.required} aria-hidden="true">
+                  *
+                </span>
+              </span>
+            </label>
+          </>
+        )}
         <p className={styles.privacy}>
           <ShieldCheck size={18} aria-hidden="true" />
           {t(

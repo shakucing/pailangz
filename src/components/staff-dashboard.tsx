@@ -997,9 +997,11 @@ async function renderSection(
                   ]}
                 />
               </TaskDialog>
-              <Link className="button secondary" href={`${base}/teams`}>
-                Manage team rosters ↗
-              </Link>
+              {teamCategory && (
+                <Link className="button secondary" href={`${base}/teams`}>
+                  Manage team rosters ↗
+                </Link>
+              )}
             </>
           }
           stages={

@@ -22,3 +22,23 @@
   border-radius: 4px;
   letter-spacing: 1px;
 }
+.terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.terms input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+}
+.terms a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}

@@ -188,6 +188,8 @@ PGlite still produces protocol/backend failures in the full integration suite. T
 
 Both the hosted test and production databases have schema migrations 024–028. Private backups were saved beneath each environment's existing transfer directory before applying schema-only migrations, and every original application row and field was compared afterward. No local or test records were copied into production. Database cleanup and splitting a legacy combined tournament remain separate operator actions; committing and pushing Git does not transfer local database changes.
 
+On 10 October 2026, test received schema-only migration `202610100029_published_solo_player_names`. It extends the public name view to approved, eligible entrants in published SOLO tournaments, preserving the original event's existing preview. Other drafts and withdrawn, ineligible, unverified or archived entrants stay excluded. All application records across 33 tables matched their pre-migration signatures. The test landing page showed all 32 names in the player list and fixtures after reloading. Verification passed 106 native PostgreSQL integration checks, 29 focused page/data tests and TypeScript. Production remains on migration 028; migration 029 must be applied separately during production promotion.
+
 ## Provider references
 
 - [Vercel production branch tracking](https://vercel.com/docs/git#production-branch)

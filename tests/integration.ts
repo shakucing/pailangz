@@ -305,6 +305,9 @@ try {
       }
     },
   );
+  const { checkPublicSoloPlayerNames } =
+    await import("./public-player-names-integration");
+  await checkPublicSoloPlayerNames(owner, check);
   await check(
     "CSV ingestion is idempotent; status cannot grant staff",
     async () => {
