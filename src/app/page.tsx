@@ -19,7 +19,7 @@ import { getLocale, translate } from "@/lib/i18n";
 import {
   publishedTournaments,
   publishedAnnouncements,
-  dateText,
+  dateTimeText,
 } from "@/lib/public-data";
 export const dynamic = "force-dynamic";
 export default async function Home() {
@@ -215,7 +215,7 @@ export default async function Home() {
                   )}
               </p>
               <p className="text-sm">
-                {dateText(arena?.startsAt ?? null, locale)}
+                {dateTimeText(arena?.startsAt ?? null, locale)}
               </p>
               {registration && (
                 <div className="landing-registration">
@@ -233,7 +233,7 @@ export default async function Home() {
                   {registration.registrationDeadline && (
                     <p className="muted text-sm">
                       {t("Pendaftaran ditutup", "Registration closes")}:{" "}
-                      {dateText(registration.registrationDeadline, locale)}
+                      {dateTimeText(registration.registrationDeadline, locale)}
                     </p>
                   )}
                   <div className="actions">

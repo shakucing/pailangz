@@ -13,6 +13,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("../src/lib/public-data", () => ({
   publicTournament: mocks.tournament,
   dateText: () => "1 November 2026",
+  dateTimeText: () => "1 November 2026 at 8:30 pm MYT",
 }));
 vi.mock("../src/lib/public-player-names", () => ({
   publicPlayerNames: mocks.names,

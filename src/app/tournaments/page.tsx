@@ -1,5 +1,5 @@
 import { NavigationLink as Link } from "@/components/navigation-link";
-import { publishedTournaments, dateText } from "@/lib/public-data";
+import { publishedTournaments, dateTimeText } from "@/lib/public-data";
 import { getLocale, translate } from "@/lib/i18n";
 export const dynamic = "force-dynamic";
 export async function generateMetadata() {
@@ -35,7 +35,9 @@ export default async function Tournaments() {
                   {tournament.status.replaceAll("_", " ")}
                 </span>
                 <h3 className="mt-5">{tournament.name}</h3>
-                <p className="muted">{dateText(tournament.startsAt, locale)}</p>
+                <p className="muted">
+                  {dateTimeText(tournament.startsAt, locale)}
+                </p>
                 <div className="row">
                   {tournament.categories.map((c) => (
                     <span className="badge neutral" key={c.kind}>

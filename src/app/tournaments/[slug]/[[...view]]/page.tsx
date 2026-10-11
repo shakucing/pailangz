@@ -1,7 +1,7 @@
 import { NavigationLink as Link } from "@/components/navigation-link";
 import { notFound } from "next/navigation";
 import { getLocale, translate } from "@/lib/i18n";
-import { publicTournament, dateText } from "@/lib/public-data";
+import { publicTournament, dateText, dateTimeText } from "@/lib/public-data";
 import { TournamentProgression } from "@/components/tournament-progression";
 import { FixtureBrowser } from "@/components/fixture-browser";
 import { LiveResultsRefresh } from "@/components/live-results-refresh";
@@ -78,7 +78,9 @@ export default async function Tournament({
         <h1>{t.name}</h1>
         <div className="row">
           <span className="badge">{t.status.replaceAll("_", " ")}</span>
-          <span className="muted text-sm">{dateText(t.startsAt, locale)}</span>
+          <span className="muted text-sm">
+            {dateTimeText(t.startsAt, locale)}
+          </span>
         </div>
       </div>
       <nav className="tabs" aria-label={copy("Kejohanan", "Tournaments")}>

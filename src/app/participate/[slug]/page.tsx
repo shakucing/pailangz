@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { getLocale, translate } from "@/lib/i18n";
-import { dateText } from "@/lib/public-data";
+import { dateTimeText } from "@/lib/public-data";
 import {
   ParticipationClosed,
   ParticipationForm,
@@ -66,13 +66,13 @@ export default async function Participate({
             {event.gameTitle && <p>{event.gameTitle}</p>}
             {event.startsAt && (
               <p>
-                {t("Mula", "Starts")}: {dateText(event.startsAt, locale)}
+                {t("Mula", "Starts")}: {dateTimeText(event.startsAt, locale)}
               </p>
             )}
             {event.registrationDeadline && (
               <p>
                 {t("Pendaftaran ditutup", "Registration closes")}:{" "}
-                {dateText(event.registrationDeadline, locale)}
+                {dateTimeText(event.registrationDeadline, locale)}
               </p>
             )}
           </>

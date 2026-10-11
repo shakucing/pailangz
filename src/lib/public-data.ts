@@ -322,6 +322,21 @@ export function dateText(value: Date | null, locale: "ms" | "en" = "ms") {
       ? "Dates to be announced."
       : "Tarikh akan diumumkan.";
 }
+export function dateTimeText(value: Date | null, locale: "ms" | "en" = "ms") {
+  if (!value)
+    return locale === "en"
+      ? "Date and time to be announced."
+      : "Tarikh dan masa akan diumumkan.";
+  const formatted = new Intl.DateTimeFormat(
+    locale === "en" ? "en-MY" : "ms-MY",
+    {
+      timeZone: "Asia/Kuala_Lumpur",
+      dateStyle: "long",
+      timeStyle: "short",
+    },
+  ).format(value);
+  return `${formatted} MYT`;
+}
 export function operationalTime(value: Date) {
   return new Intl.DateTimeFormat("en-MY", {
     timeZone: "Asia/Kuala_Lumpur",
