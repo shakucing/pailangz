@@ -144,6 +144,11 @@ export async function renderRegistrations(
   ]);
   return (
     <div className="stack">
+      <div className="row">
+        <Link className="button small" href="/register">
+          Register new member
+        </Link>
+      </div>
       <form className="filter" method="get">
         <label className="sr-only" htmlFor="registration-search">
           Search registrations
