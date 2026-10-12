@@ -22,6 +22,7 @@ export async function memberUpdate(
     id: string;
     ign?: string;
     archived?: boolean;
+    isLiveStreamer?: boolean;
     phone?: string;
     registrationFields?: Record<string, string>;
     reason?: string;
@@ -52,6 +53,11 @@ export async function memberUpdate(
       changedFields.push("playerName");
     if (input.archived !== undefined && input.archived !== old.archived)
       changedFields.push("archived");
+    if (
+      input.isLiveStreamer !== undefined &&
+      input.isLiveStreamer !== old.isLiveStreamer
+    )
+      changedFields.push("isLiveStreamer");
     await tx.member.update({
       where: { id: old.id },
       data: {
@@ -59,6 +65,9 @@ export async function memberUpdate(
           ? {}
           : { displayIgn: ign, canonicalIgn: canonicalIgn(ign) }),
         ...(input.archived === undefined ? {} : { archived: input.archived }),
+        ...(input.isLiveStreamer === undefined
+          ? {}
+          : { isLiveStreamer: input.isLiveStreamer }),
       },
     });
     if (
@@ -165,6 +174,12 @@ export async function memberUpdate(
             : {}),
           ...(input.archived !== undefined
             ? { beforeArchived: old.archived, archived: input.archived }
+            : {}),
+          ...(input.isLiveStreamer !== undefined
+            ? {
+                beforeIsLiveStreamer: old.isLiveStreamer,
+                isLiveStreamer: input.isLiveStreamer,
+              }
             : {}),
         },
         note,

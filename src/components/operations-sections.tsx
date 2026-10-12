@@ -5,9 +5,11 @@ import { MemberWorkspace } from "./member-workspace";
 import { RegistrationWorkspace } from "./registration-workspace";
 import { UploadForm } from "./action-form";
 import { operationalTime } from "@/lib/public-data";
-import { countryCode } from "@/lib/countries";
-import { decrypt } from "@/lib/crypto";
-import { DEFAULT_MAPPING } from "@/lib/imports";
+import {
+  MEMBER_DIRECTORY_SELECT,
+  memberDirectoryWhere,
+  memberFilters,
+} from "@/lib/member-directory";
 export { renderActivityHistory } from "./activity-history";
 type Query = Record<string, string | undefined>;
 function pageNumber(q: Query) {
@@ -48,99 +50,19 @@ export function SectionPages({
 }
 export async function renderMembers(
   tx: Tx,
-  _actor: Actor,
+  actor: Actor,
   q: Query,
   base: string,
 ) {
-  const state = q.state ?? "active",
-    search = q.q?.slice(0, 100),
-    country =
-      q.country === "unspecified"
-        ? "unspecified"
-        : (countryCode(q.country ?? "") ?? "");
-  const where = {
-    ...(state === "archived"
-      ? { archived: true }
-      : state === "all"
-        ? {}
-        : { archived: false }),
-    ...(state === "pending" ? { verified: false } : {}),
-    ...(search
-      ? {
-          OR: [
-            { displayIgn: { contains: search, mode: "insensitive" as const } },
-            {
-              participants: {
-                some: {
-                  code: { contains: search, mode: "insensitive" as const },
-                },
-              },
-            },
-            { privateData: { phoneLastFour: { contains: search } } },
-          ],
-        }
-      : {}),
-  };
-  let countryIds: string[] | undefined;
-  if (country) {
-    // Country answers are encrypted. Match the full candidate set on the
-    // server before applying pagination, including imported country names.
-    const [candidates, setting] = await Promise.all([
-      tx.member.findMany({
-        where,
-        select: {
-          id: true,
-          privateData: { select: { registrationEncrypted: true } },
-        },
-      }),
-      tx.integrationSetting.findUnique({ where: { key: "formMapping" } }),
-    ]);
-    const countryField =
-      (setting?.value as { country?: string } | undefined)?.country ??
-      DEFAULT_MAPPING.country;
-    countryIds = candidates
-      .filter((member) => {
-        const fields = member.privateData
-          ? (JSON.parse(
-              decrypt(
-                member.privateData.registrationEncrypted,
-                `member:${member.id}`,
-              ),
-            ) as Record<string, string>)
-          : {};
-        const value = fields[countryField] ?? fields.Country ?? "";
-        return country === "unspecified"
-          ? !value.trim()
-          : countryCode(value) === country;
-      })
-      .map((member) => member.id);
-  }
-  const filteredWhere = {
-    ...where,
-    ...(countryIds ? { id: { in: countryIds } } : {}),
-  };
+  const { state, search, country } = memberFilters(q);
+  const filteredWhere = await memberDirectoryWhere(tx, q);
   const [members, total] = await Promise.all([
     tx.member.findMany({
       where: filteredWhere,
       skip: (pageNumber(q) - 1) * 50,
       take: 50,
       orderBy: { displayIgn: "asc" },
-      select: {
-        id: true,
-        displayIgn: true,
-        verified: true,
-        archived: true,
-        privateData: { select: { phoneLastFour: true, phoneIssue: true } },
-        participants: {
-          where: { withdrawn: false },
-          select: {
-            id: true,
-            code: true,
-            eligible: true,
-            tournament: { select: { name: true, published: true } },
-          },
-        },
-      },
+      select: MEMBER_DIRECTORY_SELECT,
     }),
     tx.member.count({ where: filteredWhere }),
   ]);
@@ -149,6 +71,7 @@ export async function renderMembers(
       <MemberWorkspace
         key={JSON.stringify([search, state, country, pageNumber(q)])}
         members={members}
+        canExport={actor.role === "ADMIN"}
         initialQuery={search ?? ""}
         state={state}
         country={country}

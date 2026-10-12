@@ -1,0 +1,1 @@
+ALTER TABLE "Member" ADD COLUMN "isLiveStreamer" BOOLEAN NOT NULL DEFAULT false;

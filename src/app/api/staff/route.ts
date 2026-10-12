@@ -292,6 +292,7 @@ export async function POST(request: Request) {
               id,
               ign: z.string().optional(),
               archived: z.boolean().optional(),
+              isLiveStreamer: z.boolean().optional(),
               phone: z.string().max(80).optional(),
               registrationFields: z.record(z.string(), z.string()).optional(),
               reason,

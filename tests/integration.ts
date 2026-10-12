@@ -81,10 +81,35 @@ async function check(name: string, fn: () => Promise<void>) {
 try {
   for (const name of (await readdir("prisma/migrations"))
     .sort()
-    .filter((n) => /^\d/.test(n)))
+    .filter((n) => /^\d/.test(n))) {
+    const streamerMigration = name === "202610120031_member_live_streamer";
+    if (streamerMigration)
+      await owner.query(
+        'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified) VALUES ($1,$2,$3,true)',
+        ["existing-streamer-migration", "Existing member", "existing member"],
+      );
     await owner.query(
       await readFile(`prisma/migrations/${name}/migration.sql`, "utf8"),
     );
+    if (streamerMigration) {
+      await check(
+        "streamer migration defaults existing members to No and preserves their data",
+        async () => {
+          const row = (
+            await owner.query('SELECT * FROM "Member" WHERE id=$1', [
+              "existing-streamer-migration",
+            ])
+          ).rows[0];
+          assert.equal(row.isLiveStreamer, false);
+          assert.equal(row.displayIgn, "Existing member");
+          assert.equal(row.verified, true);
+        },
+      );
+      await owner.query('DELETE FROM "Member" WHERE id=$1', [
+        "existing-streamer-migration",
+      ]);
+    }
+  }
   await owner.query(
     `ALTER ROLE pailangz_app LOGIN PASSWORD '${runtimePassword}'`,
   );

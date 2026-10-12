@@ -31,6 +31,43 @@ export async function checkRoutineStaffOperations(
   );
   const phone = "+60123456789";
   await check(
+    "members default to non-streamers and staff can change the flag without affecting approval",
+    async () => {
+      const read = async () =>
+        (await owner.query('SELECT * FROM "Member" WHERE id=$1', [memberId]))
+          .rows[0];
+      const before = await read();
+      assert.equal(before.isLiveStreamer, false);
+      await memberUpdate(actor, { id: memberId, isLiveStreamer: true });
+      assert.equal((await read()).isLiveStreamer, true);
+      // Unrelated updates must preserve the streamer's saved choice.
+      await memberUpdate(mod, { id: memberId, archived: true });
+      const archived = await read();
+      assert.equal(archived.isLiveStreamer, true);
+      assert.equal(archived.verified, before.verified);
+      await memberUpdate(mod, {
+        id: memberId,
+        archived: false,
+        isLiveStreamer: false,
+      });
+      assert.equal((await read()).isLiveStreamer, false);
+      const events = (
+        await owner.query(
+          'SELECT changes FROM "AuditEvent" WHERE "entityId"=$1 AND action=$2',
+          [memberId, "MEMBER_UPDATE"],
+        )
+      ).rows;
+      assert.ok(
+        events.some(
+          ({ changes }) =>
+            changes.changedFields.includes("isLiveStreamer") &&
+            changes.beforeIsLiveStreamer === false &&
+            changes.isLiveStreamer === true,
+        ),
+      );
+    },
+  );
+  await check(
     "moderators edit names and contacts without notes; private values stay encrypted and out of audit",
     async () => {
       await memberUpdate(mod, {

@@ -402,7 +402,65 @@ try {
     assert.ok(screen.includes(target.displayIgn));
     assert.match(screen, /Showing 1 of 1 member/);
     assert.ok(screen.includes("Search all members"));
+    assert.ok(screen.includes("Is Live Streamer"));
   });
+  await check(
+    "member streamer values validate, persist and appear in the directory",
+    async () => {
+      const target = await owner.member.findFirstOrThrow({
+        where: { archived: false },
+      });
+      assert.equal(target.isLiveStreamer, false);
+      const url = `${origin}/admin/members?q=${encodeURIComponent(target.displayIgn)}&state=all`;
+      const streamerCell =
+        /class="[^"]*streamerCell[^"]*"[^>]*>[\s\S]*?<span>(Yes|No)<\/span>/;
+      async function displayedValue() {
+        const response = await fetch(url, {
+          headers: { Cookie: admin.cookie },
+        });
+        assert.equal(response.status, 200);
+        return (await response.text()).match(streamerCell)?.[1];
+      }
+      assert.equal(await displayedValue(), "No");
+      assert.equal(
+        (
+          await post(admin.cookie, "member", {
+            id: target.id,
+            isLiveStreamer: "yes",
+          })
+        ).status,
+        400,
+      );
+      try {
+        assert.equal(
+          (
+            await post(admin.cookie, "member", {
+              id: target.id,
+              isLiveStreamer: true,
+            })
+          ).status,
+          200,
+        );
+        assert.equal(await displayedValue(), "Yes");
+        assert.equal(
+          (await owner.member.findUniqueOrThrow({ where: { id: target.id } }))
+            .isLiveStreamer,
+          true,
+        );
+      } finally {
+        assert.equal(
+          (
+            await post(admin.cookie, "member", {
+              id: target.id,
+              isLiveStreamer: false,
+            })
+          ).status,
+          200,
+        );
+      }
+      assert.equal(await displayedValue(), "No");
+    },
+  );
   await check(
     "member countries combine with search, status and pagination for both staff roles",
     async () => {

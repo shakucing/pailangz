@@ -330,6 +330,7 @@ const auditLabels: Record<string, string> = {
   MATCH_UPDATE: "Match updated",
   RANKING_FREEZE: "Final rankings saved",
   AUDIT_EXPORT: "Activity history downloaded",
+  MEMBER_EXPORT: "Member table downloaded",
   OPERATION_FAILED: "An action could not be completed",
   PLAYER_MAPPING_CONFIRM: "Player list confirmed",
   PARTICIPANT_REPLACE: "Tournament player replaced",

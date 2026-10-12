@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  Download,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -33,6 +34,7 @@ export type MemberRow = {
   displayIgn: string;
   verified: boolean;
   archived: boolean;
+  isLiveStreamer: boolean;
   privateData: {
     phoneLastFour: string | null;
     phoneIssue: string | null;
@@ -57,6 +59,7 @@ export function MemberWorkspace({
   country = "",
   basePath = "/admin/members",
   total = members.length,
+  canExport = false,
 }: {
   members: MemberRow[];
   initialQuery?: string;
@@ -64,10 +67,13 @@ export function MemberWorkspace({
   country?: string;
   basePath?: string;
   total?: number;
+  canExport?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
   const [searching, startSearch] = useTransition();
+  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exportError, setExportError] = useState("");
   const searchId = useId();
   const countryLabel =
     country === "unspecified"
@@ -82,6 +88,37 @@ export function MemberWorkspace({
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCountry) params.set("country", nextCountry);
     startSearch(() => router.push(`${basePath}?${params}`, { scroll: false }));
+  }
+  async function downloadMembers(format: "csv" | "xlsx") {
+    setExporting(format);
+    setExportError("");
+    try {
+      const response = await fetch("/api/staff/members/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format, state, q: initialQuery, country }),
+      });
+      if (!response.ok) {
+        const body = await response.json();
+        throw new Error(body.error ?? "Unable to download members.");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pailangz-members.${format}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      setExportError(
+        error instanceof Error
+          ? error.message
+          : "Unable to download members. Please try again.",
+      );
+    } finally {
+      setExporting(null);
+    }
   }
   return (
     <div className={tableStyles.workspace}>
@@ -159,6 +196,38 @@ export function MemberWorkspace({
           </button>
         )}
       </form>
+      {canExport && (
+        <div className={tableStyles.downloads} aria-busy={exporting !== null}>
+          <p role="status" aria-live="polite">
+            {exporting
+              ? `Preparing ${exporting === "csv" ? "CSV" : "Excel"} download…`
+              : `Download all ${total} matching member${total === 1 ? "" : "s"} · Phone numbers are masked`}
+          </p>
+          <div className={tableStyles.downloadButtons}>
+            <button
+              type="button"
+              className="button small secondary"
+              disabled={searching || exporting !== null || total === 0}
+              onClick={() => downloadMembers("csv")}
+            >
+              <Download size={16} aria-hidden="true" /> Download CSV
+            </button>
+            <button
+              type="button"
+              className="button small secondary"
+              disabled={searching || exporting !== null || total === 0}
+              onClick={() => downloadMembers("xlsx")}
+            >
+              <Download size={16} aria-hidden="true" /> Download Excel
+            </button>
+          </div>
+          {exportError && (
+            <p className={styles.error} role="alert">
+              {exportError}
+            </p>
+          )}
+        </div>
+      )}
       <div className={tableStyles.summary}>
         <p role="status" aria-live="polite">
           {searching ? (
@@ -188,12 +257,14 @@ export function MemberWorkspace({
       >
         <table className={tableStyles.table} role="table">
           <caption className="sr-only">
-            Members, approval status, contact details and tournament entries
+            Members, approval status, live streamer status, contact details and
+            tournament entries
           </caption>
           <thead>
             <tr>
               <th scope="col">Member</th>
               <th scope="col">Status</th>
+              <th scope="col">Is Live Streamer</th>
               <th scope="col">Phone</th>
               <th scope="col">Tournament entries</th>
               <th scope="col" className={tableStyles.actionsHeading}>
@@ -207,7 +278,7 @@ export function MemberWorkspace({
           {!members.length && (
             <tbody className={tableStyles.emptyGroup} role="rowgroup">
               <tr role="row">
-                <td colSpan={5}>
+                <td colSpan={6}>
                   <div className={tableStyles.empty}>
                     <Users size={28} aria-hidden="true" />
                     <strong>No members found</strong>
@@ -320,6 +391,12 @@ function MemberItem({ member }: { member: MemberRow }) {
             )}
             {status}
           </span>
+        </td>
+        <td role="cell" className={tableStyles.streamerCell}>
+          <span className={tableStyles.mobileLabel} aria-hidden="true">
+            Is Live Streamer
+          </span>
+          <span>{member.isLiveStreamer ? "Yes" : "No"}</span>
         </td>
         <td role="cell" className={tableStyles.contactCell}>
           <span className={tableStyles.mobileLabel} aria-hidden="true">
@@ -523,6 +600,7 @@ function MemberItem({ member }: { member: MemberRow }) {
                     const form = new FormData(e.currentTarget);
                     const ign = String(form.get("ign") ?? "").trim(),
                       nextPhone = String(form.get("phone") ?? "");
+                    const isLiveStreamer = form.get("isLiveStreamer") === "yes";
                     const registrationFields = Object.fromEntries(
                       Object.entries(details.fields)
                         .filter(
@@ -538,6 +616,9 @@ function MemberItem({ member }: { member: MemberRow }) {
                     const saved = await run("member", {
                       id: member.id,
                       ...(ign !== member.displayIgn ? { ign } : {}),
+                      ...(isLiveStreamer !== member.isLiveStreamer
+                        ? { isLiveStreamer }
+                        : {}),
                       ...(nextPhone !== (details.phone ?? "")
                         ? { phone: nextPhone }
                         : {}),
@@ -562,6 +643,16 @@ function MemberItem({ member }: { member: MemberRow }) {
                         required
                         maxLength={80}
                       />
+                    </label>
+                    <label>
+                      Is Live Streamer
+                      <select
+                        name="isLiveStreamer"
+                        defaultValue={member.isLiveStreamer ? "yes" : "no"}
+                      >
+                        <option value="no">No</option>
+                        <option value="yes">Yes</option>
+                      </select>
                     </label>
                     <label>
                       WhatsApp / phone
@@ -620,7 +711,7 @@ function MemberItem({ member }: { member: MemberRow }) {
           hidden={!expanded}
           className={tableStyles.expandedRow}
         >
-          <td colSpan={5} role="cell">
+          <td colSpan={6} role="cell">
             <div className={tableStyles.entriesPanel}>
               <h3>Tournament entries · {member.displayIgn}</h3>
               <ul>

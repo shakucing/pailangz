@@ -59,6 +59,27 @@
   font-weight: 400;
 }
 
+.downloads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 14px;
+}
+
+.downloads p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.downloadButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .summary {
   display: flex;
   flex-wrap: wrap;
@@ -509,6 +530,7 @@
   }
 
   .contactCell,
+  .streamerCell,
   .entriesCell,
   .actionsCell {
     grid-column: 1 / -1;
@@ -525,7 +547,8 @@
     display: inline;
   }
 
-  .contactCell {
+  .contactCell,
+  .streamerCell {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;

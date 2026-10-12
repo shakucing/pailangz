@@ -65,6 +65,7 @@ model Member {
   canonicalIgn String @unique
   verified Boolean @default(false)
   archived Boolean @default(false)
+  isLiveStreamer Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   privateData MemberPrivate?
   participants Participant[]
