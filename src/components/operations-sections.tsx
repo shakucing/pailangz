@@ -145,7 +145,12 @@ export async function renderRegistrations(
   return (
     <div className="stack">
       <div className="row">
-        <Link className="button small" href="/register">
+        <Link
+          className="button small"
+          href="/register"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Register new member
         </Link>
       </div>
