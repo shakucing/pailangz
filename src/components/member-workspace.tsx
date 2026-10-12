@@ -201,7 +201,7 @@ export function MemberWorkspace({
           <p role="status" aria-live="polite">
             {exporting
               ? `Preparing ${exporting === "csv" ? "CSV" : "Excel"} download…`
-              : `Download all ${total} matching member${total === 1 ? "" : "s"} · Phone numbers are masked`}
+              : `Download registration details for all ${total} matching member${total === 1 ? "" : "s"} · Includes full WhatsApp numbers`}
           </p>
           <div className={tableStyles.downloadButtons}>
             <button

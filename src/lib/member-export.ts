@@ -1,40 +1,45 @@
 import ExcelJS from "exceljs";
-import type { MemberRow } from "@/components/member-workspace";
+
+export type MemberExportRow = {
+  displayIgn: string;
+  isLiveStreamer: boolean;
+  createdAt: Date;
+  fields: Record<string, string>;
+  phone: string | null;
+  country: string;
+};
 
 const HEADERS = [
-  "Member",
-  "Player codes",
-  "Status",
+  "Timestamp",
+  "IGN",
+  "Whatsapp Number",
+  "Tiktok username",
+  "Tiktok ID",
+  "Discord Name",
+  "Discord ID",
+  "State/Province",
+  "Country",
+  "status",
   "Is Live Streamer",
-  "Phone (masked)",
-  "Phone review",
-  "Tournament entries",
 ];
 
-function memberValues(member: MemberRow) {
+function memberValues(member: MemberExportRow) {
   return [
+    member.fields.Timestamp || member.createdAt.toISOString(),
     member.displayIgn,
-    member.participants.map((p) => p.code).join(" · "),
-    member.archived
-      ? "Archived"
-      : member.verified
-        ? "Approved"
-        : "Awaiting approval",
+    member.phone ?? "",
+    member.fields["Tiktok username"] ?? "",
+    member.fields["Tiktok ID"] ?? "",
+    member.fields["Discord Name"] ?? "",
+    member.fields["Discord ID"] ?? "",
+    member.fields["State/Province"] ?? "",
+    member.country,
+    member.fields.status ?? "",
     member.isLiveStreamer ? "Yes" : "No",
-    member.privateData?.phoneLastFour
-      ? `•••• ${member.privateData.phoneLastFour}`
-      : "Not supplied",
-    member.privateData?.phoneIssue ? "Needs checking" : "",
-    member.participants
-      .map(
-        (p) =>
-          `${p.tournament.name} (${p.code}) · ${p.eligible ? "Approved" : "Awaiting approval"} · ${p.tournament.published ? "Published" : "Draft"}`,
-      )
-      .join("\n"),
   ];
 }
 
-export function membersCsv(members: MemberRow[]) {
+export function membersCsv(members: MemberExportRow[]) {
   const cell = (value: string) => {
     // Quote all fields and neutralize spreadsheet formulas, including those
     // preceded by whitespace/control characters in imported names.
@@ -52,14 +57,14 @@ export function membersCsv(members: MemberRow[]) {
   );
 }
 
-export async function membersXlsx(members: MemberRow[]) {
+export async function membersXlsx(members: MemberExportRow[]) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Members", {
     views: [{ state: "frozen", ySplit: 1 }],
   });
   sheet.columns = HEADERS.map((header, index) => ({
     header,
-    width: [28, 26, 22, 20, 20, 20, 70][index],
+    width: [26, 28, 24, 24, 24, 28, 24, 24, 24, 16, 22][index],
     style: { numFmt: "@", alignment: { vertical: "top", wrapText: true } },
   }));
   // Explicit string values preserve codes/leading zeros and never create formulas.
