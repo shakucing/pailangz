@@ -16,6 +16,9 @@ export async function checkWebRegistration(
   const input = {
     requestId,
     ign: "Web application ✨",
+    gmcId: "PRIVATE_GMC_CANARY_00123",
+    email: "private-registration-canary@example.com",
+    whatsapp: "+60 12 345 6789",
     tiktokUsername: "PRIVATE_TIKTOK_CANARY",
     tiktokId: "@private_web_canary",
     country: "MY",
@@ -42,10 +45,15 @@ export async function checkWebRegistration(
       ).rows;
       assert.equal(rows.length, 1);
       assert.equal(rows[0].status, "PENDING");
-      assert.equal(rows[0].phoneIssue, "MISSING");
+      assert.equal(rows[0].phoneIssue, null);
       assert.ok(!JSON.stringify(rows).includes(input.tiktokUsername));
       assert.ok(!JSON.stringify(rows).includes(input.tiktokId));
+      assert.ok(!JSON.stringify(rows).includes(input.gmcId));
+      assert.ok(!JSON.stringify(rows).includes(input.email));
       const details = await privateDetails(actor, "submission", requestId);
+      assert.equal(details.fields?.["ID GMC"], input.gmcId);
+      assert.equal(details.fields?.Email, input.email);
+      assert.equal(details.fields?.["Whatsapp Number"], input.whatsapp);
       assert.equal(details.fields?.["Tiktok username"], input.tiktokUsername);
       assert.equal(details.fields?.["Tiktok ID"], input.tiktokId);
       const audits = (
@@ -59,6 +67,8 @@ export async function checkWebRegistration(
       );
       assert.ok(!JSON.stringify(audits).includes(input.tiktokUsername));
       assert.ok(!JSON.stringify(audits).includes(input.tiktokId));
+      assert.ok(!JSON.stringify(audits).includes(input.gmcId));
+      assert.ok(!JSON.stringify(audits).includes(input.email));
     },
   );
   await check(
@@ -93,7 +103,7 @@ export async function checkWebRegistration(
     },
   );
   await check(
-    "web approval preserves social details and historical members can keep blank TikTok fields",
+    "web approval preserves private details and historical members can keep blank registration fields",
     async () => {
       const approved = await decideRegistration(actor, {
         id: requestId,
@@ -103,15 +113,26 @@ export async function checkWebRegistration(
       const memberId = approved.memberId!;
       const details = await privateDetails(actor, "member", memberId);
       assert.equal(details.fields?.["Tiktok ID"], input.tiktokId);
+      assert.equal(details.fields?.["ID GMC"], input.gmcId);
+      assert.equal(details.fields?.Email, input.email);
+      assert.ok(details.editableFields?.includes("ID GMC"));
+      assert.ok(details.editableFields?.includes("Email"));
       await memberUpdate(actor, {
         id: memberId,
-        registrationFields: { "Tiktok ID": "", "Tiktok username": "" },
+        registrationFields: {
+          "ID GMC": "",
+          Email: "",
+          "Tiktok ID": "",
+          "Tiktok username": "",
+        },
       });
       await memberUpdate(actor, {
         id: memberId,
         ign: "Web existing blank fields",
       });
       const blank = await privateDetails(actor, "member", memberId);
+      assert.equal(blank.fields?.["ID GMC"], "");
+      assert.equal(blank.fields?.Email, "");
       assert.equal(blank.fields?.["Tiktok ID"], "");
       assert.equal(blank.fields?.["Tiktok username"], "");
       const duplicateId = randomUUID();
@@ -130,6 +151,8 @@ export async function checkWebRegistration(
         memberId,
       );
       const untouched = await privateDetails(actor, "member", memberId);
+      assert.equal(untouched.fields?.["ID GMC"], "");
+      assert.equal(untouched.fields?.Email, "");
       assert.equal(untouched.fields?.["Tiktok ID"], "");
       assert.equal(untouched.fields?.["Tiktok username"], "");
     },

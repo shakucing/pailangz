@@ -10,6 +10,9 @@ export async function checkRegistrationHttp(
   const input = {
     requestId: randomUUID(),
     ign: "HTTP web registration ✨",
+    gmcId: "PRIVATE_WEB_GMC_CANARY_00123",
+    email: "private-web-registration-canary@example.com",
+    whatsapp: "+60 12 345 6789",
     tiktokUsername: "PRIVATE_WEB_TIKTOK_CANARY",
     tiktokId: "@private_web_id",
     country: "MY",
@@ -21,7 +24,7 @@ export async function checkRegistrationHttp(
       body: JSON.stringify(body),
     });
   await check(
-    "web form exposes all screenshot fields in both locales with exactly four required fields",
+    "web form requires GMC ID, WhatsApp and email in both locales with exactly seven required fields",
     async () => {
       for (const locale of ["en", "ms"]) {
         const html = await (
@@ -34,7 +37,9 @@ export async function checkRegistrationHttp(
         assert.ok(formTag.includes('action="/api/registration"'));
         for (const field of [
           "ign",
+          "gmcId",
           "whatsapp",
+          "email",
           "tiktokUsername",
           "tiktokId",
           "discordName",
@@ -48,10 +53,26 @@ export async function checkRegistrationHttp(
           assert.ok(control, field);
           assert.equal(
             /\brequired=""/.test(control),
-            ["ign", "tiktokUsername", "tiktokId", "country"].includes(field),
+            [
+              "ign",
+              "gmcId",
+              "whatsapp",
+              "email",
+              "tiktokUsername",
+              "tiktokId",
+              "country",
+            ].includes(field),
             field,
           );
         }
+        assert.match(
+          html.match(/<input[^>]*name="email"[^>]*>/)?.[0] ?? "",
+          /type="email"/,
+        );
+        const fields = [...html.matchAll(/<input[^>]*name="([^"]+)"/g)].map(
+          (match) => match[1],
+        );
+        assert.equal(fields[fields.indexOf("ign") + 1], "gmcId");
         assert.ok(html.includes("Nur Athirah"));
         assert.ok(html.includes("atrh0222"));
       }
@@ -60,11 +81,25 @@ export async function checkRegistrationHttp(
   await check(
     "public submissions validate on the server and reject cross-origin and oversized requests",
     async () => {
-      for (const field of ["ign", "tiktokUsername", "tiktokId", "country"]) {
+      for (const field of [
+        "ign",
+        "gmcId",
+        "whatsapp",
+        "email",
+        "tiktokUsername",
+        "tiktokId",
+        "country",
+      ]) {
         const response = await submit({ ...input, [field]: " " });
         assert.equal(response.status, 400, field);
         assert.ok((await response.json()).fields.includes(field));
       }
+      const missingGmc = await submit({ ...input, gmcId: undefined });
+      assert.equal(missingGmc.status, 400);
+      assert.deepEqual((await missingGmc.json()).fields, ["gmcId"]);
+      const invalidEmail = await submit({ ...input, email: "invalid" });
+      assert.equal(invalidEmail.status, 400);
+      assert.deepEqual((await invalidEmail.json()).fields, ["email"]);
       assert.equal(
         (await submit(input, "https://untrusted.invalid")).status,
         403,
@@ -103,6 +138,8 @@ export async function checkRegistrationHttp(
       assert.equal(rows.length, 1);
       assert.equal(rows[0].status, "PENDING");
       assert.ok(!JSON.stringify(rows).includes(input.tiktokUsername));
+      assert.ok(!JSON.stringify(rows).includes(input.gmcId));
+      assert.ok(!JSON.stringify(rows).includes(input.email));
       assert.equal(
         await owner.member.count({ where: { displayIgn: input.ign } }),
         0,
@@ -113,11 +150,16 @@ export async function checkRegistrationHttp(
       );
       const html = await (await fetch(`${origin}/register`)).text();
       assert.ok(!html.includes(input.tiktokUsername));
+      assert.ok(!html.includes(input.gmcId));
+      assert.ok(!html.includes(input.email));
       assert.ok(
         !JSON.stringify(await owner.auditEvent.findMany()).includes(
           input.tiktokUsername,
         ),
       );
+      const audits = JSON.stringify(await owner.auditEvent.findMany());
+      assert.ok(!audits.includes(input.gmcId));
+      assert.ok(!audits.includes(input.email));
     },
   );
 }

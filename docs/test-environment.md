@@ -196,6 +196,8 @@ On 10 October 2026, test received schema-only migration `202610100029_published_
 
 Migration `202610100030_player_results_carry_rule` adds the confirmed qualification carry-forward choice to the safe event preview. Apply it through the schema-only process before deploying player-result sections for draft previews; published events receive the choice through the application query. Unconfirmed rules keep league and qualification results separate. The migration changes only the view and preserves application records. It has been checked on a disposable database and has not been applied to hosted test or production.
 
+Migration `202610130032_participation_profile` adds narrowly scoped functions for locking a verified member record and saving encrypted missing profile answers with tournament registration. It adds no columns and does not change existing records. Apply this schema-only migration to the selected environment before deploying the registration flow. The form first checks IGN and TikTok ID, requests only missing GMC ID, email, WhatsApp and Discord answers, then requires confirmation and the original Solo acknowledgments. Profile changes and entry approval commit together; hosted databases are not migrated by the build.
+
 ## Provider references
 
 - [Vercel production branch tracking](https://vercel.com/docs/git#production-branch)

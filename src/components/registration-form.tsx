@@ -7,7 +7,9 @@ import styles from "./registration-form.module.css";
 
 type FieldName =
   | "ign"
+  | "gmcId"
   | "whatsapp"
+  | "email"
   | "tiktokUsername"
   | "tiktokId"
   | "discordName"
@@ -75,11 +77,14 @@ export function RegistrationForm({
       help?: string;
       type?: string;
       autoComplete?: string;
+      fullWidth?: boolean;
     } = {},
   ) {
     const invalid = invalidFields.includes(name);
     return (
-      <div className={styles.field}>
+      <div
+        className={`${styles.field} ${options.fullWidth ? styles.fullWidth : ""}`}
+      >
         <label htmlFor={`registration-${name}`}>
           {label}
           {options.required ? (
@@ -202,8 +207,8 @@ export function RegistrationForm({
         <p className={styles.help}>
           <span className={styles.required}>*</span>{" "}
           {t(
-            "Wajib diisi: nama dalam game, nama pengguna TikTok, ID TikTok dan negara.",
-            "Required: in-game name, TikTok username, TikTok ID and country.",
+            "Wajib diisi: nama dalam game, ID GMC, nombor WhatsApp, email, nama pengguna TikTok, ID TikTok dan negara.",
+            "Required: in-game name, GMC ID, WhatsApp number, email, TikTok username, TikTok ID and country.",
           )}
         </p>
       </div>
@@ -215,6 +220,7 @@ export function RegistrationForm({
         <div className={styles.fields}>
           {field("ign", t("Nama dalam game (IGN)", "In-game name (IGN)"), {
             required: true,
+            fullWidth: true,
             maxLength: 80,
             placeholder: t("Nama anda dalam game", "Your name in game"),
             help: t(
@@ -222,11 +228,28 @@ export function RegistrationForm({
               "Use the same spelling and symbols as in game.",
             ),
           })}
+          {field("gmcId", "ID GMC", {
+            required: true,
+            fullWidth: true,
+            placeholder: t("Masukkan ID GMC anda", "Enter your GMC ID"),
+            help: t(
+              "Gunakan ID yang tertera pada profil GMC anda.",
+              "Use the ID shown on your GMC profile.",
+            ),
+          })}
           {field("whatsapp", t("Nombor WhatsApp", "WhatsApp number"), {
+            required: true,
             type: "tel",
             maxLength: 80,
             autoComplete: "tel",
             placeholder: "+60 12 345 6789",
+          })}
+          {field("email", "Email", {
+            required: true,
+            type: "email",
+            maxLength: 254,
+            autoComplete: "email",
+            placeholder: t("nama@example.com", "name@example.com"),
           })}
         </div>
       </fieldset>
@@ -351,8 +374,8 @@ export function RegistrationForm({
         <p className={styles.privacy}>
           <ShieldCheck size={18} aria-hidden="true" />{" "}
           {t(
-            "Maklumat hubungan, sosial dan lokasi anda hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
-            "Your contact, social and location details are visible only to authorized moderators and admins.",
+            "ID GMC, email, maklumat hubungan, sosial dan lokasi anda hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
+            "Your GMC ID, email, contact, social and location details are visible only to authorized moderators and admins.",
           )}
         </p>
         {error && (

@@ -1,3 +1,4 @@
+import { participationProfilePayload } from "./participation-profile-fixture";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -97,7 +98,10 @@ export async function checkModeratorSetup(
         id,
         person.ign,
         encrypt(
-          JSON.stringify({ "Tiktok ID": person.tiktokId }),
+          JSON.stringify({
+            ...participationProfilePayload,
+            "Tiktok ID": person.tiktokId,
+          }),
           `member:${id}`,
         ),
       ],

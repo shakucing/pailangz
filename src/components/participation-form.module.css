@@ -5,7 +5,61 @@
 .fields {
   display: grid;
   gap: 24px;
-  margin-top: 28px;
+}
+.changeMember {
+  margin-top: 18px;
+}
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  list-style: none;
+  padding: 0;
+  margin: 24px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.steps li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.steps span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+}
+.steps [aria-current="step"] {
+  color: var(--text);
+  font-weight: 600;
+}
+.steps [aria-current="step"] span {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.review {
+  margin: 24px 0 0;
+}
+.review > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.review dt {
+  color: var(--muted);
+}
+.review dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.back {
+  margin-bottom: 12px;
 }
 .included {
   display: flex;

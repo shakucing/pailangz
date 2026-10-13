@@ -1,8 +1,12 @@
+import {
+  participationProfile,
+  participationProfilePayload,
+} from "./participation-profile-fixture";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type pg from "pg";
-import { encrypt } from "../src/lib/crypto";
+import { decrypt, encrypt } from "../src/lib/crypto";
 import type { Actor } from "../src/lib/db";
 import { newTournamentConfiguration as soloDefaults } from "../src/lib/tournament-config";
 
@@ -22,6 +26,7 @@ export async function checkParticipation(
   const tiktokId = "@PRIVATE_PARTICIPATION_CANARY";
   const encrypted = encrypt(
     JSON.stringify({
+      ...participationProfilePayload,
       "Tiktok ID": tiktokId,
       "Tiktok username": "Different display name",
     }),
@@ -197,6 +202,161 @@ export async function checkParticipation(
       },
     );
     await check(
+      "verified members complete only missing profile answers atomically without exposing saved contacts",
+      async () => {
+        const id = randomUUID();
+        const original = {
+          "Tiktok ID": "profile_player",
+          Email: "keep-private@example.com",
+          Custom: "original answer",
+        };
+        const record = encrypt(JSON.stringify(original), `member:${id}`);
+        const person = { ign: id, tiktokId: "profile_player" };
+        await owner.query(
+          'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified) VALUES ($1,$1,$1,true)',
+          [id],
+        );
+        await owner.query(
+          'INSERT INTO "MemberPrivate" ("memberId","originalIgn","registrationEncrypted") VALUES ($1,$1,$2)',
+          [id, record],
+        );
+        const saved = async () =>
+          (
+            await owner.query(
+              'SELECT * FROM "MemberPrivate" WHERE "memberId"=$1',
+              [id],
+            )
+          ).rows[0];
+        const counts = async () =>
+          (
+            await owner.query(
+              'SELECT (SELECT count(*) FROM "Participant" WHERE "memberId"=$1)::int slots,(SELECT count(*) FROM "ParticipationRequest" WHERE "memberId"=$1)::int requests',
+              [id],
+            )
+          ).rows[0];
+        try {
+          assert.deepEqual(
+            await submitParticipation({ ...person, action: "CHECK" }),
+            {
+              missingFields: ["gmcId", "whatsapp", "discordName", "discordId"],
+            },
+          );
+          assert.equal((await saved()).registrationEncrypted, record);
+          assert.deepEqual(await counts(), { slots: 0, requests: 0 });
+          await assert.rejects(
+            submitParticipation({
+              ...person,
+              action: "CHECK",
+              tiktokId: "wrong",
+            }),
+            /VERIFICATION_FAILED/,
+          );
+          await assert.rejects(submitParticipation(person));
+          assert.deepEqual(await counts(), { slots: 0, requests: 0 });
+          await owner.query(
+            `CREATE FUNCTION test_reject_profile_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='PARTICIPATION_PROFILE_COMPLETE' THEN RAISE EXCEPTION 'Test profile audit failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER test_reject_profile_audit BEFORE INSERT ON "AuditEvent" FOR EACH ROW EXECUTE FUNCTION test_reject_profile_audit()`,
+          );
+          try {
+            await assert.rejects(
+              submitParticipation({ ...person, profile: participationProfile }),
+              /Test profile audit failure/,
+            );
+          } finally {
+            await owner.query(
+              'DROP TRIGGER test_reject_profile_audit ON "AuditEvent"; DROP FUNCTION test_reject_profile_audit()',
+            );
+          }
+          assert.equal((await saved()).registrationEncrypted, record);
+          assert.deepEqual(await counts(), { slots: 0, requests: 0 });
+          await submitParticipation({
+            ...person,
+            profile: participationProfile,
+          });
+          const row = await saved();
+          const payload = JSON.parse(
+            decrypt(row.registrationEncrypted, `member:${id}`),
+          );
+          assert.deepEqual(payload, {
+            ...original,
+            ...participationProfilePayload,
+            Email: original.Email,
+          });
+          assert.equal(
+            decrypt(row.phoneEncrypted, `member-phone:${id}`),
+            participationProfile.whatsapp,
+          );
+          assert.equal(row.phoneLastFour, "6789");
+          assert.equal(row.phoneIssue, null);
+          assert.deepEqual(
+            await submitParticipation({ ...person, action: "CHECK" }),
+            { missingFields: [] },
+          );
+          await Promise.all([
+            submitParticipation(person),
+            submitParticipation(person),
+          ]);
+          assert.equal(
+            (await saved()).registrationEncrypted,
+            row.registrationEncrypted,
+          );
+          assert.deepEqual(await counts(), { slots: 1, requests: 1 });
+          const audits = (
+            await owner.query(
+              'SELECT * FROM "AuditEvent" WHERE "entityId"=$1',
+              [id],
+            )
+          ).rows;
+          assert.equal(audits.length, 1);
+          assert.deepEqual(audits[0].changes.fields, [
+            "gmcId",
+            "whatsapp",
+            "discordName",
+            "discordId",
+          ]);
+          assert.ok(!JSON.stringify(audits).includes(original.Email));
+          assert.ok(
+            !JSON.stringify(audits).includes(participationProfile.whatsapp),
+          );
+          await owner.query("BEGIN");
+          try {
+            await owner.query("SET LOCAL ROLE pailangz_app");
+            assert.equal(
+              (
+                await owner.query(
+                  "SELECT app_lock_participation_identity($1,$1,$2) AS accepted",
+                  [id, record],
+                )
+              ).rows[0].accepted,
+              false,
+            );
+            assert.equal(
+              (
+                await owner.query(
+                  'SELECT * FROM "MemberPrivate" WHERE "memberId"=$1',
+                  [id],
+                )
+              ).rowCount,
+              0,
+            );
+          } finally {
+            await owner.query("ROLLBACK");
+          }
+        } finally {
+          await owner.query('DELETE FROM "Participant" WHERE "memberId"=$1', [
+            id,
+          ]);
+          await owner.query(
+            'DELETE FROM "ParticipationRequest" WHERE "memberId"=$1',
+            [id],
+          );
+          await owner.query('DELETE FROM "MemberPrivate" WHERE "memberId"=$1', [
+            id,
+          ]);
+          await owner.query('DELETE FROM "Member" WHERE id=$1', [id]);
+        }
+      },
+    );
+    await check(
       "32-player application limit serializes the final slot and accepts retries at capacity",
       async () => {
         const createdIds: string[] = [];
@@ -239,7 +399,11 @@ export async function checkParticipation(
                 ),
               ],
             );
-            candidates.push({ ign: id, tiktokId: "capacity_player" });
+            candidates.push({
+              ign: id,
+              tiktokId: "capacity_player",
+              profile: participationProfile,
+            });
           }
           assert.equal(await participationStatus(), "OPEN");
           const results = await Promise.allSettled(
@@ -421,7 +585,11 @@ export async function checkParticipation(
               ),
             ],
           );
-          const candidate = { ign: id, tiktokId: "full_roster" };
+          const candidate = {
+            ign: id,
+            tiktokId: "full_roster",
+            profile: participationProfile,
+          };
           assert.equal(await participationStatus(), "FULL");
           await assert.rejects(submitParticipation(candidate), /FULL/);
           assert.equal(

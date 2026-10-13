@@ -12,11 +12,13 @@ const privateText = (max: number) =>
     .refine((v) => !/[\p{Cc}\p{Cf}]/u.test(v));
 
 // Required only for new web submissions. Historical imports and member edits
-// retain their existing optional social fields.
+// retain their existing optional registration fields.
 export const registrationFormSchema = z.object({
   requestId: z.string().uuid(),
   ign: ignSchema,
-  whatsapp: privateText(80).optional().default(""),
+  gmcId: privateText(100).min(1),
+  whatsapp: privateText(80).min(1),
+  email: privateText(254).pipe(z.email()),
   tiktokUsername: privateText(100).min(1),
   tiktokId: privateText(80).min(1),
   discordName: privateText(100).optional().default(""),
@@ -31,7 +33,9 @@ export function registrationPayload(input: RegistrationFormInput) {
   return {
     Timestamp: new Date().toISOString(),
     IGN: input.ign,
+    "ID GMC": input.gmcId,
     "Whatsapp Number": input.whatsapp,
+    Email: input.email,
     "Tiktok username": input.tiktokUsername,
     "Tiktok ID": input.tiktokId,
     "Discord Name": input.discordName,

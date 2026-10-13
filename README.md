@@ -104,6 +104,8 @@ Members have a compact searchable list with one-click phone viewing and an edito
 
 The native web form is shared directly with selected applicants. Legacy Google responder links may still be stored in admin settings or `GOOGLE_FORM_RESPONDER_URL`, but `/register` no longer depends on them. The supplied `/edit` reference is not a responder URL and is never exposed as a registration destination.
 
+New `/register` applications require IGN, ID GMC, WhatsApp number, email, TikTok username, TikTok ID and country. ID GMC appears directly below IGN; WhatsApp and email share a row on desktop and stack on mobile. GMC IDs and emails are stored in the encrypted registration payload and remain available to authorized staff after approval. Historical imports and existing member edits can retain missing answers.
+
 Google Sheets synchronization is **disconnected**. `/api/registration/webhook` is a disabled adapter boundary. With `REGISTRATION_WEBHOOK_SECRET`, it verifies `x-pailangz-timestamp` (Unix milliseconds within five minutes) and `x-pailangz-signature` (hex HMAC-SHA256 of `<timestamp>.<raw-body>`), but still returns 503 because no integration actor or automatic ingestion worker is configured. Merely setting a key does not make imports live. Future ingestion must have its own narrowly scoped trusted actor, replay/idempotency protection and atomic audits.
 
 Restrict Google Form editing and the linked response Sheet to authorized operators. Disable **View results summary** in the form's presentation settings. No access or settings were changed in Google. Do not automatically email or message registrants.

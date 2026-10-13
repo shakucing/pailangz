@@ -35,6 +35,13 @@ export function savedTiktokId(payload: unknown): string | undefined {
 }
 
 export const participationSubmissionSchema = participationFormSchema.extend({
+  soloTermsRead: z.boolean().optional().default(false),
+  soloIgnDisplayConsent: z.boolean().optional().default(false),
+  action: z.enum(["CHECK", "SUBMIT"]).default("SUBMIT"),
+  profile: z
+    .record(z.string().max(50), z.string().max(254))
+    .optional()
+    .default({}),
   tournamentSlug: z
     .string()
     .min(1)

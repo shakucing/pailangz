@@ -29,8 +29,11 @@ export async function POST(request: Request) {
       600,
     );
     await rateLimit("participation:deployment", 60, 60);
-    await submitParticipation(input);
-    return Response.json({ accepted: true }, { status: 202, headers });
+    const result = await submitParticipation(input);
+    return Response.json(result, {
+      status: input.action === "CHECK" ? 200 : 202,
+      headers,
+    });
   } catch (error) {
     if (error instanceof z.ZodError)
       return Response.json(

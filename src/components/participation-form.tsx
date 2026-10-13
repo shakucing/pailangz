@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck } from "lucide-react";
 import { useLocale } from "./locale-context";
 import styles from "./registration-form.module.css";
 import participation from "./participation-form.module.css";
 import { NavigationLink as Link } from "./navigation-link";
 import type { ParticipationStatus } from "@/lib/participation-status";
+import {
+  participationProfileFields,
+  type ParticipationProfileField,
+} from "@/lib/participation-profile";
 
 export function ParticipationClosed({
   status,
@@ -62,6 +66,13 @@ export function ParticipationForm({
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const [busy, setBusy] = useState(false);
+  const [missing, setMissing] = useState<ParticipationProfileField[] | null>(
+    null,
+  );
+  const profileHeading = useRef<HTMLHeadingElement>(null);
+  const [review, setReview] = useState(false);
+  const [reviewDetails, setReviewDetails] = useState({ ign: "", gmcId: "" });
+  const [consents, setConsents] = useState({ terms: false, ign: false });
   const [submitted, setSubmitted] = useState(false);
   const [closed, setClosed] = useState<Exclude<
     ParticipationStatus,
@@ -80,6 +91,11 @@ export function ParticipationForm({
     const control = form.current?.elements.namedItem(invalidFields[0]);
     if (control instanceof HTMLElement) control.focus();
   }, [busy, invalidFields]);
+
+  useEffect(() => {
+    if (missing !== null && !invalidFields.length)
+      profileHeading.current?.focus();
+  }, [missing, review]);
 
   if (submitted)
     return (
@@ -122,6 +138,66 @@ export function ParticipationForm({
       <ParticipationClosed status={closed} slug={slug} format={format} focus />
     );
 
+  function field(
+    name: "ign" | "tiktokId" | ParticipationProfileField,
+    label: string,
+    options: {
+      help?: string;
+      maxLength?: number;
+      placeholder?: string;
+      type?: string;
+      autoComplete?: string;
+      readOnly?: boolean;
+    } = {},
+  ) {
+    const invalid = invalidFields.includes(name);
+    return (
+      <div className={styles.field}>
+        <label htmlFor={`participation-${name}`}>
+          {label}{" "}
+          <span className={styles.required} aria-hidden="true">
+            *
+          </span>
+        </label>
+        <input
+          id={`participation-${name}`}
+          name={name}
+          required
+          maxLength={options.maxLength ?? 100}
+          type={options.type ?? "text"}
+          autoComplete={options.autoComplete ?? "off"}
+          autoCapitalize="none"
+          spellCheck={false}
+          readOnly={options.readOnly}
+          placeholder={options.placeholder}
+          aria-invalid={invalid || undefined}
+          aria-describedby={
+            options.help || invalid ? `participation-${name}-help` : undefined
+          }
+          onChange={() => {
+            setError("");
+            setInvalidFields((current) =>
+              current.filter((field) => field !== name),
+            );
+          }}
+        />
+        {(options.help || invalid) && (
+          <p
+            id={`participation-${name}-help`}
+            className={invalid ? styles.fieldError : styles.help}
+          >
+            {invalid
+              ? t(
+                  "Sila semak dan lengkapkan medan ini.",
+                  "Please check and complete this field.",
+                )
+              : options.help}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <form
       ref={form}
@@ -132,8 +208,28 @@ export function ParticipationForm({
       onSubmit={async (event) => {
         event.preventDefault();
         if (sending.current) return;
+        const values = new FormData(event.currentTarget);
+        if (missing !== null && !review) {
+          setReviewDetails({
+            ign: String(values.get("ign") ?? ""),
+            gmcId: String(values.get("gmcId") ?? ""),
+          });
+          setReview(true);
+          return;
+        }
         sending.current = true;
-        const fields = Object.fromEntries(new FormData(event.currentTarget));
+        const fields = {
+          ign: values.get("ign"),
+          tiktokId: values.get("tiktokId"),
+          action: missing === null ? "CHECK" : "SUBMIT",
+          soloTermsRead: values.get("soloTermsRead") === "on",
+          soloIgnDisplayConsent: values.get("soloIgnDisplayConsent") === "on",
+          profile: Object.fromEntries(
+            participationProfileFields
+              .filter((field) => values.has(field.name))
+              .map((field) => [field.name, values.get(field.name)]),
+          ),
+        };
         setBusy(true);
         setError("");
         setInvalidFields([]);
@@ -144,6 +240,16 @@ export function ParticipationForm({
             body: JSON.stringify({ ...fields, tournamentSlug: slug }),
           });
           const data = await response.json();
+          if (response.ok && Array.isArray(data.missingFields)) {
+            setReviewDetails({ ign: String(fields.ign ?? ""), gmcId: "" });
+            if (data.missingFields.length === 0) setReview(true);
+            setMissing(
+              participationProfileFields
+                .filter((field) => data.missingFields.includes(field.name))
+                .map((field) => field.name),
+            );
+            return;
+          }
           if (response.ok && data.accepted) {
             setSubmitted(true);
             return;
@@ -155,6 +261,23 @@ export function ParticipationForm({
             return;
           }
           setInvalidFields(data.fields ?? []);
+          if (
+            missing !== null &&
+            data.error === "VALIDATION" &&
+            data.fields?.some((name: string) =>
+              participationProfileFields.some((field) => field.name === name),
+            )
+          ) {
+            setReview(false);
+            setMissing((current) => [
+              ...new Set([
+                ...(current ?? []),
+                ...participationProfileFields
+                  .filter((field) => data.fields?.includes(field.name))
+                  .map((field) => field.name),
+              ]),
+            ]);
+          }
           setError(
             data.error === "WITHDRAWN"
               ? t(
@@ -173,8 +296,8 @@ export function ParticipationForm({
                     )
                   : data.error === "VALIDATION"
                     ? t(
-                        "Sila semak dan lengkapkan kedua-dua medan.",
-                        "Please check and complete both fields.",
+                        "Sila semak dan lengkapkan medan yang ditandakan.",
+                        "Please check and complete the highlighted fields.",
                       )
                     : t(
                         "Penyertaan tidak dapat dihantar. Cuba lagi.",
@@ -198,65 +321,180 @@ export function ParticipationForm({
         <strong>{format ?? "SOLO & TEAM"}</strong>
         <span>{t("Penyertaan kejohanan", "Tournament entry")}</span>
       </div>
-      <div className={participation.fields}>
-        {(
-          [
-            [
-              "ign",
-              t("Nama dalam game (IGN)", "In-game name (IGN)"),
-              t(
-                "Gunakan IGN yang sama seperti dalam rekod ahli.",
-                "Use the same IGN as your member record.",
-              ),
-            ],
-            [
-              "tiktokId",
-              t("ID TikTok", "TikTok ID"),
-              t(
-                "Masukkan ID TikTok yang disimpan, contohnya @namaanda. Jangan gunakan nama paparan.",
-                "Enter your saved TikTok ID, e.g. @yourname. Use your ID rather than your display name.",
-              ),
-            ],
-          ] as const
-        ).map(([name, label, help]) => (
-          <div className={styles.field} key={name}>
-            <label htmlFor={`participation-${name}`}>
-              {label}{" "}
-              <span className={styles.required} aria-hidden="true">
-                *
-              </span>
-            </label>
-            <input
-              id={`participation-${name}`}
-              name={name}
-              required
-              maxLength={80}
-              disabled={busy}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              aria-invalid={invalidFields.includes(name) || undefined}
-              aria-describedby={`participation-${name}-help`}
-              onChange={() => {
-                setError("");
-                setInvalidFields((current) =>
-                  current.filter((field) => field !== name),
-                );
-              }}
-            />
-            <p id={`participation-${name}-help`} className={styles.help}>
-              {help}
-            </p>
-          </div>
-        ))}
+      <ol
+        className={participation.steps}
+        aria-label={t("Langkah pendaftaran", "Registration steps")}
+      >
+        <li aria-current={!review ? "step" : undefined}>
+          <span>1</span>
+          {t("Maklumat pemain", "Player details")}
+        </li>
+        <li aria-current={review ? "step" : undefined}>
+          <span>2</span>
+          {t("Sahkan penyertaan", "Confirm participation")}
+        </li>
+      </ol>
+      <div className={styles.intro}>
+        <h2 ref={profileHeading} tabIndex={-1}>
+          {review
+            ? t("Sahkan penyertaan anda", "Confirm your entry")
+            : missing === null
+              ? t("Sahkan rekod ahli anda", "Verify your member record")
+              : missing.length
+                ? t("Lengkapkan maklumat anda", "Complete your details")
+                : t("Maklumat anda lengkap", "Your details are complete")}
+        </h2>
+        <p className="muted" role="status">
+          {review
+            ? t(
+                "Semak penyertaan anda sebelum menghantar. Maklumat baharu akan disimpan bersama pendaftaran ini.",
+                "Review your entry before submitting. New details will be saved with this registration.",
+              )
+            : missing === null
+              ? t(
+                  "Masukkan IGN dan ID TikTok anda untuk menyemak maklumat yang diperlukan.",
+                  "Enter your IGN and TikTok ID to check which details are needed.",
+                )
+              : missing.length
+                ? t(
+                    `Sila lengkapkan ${missing.length} maklumat yang belum disimpan sebelum mendaftar. Maklumat sedia ada tidak perlu diisi semula.`,
+                    `Please complete ${missing.length} missing details before registering. Saved details do not need to be entered again.`,
+                  )
+                : t(
+                    "Semua maklumat yang diperlukan telah disimpan. Anda boleh sahkan penyertaan.",
+                    "All required details are saved. You can confirm your entry.",
+                  )}
+        </p>
       </div>
+      <fieldset className={styles.group} disabled={busy} hidden={review}>
+        <legend>
+          <span>01</span> {t("Maklumat pemain", "Player details")}
+        </legend>
+        <div className={participation.fields}>
+          {field("ign", t("Nama dalam game (IGN)", "In-game name (IGN)"), {
+            help: t(
+              "Gunakan IGN yang sama seperti dalam rekod ahli.",
+              "Use the same IGN as your member record.",
+            ),
+            maxLength: 80,
+            readOnly: missing !== null,
+          })}
+          {missing?.includes("gmcId") &&
+            field("gmcId", "ID GMC", {
+              placeholder: t("Masukkan ID GMC anda", "Enter your GMC ID"),
+            })}
+          {field("tiktokId", t("ID TikTok", "TikTok ID"), {
+            help: t(
+              "Masukkan ID TikTok yang disimpan, contohnya @namaanda. Jangan gunakan nama paparan.",
+              "Enter your saved TikTok ID, e.g. @yourname. Use your ID rather than your display name.",
+            ),
+            maxLength: 80,
+            readOnly: missing !== null,
+          })}
+        </div>
+        {missing !== null && (
+          <button
+            type="button"
+            className={`button secondary ${participation.changeMember}`}
+            onClick={() => {
+              setMissing(null);
+              setReview(false);
+              setConsents({ terms: false, ign: false });
+              setInvalidFields([]);
+              setError("");
+            }}
+          >
+            {t("Tukar ahli", "Change member")}
+          </button>
+        )}
+      </fieldset>
+      {missing?.some((name) => name === "email" || name === "whatsapp") && (
+        <fieldset className={styles.group} disabled={busy} hidden={review}>
+          <legend>
+            <span>02</span> {t("Maklumat hubungan", "Contact details")}
+          </legend>
+          <div className={styles.fields}>
+            {missing.includes("email") &&
+              field("email", "Email", {
+                type: "email",
+                autoComplete: "email",
+                maxLength: 254,
+                placeholder: "nama@example.com",
+              })}
+            {missing.includes("whatsapp") &&
+              field("whatsapp", t("Nombor WhatsApp", "WhatsApp number"), {
+                type: "tel",
+                autoComplete: "tel",
+                maxLength: 80,
+                placeholder: "+60 12 345 6789",
+              })}
+          </div>
+        </fieldset>
+      )}
+      {missing?.some(
+        (name) => name === "discordName" || name === "discordId",
+      ) && (
+        <fieldset className={styles.group} disabled={busy} hidden={review}>
+          <legend>
+            <span>03</span> Discord
+          </legend>
+          <div className={styles.fields}>
+            {missing.includes("discordName") &&
+              field(
+                "discordName",
+                t("Nama pengguna Discord", "Discord username"),
+                {
+                  placeholder: "Atrh ✨",
+                  help: t(
+                    "Nama yang dipaparkan pada profil Discord anda.",
+                    "The name displayed on your Discord profile.",
+                  ),
+                },
+              )}
+            {missing.includes("discordId") &&
+              field("discordId", t("ID Discord", "Discord ID"), {
+                placeholder: "atrh0222",
+                help: t(
+                  "Nama pengguna di bawah nama paparan. Contoh: atrh0222.",
+                  "The username below your display name. Example: atrh0222.",
+                ),
+              })}
+          </div>
+        </fieldset>
+      )}
+      {review && (
+        <dl className={participation.review}>
+          <div>
+            <dt>{t("Nama dalam game (IGN)", "In-game name (IGN)")}</dt>
+            <dd>{reviewDetails.ign}</dd>
+          </div>
+          <div>
+            <dt>ID GMC</dt>
+            <dd>
+              {reviewDetails.gmcId ||
+                t("Disimpan dalam profil", "Saved in profile")}
+            </dd>
+          </div>
+          <div>
+            <dt>{t("Kategori", "Category")}</dt>
+            <dd>{format ?? "SOLO & TEAM"}</dd>
+          </div>
+        </dl>
+      )}
       <div className={styles.footer}>
-        {format === "SOLO" && (
+        {review && format === "SOLO" && (
           <>
             <label className={participation.terms}>
               <input
                 type="checkbox"
                 name="soloTermsRead"
+                checked={consents.terms}
+                onChange={(event) =>
+                  setConsents((current) => ({
+                    ...current,
+                    terms: event.target.checked,
+                  }))
+                }
                 required
                 disabled={busy}
               />
@@ -278,6 +516,13 @@ export function ParticipationForm({
               <input
                 type="checkbox"
                 name="soloIgnDisplayConsent"
+                checked={consents.ign}
+                onChange={(event) =>
+                  setConsents((current) => ({
+                    ...current,
+                    ign: event.target.checked,
+                  }))
+                }
                 required
                 disabled={busy}
               />
@@ -296,8 +541,8 @@ export function ParticipationForm({
         <p className={styles.privacy}>
           <ShieldCheck size={18} aria-hidden="true" />
           {t(
-            "ID TikTok digunakan untuk padanan rekod dan tidak dipaparkan secara awam. Ahli aktif yang sepadan diluluskan secara automatik selagi slot tersedia.",
-            "Your TikTok ID is used to match your record and is never shown publicly. Matching active members are automatically approved while slots are available.",
+            "ID TikTok digunakan untuk padanan rekod. Maklumat yang dilengkapkan akan disimpan dalam profil anda untuk pendaftaran seterusnya. Maklumat hubungan dan sosial hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
+            "Your TikTok ID is used to match your record. Completed details are saved to your profile for future registrations. Contact and social details are visible only to authorized moderators and admins.",
           )}
         </p>
         {error && (
@@ -305,10 +550,29 @@ export function ParticipationForm({
             {error}
           </p>
         )}
+        {review && (
+          <button
+            type="button"
+            className={`button secondary ${participation.back}`}
+            disabled={busy}
+            onClick={() => {
+              setReview(false);
+              setError("");
+              setInvalidFields([]);
+            }}
+          >
+            {t("Kembali ke maklumat pemain", "Back to player details")}
+          </button>
+        )}
         <button className="button" type="submit" disabled={busy}>
           {busy
             ? t("Mengesahkan…", "Verifying…")
-            : t("Sahkan penyertaan", "Confirm participation")}
+            : missing === null
+              ? t("Semak maklumat ahli", "Check member details")
+              : !review
+                ? t("Teruskan", "Continue")
+                : t("Sahkan penyertaan", "Confirm participation")}
+          {!busy && <ArrowRight size={17} aria-hidden="true" />}
         </button>
         <noscript>
           <p className={styles.help}>

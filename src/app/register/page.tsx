@@ -80,15 +80,12 @@ export default async function Register() {
             </li>
           </ol>
           <h3 className="mt-5">
-            {t(
-              "Maklumat pendaftaran anda",
-              "Your registration details",
-            )}
+            {t("Maklumat pendaftaran anda", "Your registration details")}
           </h3>
           <p className="muted">
             {t(
-              "Nama dalam game anda akan dipaparkan kepada umum. Akaun media sosial, nombor WhatsApp dan maklumat pendaftaran lain kekal sulit dan hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
-              "Your in-game name will be displayed publicly. Your social media accounts, WhatsApp number and other registration details will stay confidential. Only authorized moderators and admins can view them.",
+              "Nama dalam game anda akan dipaparkan kepada umum. ID GMC, email, akaun media sosial, nombor WhatsApp dan maklumat pendaftaran lain kekal sulit dan hanya boleh dilihat oleh moderator dan admin yang dibenarkan.",
+              "Your in-game name will be displayed publicly. Your GMC ID, email, social media accounts, WhatsApp number and other registration details will stay confidential. Only authorized moderators and admins can view them.",
             )}
           </p>
         </aside>

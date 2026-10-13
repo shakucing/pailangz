@@ -1,3 +1,4 @@
+import { participationProfilePayload } from "./participation-profile-fixture";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import type pg from "pg";
@@ -248,7 +249,10 @@ export async function checkTournamentFormats(
       const memberId = randomUUID(),
         ign = `format-${memberId}`,
         record = encrypt(
-          JSON.stringify({ "Tiktok ID": "@format-player" }),
+          JSON.stringify({
+            ...participationProfilePayload,
+            "Tiktok ID": "@format-player",
+          }),
           `member:${memberId}`,
         );
       await owner.query(
@@ -280,15 +284,45 @@ export async function checkTournamentFormats(
           assert.equal(view[0].capacity, 32);
           assert.equal(view[0].format, format);
         });
+        if (format === "SOLO") {
+          await assert.rejects(
+            submitParticipation({
+              tournamentSlug: row.slug,
+              ign,
+              tiktokId: "@format-player",
+            }),
+          );
+          await assert.rejects(
+            submitParticipation({
+              tournamentSlug: row.slug,
+              ign,
+              tiktokId: "@format-player",
+              soloTermsRead: true,
+            }),
+          );
+          assert.equal(
+            (
+              await owner.query(
+                'SELECT count(*)::int n FROM "Participant" WHERE "tournamentId"=$1',
+                [event.id],
+              )
+            ).rows[0].n,
+            0,
+          );
+        }
         await submitParticipation({
           tournamentSlug: row.slug,
           ign,
           tiktokId: "@format-player",
+          soloTermsRead: true,
+          soloIgnDisplayConsent: true,
         });
         await submitParticipation({
           tournamentSlug: row.slug,
           ign,
           tiktokId: "@format-player",
+          soloTermsRead: true,
+          soloIgnDisplayConsent: true,
         });
         const count = (
           await owner.query(
@@ -332,6 +366,8 @@ export async function checkTournamentFormats(
           const token = await startMemberAccess({
             ign,
             tiktokId: "@format-player",
+            soloTermsRead: true,
+            soloIgnDisplayConsent: true,
           });
           try {
             for (const action of [
@@ -399,6 +435,8 @@ export async function checkTournamentFormats(
               tournamentSlug: flexibleSlug,
               ign,
               tiktokId: "@format-player",
+              soloTermsRead: true,
+              soloIgnDisplayConsent: true,
             });
             const playerTeam = await mutateTeam(token, flexibleSlug, {
               action: "CREATE",

@@ -1,3 +1,4 @@
+import { participationProfile } from "./participation-profile-fixture";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
@@ -16,6 +17,7 @@ export async function checkParticipationHttp(
   const input = {
     ign: "HTTP participation player",
     tiktokId: "@PRIVATE_HTTP_PARTICIPATION",
+    profile: participationProfile,
   };
   const submit = (body: unknown, requestOrigin = origin) =>
     fetch(`${origin}/api/participation`, {
@@ -125,6 +127,24 @@ export async function checkParticipationHttp(
         data: { value: event.id },
       });
       try {
+        const checked = await submit({ ...input, action: "CHECK" });
+        assert.equal(checked.status, 200);
+        assert.deepEqual(await checked.json(), {
+          missingFields: [
+            "gmcId",
+            "email",
+            "whatsapp",
+            "discordName",
+            "discordId",
+          ],
+        });
+        const incomplete = await submit({ ...input, profile: {} });
+        assert.equal(incomplete.status, 400);
+        assert.ok((await incomplete.json()).fields.includes("gmcId"));
+        assert.equal(await owner.participant.count({ where: { memberId } }), 0);
+        await owner.authThrottle.deleteMany({
+          where: { key: { startsWith: "participation:" } },
+        });
         for (const locale of ["en", "ms"]) {
           const html = await (
             await fetch(`${origin}${path}`, {
@@ -165,6 +185,12 @@ export async function checkParticipationHttp(
         assert.equal(slot.provisional, false);
         assert.equal(slot.code, "P01");
         assert.equal(await owner.participant.count({ where: { memberId } }), 1);
+        const complete = await submit({ ...input, action: "CHECK" });
+        assert.equal(complete.status, 200);
+        assert.deepEqual(await complete.json(), { missingFields: [] });
+        await owner.authThrottle.deleteMany({
+          where: { key: { startsWith: "participation:" } },
+        });
         assert.equal(
           await owner.teamMembership.count({ where: { memberId } }),
           0,
