@@ -60,6 +60,7 @@ export function PlayerResultsDialog({
   return (
     <WorkspaceDialog
       title={label}
+      titleAccessory={<PlayerFamilyPill label={families.get(player.code)} />}
       description={
         testResults
           ? t("Keputusan ujian setempat pemain", "Player's local test results")

@@ -120,6 +120,7 @@ export function useDialogForm(busy: boolean) {
 
 export function WorkspaceDialog({
   title,
+  titleAccessory,
   description,
   children,
   onClose,
@@ -129,6 +130,7 @@ export function WorkspaceDialog({
   fieldTarget,
 }: {
   title: string;
+  titleAccessory?: ReactNode;
   description?: string;
   children: ReactNode;
   onClose: () => void;
@@ -257,9 +259,12 @@ export function WorkspaceDialog({
     >
       <header className={styles.header}>
         <div>
-          <h2 ref={heading} tabIndex={-1} id={`${id}-title`}>
-            {title}
-          </h2>
+          <div className={styles.titleRow}>
+            <h2 ref={heading} tabIndex={-1} id={`${id}-title`}>
+              {title}
+            </h2>
+            {titleAccessory}
+          </div>
           {description && <p id={`${id}-description`}>{description}</p>}
         </div>
         <button
