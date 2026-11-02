@@ -348,7 +348,7 @@ export function InteractiveBracket({
           className={styles.columns}
           style={
             {
-              "--bracket-height": `${source[0].matches.length * 164}px`,
+              "--bracket-height": `${source[0].matches.length * 208}px`,
             } as CSSProperties
           }
         >
@@ -440,12 +440,17 @@ export function InteractiveBracket({
                                 </span>
                               )}
                               <span className={styles.entrantName}>
-                                {activeMode === "official" ||
-                                hasPlayerResults ? (
-                                  <TournamentPlayerName value={name} />
-                                ) : (
-                                  name
-                                )}
+                                <span
+                                  className={styles.entrantLabel}
+                                  title={name}
+                                >
+                                  {activeMode === "official" ||
+                                  hasPlayerResults ? (
+                                    <TournamentPlayerName value={name} />
+                                  ) : (
+                                    name
+                                  )}
+                                </span>
                                 {origin && (
                                   <small className={styles.origin}>
                                     {origin.stage === "league"

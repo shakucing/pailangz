@@ -166,7 +166,9 @@
   padding-right: 2px;
 }
 .column {
-  width: 224px;
+  flex: 0 0 300px;
+  width: 300px;
+  min-width: 0;
 }
 .roundHeading {
   display: flex;
@@ -191,11 +193,13 @@
 }
 .matches {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   height: var(--bracket-height);
 }
 .slot {
   display: flex;
   align-items: center;
+  min-width: 0;
   position: relative;
 }
 .outgoing::after,
@@ -222,6 +226,7 @@
 }
 .match {
   width: 100%;
+  min-width: 0;
   padding: 10px;
   border: 1px solid var(--border-strong);
   border-radius: 6px;
@@ -296,9 +301,26 @@ button.entrant:not(:disabled):hover {
 }
 .entrantName {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.entrantLabel {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+.entrantLabel > button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.entrantLabel > [data-family-label] {
+  flex-shrink: 0;
+  max-width: 45%;
 }
 .pick {
   display: grid;
@@ -376,8 +398,5 @@ button.entrant:not(:disabled):hover {
   .mode button,
   .reset {
     min-height: 44px;
-  }
-  .matches {
-    height: calc(var(--bracket-height) * 1.12);
   }
 }

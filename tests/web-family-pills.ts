@@ -28,11 +28,20 @@ try {
       overview: "Synthetic family labels",
       status: "IN_PROGRESS",
       published: true,
-      configuration: newTournamentConfiguration,
+      configuration: {
+        ...newTournamentConfiguration,
+        soloCapacity: 16,
+        soloBracketSize: 16,
+        leagueRounds: 1,
+        leagueMatchesPerPlayer: 1,
+        directSlots: 16,
+        playoffSlots: 0,
+        playoffEntrants: 0,
+      },
       categories: {
         create: {
           kind: "SOLO",
-          capacity: 32,
+          capacity: 16,
           stages: {
             create: [
               {
@@ -58,20 +67,27 @@ try {
     },
     include: { categories: { include: { stages: true } } },
   });
-  const labels = ["Pailangz", "Night Owls", "Null", "Pailangz"];
-  const participants: { id: string }[] = [];
+  const labels = Array.from(
+    { length: 16 },
+    (_, i) => ["Pailangz", "Night Owls", "Null", "Pailangz"][i % 4],
+  );
+  labels[15] = "A very long family name that must stay within its bracket card";
+  const participants: { id: string; code: string }[] = [];
   for (const [i, family] of labels.entries()) {
     const id = randomUUID();
     const participant = await owner.participant.create({
       data: {
         tournament: { connect: { id: event.id } },
-        code: `P0${i + 1}`,
+        code: `P${String(i + 1).padStart(2, "0")}`,
         eligible: true,
         provisional: false,
         member: {
           create: {
             id,
-            displayIgn: `Family Player ${i + 1}`,
+            displayIgn:
+              i === 15
+                ? "AnExtremelyLongPlayerNameWithoutSpaces"
+                : `Family Player ${i + 1}`,
             canonicalIgn: `family-${id}`,
             verified: true,
             // Legacy profiles are normalized by the explicit backfill below.
@@ -82,7 +98,9 @@ try {
                 registrationEncrypted: encrypt(
                   JSON.stringify({
                     "Non-family": family === "Pailangz" ? "No" : "Yes",
-                    "Family Name": family === "Night Owls" ? family : "",
+                    "Family Name": ["Pailangz", "Null"].includes(family)
+                      ? ""
+                      : family,
                     Email: "PRIVATE_FAMILY_CONTACT_CANARY",
                     "Discord ID": "PRIVATE_FAMILY_CONTACT_CANARY",
                   }),
@@ -102,28 +120,57 @@ try {
   await client.connect();
   try {
     const first = await backfillPlayerFamilies(client);
-    assert.equal(first.updated, 2);
+    assert.equal(
+      first.updated,
+      labels.filter((label) => label !== "Pailangz").length,
+    );
     assert.equal((await backfillPlayerFamilies(client)).updated, 0);
   } finally {
     await client.end();
   }
   for (const stage of event.categories[0].stages) {
-    await owner.round.create({
-      data: {
-        stageId: stage.id,
-        number: 1,
-        name: stage.key === "league" ? "Round 1" : "Semifinals",
-        matches: {
-          create: [0, 1].map((i) => ({
-            order: i + 1,
-            sideKind: "PARTICIPANT" as const,
-            sideAId: participants[i * 2].id,
-            sideBId: participants[i * 2 + 1].id,
-            bestOf: 3,
+    const roundCount = stage.key === "league" ? 1 : 4;
+    for (let number = 1; number <= roundCount; number++) {
+      await owner.round.create({
+        data: {
+          stageId: stage.id,
+          number,
+          name:
+            stage.key === "league"
+              ? "Round 1"
+              : ["Round of 16", "Quarterfinals", "Semifinals", "Final"][
+                  number - 1
+                ],
+          matches: {
+            create: Array.from({ length: 16 / 2 ** number }, (_, i) => ({
+              order: i + 1,
+              sideKind: "PARTICIPANT" as const,
+              sideAId: number === 1 ? participants[i * 2].id : null,
+              sideBId: number === 1 ? participants[i * 2 + 1].id : null,
+              bestOf: 3,
+            })),
+          },
+        },
+      });
+    }
+    if (stage.key === "league")
+      await owner.rankingSnapshot.create({
+        data: {
+          stageId: stage.id,
+          version: 1,
+          frozenBy: "SYNTHETIC_BRACKET_LAYOUT",
+          rankings: participants.map((p, i) => ({
+            id: p.id,
+            code: p.code,
+            rank: i + 1,
+            played: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            points: 0,
           })),
         },
-      },
-    });
+      });
   }
   await owner.landingHighlight.upsert({
     where: { format: "SOLO" },
@@ -166,6 +213,66 @@ try {
       .waitFor();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Bracket", exact: true }).click();
+    const bracket = page.getByRole("region", {
+      name: "Bracket, scroll horizontally to see every round",
+      exact: true,
+    });
+    const checkLayout = async () => {
+      const failures = await bracket.evaluate((region: HTMLElement) => {
+        const cards = Array.from(region.querySelectorAll("article"));
+        const errors: string[] = [];
+        cards.forEach((card, i) => {
+          const rect = card.getBoundingClientRect();
+          const slot = card.parentElement!.getBoundingClientRect();
+          if (
+            rect.left < slot.left - 1 ||
+            rect.right > slot.right + 1 ||
+            rect.top < slot.top - 1 ||
+            rect.bottom > slot.bottom + 1
+          )
+            errors.push(`${card.ariaLabel} overflows its slot`);
+          for (const other of cards.slice(i + 1)) {
+            const next = other.getBoundingClientRect();
+            if (
+              Math.min(rect.right, next.right) >
+                Math.max(rect.left, next.left) &&
+              Math.min(rect.bottom, next.bottom) > Math.max(rect.top, next.top)
+            )
+              errors.push(`${card.ariaLabel} overlaps ${other.ariaLabel}`);
+          }
+          for (const control of card.querySelectorAll(
+            "button, [data-family-label]",
+          )) {
+            const bounds = control.getBoundingClientRect();
+            if (bounds.left < rect.left || bounds.right > rect.right)
+              errors.push(`${card.ariaLabel} has overflowing player content`);
+          }
+        });
+        return errors;
+      });
+      assert.deepEqual(failures, []);
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+    };
+    assert.equal(await bracket.getByRole("article").count(), 15);
+    await bracket.getByText("League #1", { exact: true }).waitFor();
+    await checkLayout();
+    await page.getByRole("button", { name: "My picks", exact: true }).click();
+    await checkLayout();
+    await bracket.screenshot({
+      path: `.local/family-pill-qa/bracket-${width}.png`,
+    });
+    // Advance every round so later cards also contain names, pills and origins.
+    for (const card of await bracket.getByRole("article").all()) {
+      await card
+        .getByRole("button", { name: /^Pick .* as winner of/ })
+        .first()
+        .click();
+    }
+    await checkLayout();
     for (const label of ["Pailangz", "Night Owls", "Null"])
       assert.ok(
         (await page.locator(`[data-family-label="${label}"]`).count()) > 0,
