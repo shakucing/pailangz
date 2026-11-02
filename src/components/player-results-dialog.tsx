@@ -1,18 +1,24 @@
 "use client";
 
 import { useLocale } from "./locale-context";
+import { PlayerFamilyPill } from "./player-family-pill";
 import { WorkspaceDialog } from "./workspace-dialog";
 import { playerMatchResultSections } from "@/lib/player-match-results";
-import type { EventStage } from "@/lib/event-presentation-data";
+import type {
+  EventPresentationData,
+  EventStage,
+} from "@/lib/event-presentation-data";
 import styles from "./player-results-dialog.module.css";
 
 export function PlayerResultsDialog({
   player,
+  participants,
   stages,
   testResults,
   onClose,
 }: {
   player: { code: string; ign?: string };
+  participants: EventPresentationData["participants"];
   stages: EventStage[];
   testResults?: boolean;
   onClose: () => void;
@@ -20,6 +26,9 @@ export function PlayerResultsDialog({
   const locale = useLocale();
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const sections = playerMatchResultSections(stages, player.code);
+  const families = new Map(
+    participants.map((participant) => [participant.code, participant.familyLabel]),
+  );
   const carry = stages.find(
     (s) => s.key === "qualification",
   )?.qualificationCarry;
@@ -143,6 +152,11 @@ export function PlayerResultsDialog({
                           {t("Lawan", "vs")}{" "}
                           {match.opponent ??
                             t("Menunggu peserta", "Awaiting entrant")}
+                          {match.opponent && (
+                            <PlayerFamilyPill
+                              label={families.get(match.opponent.split(" · ")[0])}
+                            />
+                          )}
                         </h4>
                       </div>
                       <span

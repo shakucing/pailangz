@@ -47,6 +47,7 @@ export function TournamentPlayerResults({
       {selected && !onSelectPlayer && (
         <PlayerResultsDialog
           player={selected}
+          participants={participants}
           stages={stages}
           onClose={() => selectPlayer(null)}
         />

@@ -758,6 +758,7 @@ export function EventPresentation({
       {selectedPlayer && (
         <PlayerResultsDialog
           player={selectedPlayer}
+          participants={data?.participants ?? []}
           stages={data?.categories.find((c) => c.kind === "SOLO")?.stages ?? []}
           testResults={data?.testResults}
           onClose={() => setSelectedPlayerCode(null)}

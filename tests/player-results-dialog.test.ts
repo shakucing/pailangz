@@ -45,6 +45,7 @@ function render(carry: boolean | null, locale: "ms" | "en" = "en") {
       locale,
       children: createElement(PlayerResultsDialog, {
         player: { code: "P01", ign: "Alpha" },
+        participants: [],
         stages,
         onClose() {},
       }),
