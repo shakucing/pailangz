@@ -36,9 +36,7 @@ export async function checkTournamentFormats(
   check: (name: string, fn: () => Promise<void>) => Promise<void>,
 ) {
   const ids = (
-    await owner.query(
-      'SELECT id FROM "Member" WHERE verified AND NOT archived LIMIT 32',
-    )
+    await owner.query('SELECT id FROM "Member" WHERE verified LIMIT 32')
   ).rows.map((r) => r.id as string);
   assert.equal(ids.length, 32);
   const config = {

@@ -13,7 +13,11 @@ import {
 } from "./domain";
 import { decrypt, encrypt } from "./crypto";
 import { DEFAULT_MAPPING, phoneInfo } from "./imports";
-import { memberFieldKind, normalizeMemberField } from "./member-fields";
+import {
+  memberFieldKind,
+  normalizeMemberField,
+  publicFamilyDetails,
+} from "./member-fields";
 import { resizeTeamAvatar } from "./team-avatar";
 import { announcementExcerpt } from "./announcement-content";
 export async function memberUpdate(
@@ -21,7 +25,7 @@ export async function memberUpdate(
   input: {
     id: string;
     ign?: string;
-    archived?: boolean;
+    isMember?: boolean;
     isLiveStreamer?: boolean;
     phone?: string;
     registrationFields?: Record<string, string>;
@@ -49,10 +53,11 @@ export async function memberUpdate(
   return privateTx(actor, async (tx) => {
     const old = await tx.member.findUniqueOrThrow({ where: { id: input.id } });
     const changedFields: string[] = [];
+    let membership = input.isMember ?? old.isMember;
     if (ign !== undefined && ign !== old.displayIgn)
       changedFields.push("playerName");
-    if (input.archived !== undefined && input.archived !== old.archived)
-      changedFields.push("archived");
+    if (input.isMember !== undefined && input.isMember !== old.isMember)
+      changedFields.push("isMember");
     if (
       input.isLiveStreamer !== undefined &&
       input.isLiveStreamer !== old.isLiveStreamer
@@ -64,7 +69,7 @@ export async function memberUpdate(
         ...(ign === undefined
           ? {}
           : { displayIgn: ign, canonicalIgn: canonicalIgn(ign) }),
-        ...(input.archived === undefined ? {} : { archived: input.archived }),
+        ...(input.isMember === undefined ? {} : { isMember: input.isMember }),
         ...(input.isLiveStreamer === undefined
           ? {}
           : { isLiveStreamer: input.isLiveStreamer }),
@@ -73,7 +78,8 @@ export async function memberUpdate(
     if (
       input.phone !== undefined ||
       Object.keys(fields).length ||
-      ign !== undefined
+      ign !== undefined ||
+      input.isMember !== undefined
     ) {
       const stored = await tx.memberPrivate.findUnique({
         where: { memberId: old.id },
@@ -96,6 +102,9 @@ export async function memberUpdate(
             decrypt(stored.registrationEncrypted, `member:${old.id}`),
           ) as Record<string, string>)
         : {};
+      if (input.isMember !== undefined)
+        fields["Non-family"] = input.isMember ? "No" : "Yes";
+      if (input.isMember === true) fields["Family Name"] = "";
       for (const [key, submitted] of Object.entries(fields)) {
         const kind = memberFieldKind(key, mapping.country);
         // Historical imports can contain arbitrary answers. Preserve those
@@ -113,6 +122,11 @@ export async function memberUpdate(
         if (payload[key] !== value) changedFields.push(key);
         payload[key] = value;
       }
+      const publicFamily = publicFamilyDetails(membership, payload);
+      membership = publicFamily.isMember;
+      if (membership !== old.isMember && !changedFields.includes("isMember"))
+        changedFields.push("isMember");
+      await tx.member.update({ where: { id: old.id }, data: publicFamily });
       if (ign !== undefined) {
         payload[mapping.ign] = ign;
         if ("IGN" in payload) payload.IGN = ign;
@@ -172,8 +186,8 @@ export async function memberUpdate(
           ...(ign !== undefined && ign !== old.displayIgn
             ? { beforeIgn: old.displayIgn, afterIgn: ign }
             : {}),
-          ...(input.archived !== undefined
-            ? { beforeArchived: old.archived, archived: input.archived }
+          ...(input.isMember !== undefined || membership !== old.isMember
+            ? { beforeIsMember: old.isMember, isMember: membership }
             : {}),
           ...(input.isLiveStreamer !== undefined
             ? {
@@ -196,7 +210,7 @@ export async function participantUpdate(
       where: { id: input.id },
       include: { member: true, tournament: true },
     });
-    if (input.eligible && (!p.member.verified || p.member.archived))
+    if (input.eligible && !p.member.verified)
       throw new DomainError(
         "Approve and verify the member registration first.",
       );
@@ -263,10 +277,7 @@ export async function bulkParticipantEligibility(
       throw new DomainError(
         "Restore withdrawn players before changing eligibility.",
       );
-    if (
-      eligible &&
-      participants.some((p) => !p.member.verified || p.member.archived)
-    )
+    if (eligible && participants.some((p) => !p.member.verified))
       throw new DomainError(
         "Approve and verify the selected member registrations first.",
       );
@@ -352,10 +363,10 @@ export async function teamUpdate(
     )
       throw new DomainError("A team accepts at most four distinct players.");
     const members = await tx.member.findMany({
-      where: { id: { in: input.memberIds }, verified: true, archived: false },
+      where: { id: { in: input.memberIds }, verified: true },
     });
     if (members.length !== input.memberIds.length)
-      throw new DomainError("Team players must be approved active members.");
+      throw new DomainError("Team players must have approved profiles.");
     if (!input.archived) {
       const registered = await tx.participant.count({
         where: {

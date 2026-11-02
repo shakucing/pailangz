@@ -198,6 +198,55 @@ Migration `202610100030_player_results_carry_rule` adds the confirmed qualificat
 
 Migration `202610130032_participation_profile` adds narrowly scoped functions for locking a verified member record and saving encrypted missing profile answers with tournament registration. It adds no columns and does not change existing records. Apply this schema-only migration to the selected environment before deploying the registration flow. The form first checks IGN and TikTok ID, requests only missing GMC ID, email, WhatsApp and Discord answers, then requires confirmation and the original Solo acknowledgments. Profile changes and entry approval commit together; hosted databases are not migrated by the build.
 
+## Member and non-member status
+
+Migration `202611020033_player_membership` replaces `Member.archived` with
+`Member.isMember`, inverts the saved value, and defaults new profiles to members.
+Existing archived profiles become non-members and retain their records, contacts,
+approval, team memberships and tournament history. Original encrypted Non-family
+answers remain recognized by directories, stats and exports; new approvals and
+staff membership actions also save the membership flag.
+Recruiting a non-member with Add member erases their saved Family Name and clears
+the public family name. Removing membership later leaves the family name empty
+until staff enter a new one.
+
+Membership does not determine tournament eligibility. Approved members and
+non-members can register, sign in to the team portal, join rosters, appear in
+public event results, and be selected by staff. Unapproved profiles, withdrawn
+entrants, closed/full events and team limits retain their existing restrictions.
+Team, stage and announcement archives are unchanged.
+
+The column rename requires a coordinated application/migration rollout. Stop
+traffic to the old application, apply this schema-only migration with the chosen
+environment's owner connection, deploy the matching application, and verify it
+before resuming traffic. The old application expects `Member.archived` and cannot
+run against the renamed column. Neither builds nor application startup apply this
+migration. Do not restore test records into production or run snapshot imports.
+
+## Public tournament family pills
+
+Migration `202611020034_public_player_family` adds `Member.publicFamilyName` and
+extends the existing public player-name view with `familyLabel`. Members receive
+`Pailangz`; non-members receive their saved family name or `Null`. The public view
+keeps its existing event/entrant visibility rules and exposes no private answers.
+New approvals and staff profile edits update this display field automatically.
+
+Apply the additive schema migration before deploying the matching application.
+For existing profiles, run the explicit operator backfill once with the intended
+environment's owner connection and encryption keyring:
+
+```sh
+node --import tsx scripts/backfill-player-families.ts
+```
+
+This command checks the actual database tier against `APP_ENV` and `DATABASE_ENV`,
+then copies only the non-member family name from encrypted answers. It also
+normalizes older Non-family profiles' membership flag to their existing effective
+status. It is transactional and idempotent; profiles, encrypted answers and event
+history are retained. It never runs from builds or application startup. Test and
+production require separate schema/backfill operations with their own records
+and keys.
+
 ## Provider references
 
 - [Vercel production branch tracking](https://vercel.com/docs/git#production-branch)

@@ -16,7 +16,7 @@ const headers = {
 };
 const input = z.object({
   format: z.enum(["csv", "xlsx"]),
-  state: z.enum(["active", "pending", "archived", "all"]).default("active"),
+  state: z.enum(["active", "pending", "all", "non-members"]).default("active"),
   q: z.string().max(100).default(""),
   country: z.string().max(100).default(""),
 });

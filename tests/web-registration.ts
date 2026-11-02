@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import type { PrismaClient } from "../src/generated/prisma/client";
+import { decrypt } from "../src/lib/crypto";
 
 export async function checkRegistrationHttp(
   origin: string,
@@ -16,6 +17,8 @@ export async function checkRegistrationHttp(
     tiktokUsername: "PRIVATE_WEB_TIKTOK_CANARY",
     tiktokId: "@private_web_id",
     country: "MY",
+    nonFamily: true,
+    familyName: "PRIVATE_WEB_FAMILY_CANARY",
   };
   const submit = (body: unknown, requestOrigin = origin) =>
     fetch(`${origin}/api/registration`, {
@@ -75,6 +78,11 @@ export async function checkRegistrationHttp(
         assert.equal(fields[fields.indexOf("ign") + 1], "gmcId");
         assert.ok(html.includes("Nur Athirah"));
         assert.ok(html.includes("atrh0222"));
+        const checkbox =
+          html.match(/<input[^>]*name="nonFamily"[^>]*>/)?.[0] ?? "";
+        assert.match(checkbox, /type="checkbox"/);
+        assert.ok(!/\bchecked/.test(checkbox));
+        assert.ok(!/<input[^>]*name="familyName"/.test(html));
       }
     },
   );
@@ -140,6 +148,12 @@ export async function checkRegistrationHttp(
       assert.ok(!JSON.stringify(rows).includes(input.tiktokUsername));
       assert.ok(!JSON.stringify(rows).includes(input.gmcId));
       assert.ok(!JSON.stringify(rows).includes(input.email));
+      assert.ok(!JSON.stringify(rows).includes(input.familyName));
+      const payload = JSON.parse(
+        decrypt(rows[0].payloadEncrypted, `submission:${rows[0].id}`),
+      );
+      assert.equal(payload["Non-family"], "Yes");
+      assert.equal(payload["Family Name"], input.familyName);
       assert.equal(
         await owner.member.count({ where: { displayIgn: input.ign } }),
         0,
@@ -152,6 +166,7 @@ export async function checkRegistrationHttp(
       assert.ok(!html.includes(input.tiktokUsername));
       assert.ok(!html.includes(input.gmcId));
       assert.ok(!html.includes(input.email));
+      assert.ok(!html.includes(input.familyName));
       assert.ok(
         !JSON.stringify(await owner.auditEvent.findMany()).includes(
           input.tiktokUsername,
@@ -160,6 +175,28 @@ export async function checkRegistrationHttp(
       const audits = JSON.stringify(await owner.auditEvent.findMany());
       assert.ok(!audits.includes(input.gmcId));
       assert.ok(!audits.includes(input.email));
+      assert.ok(!audits.includes(input.familyName));
+    },
+  );
+  await check(
+    "non-family registrations accept an empty family name",
+    async () => {
+      const requestId = randomUUID();
+      const response = await submit({
+        ...input,
+        requestId,
+        ign: "HTTP non-family blank name",
+        familyName: "",
+      });
+      assert.equal(response.status, 202);
+      const row = await owner.registrationSubmission.findUniqueOrThrow({
+        where: { id: requestId },
+      });
+      const payload = JSON.parse(
+        decrypt(row.payloadEncrypted, `submission:${row.id}`),
+      );
+      assert.equal(payload["Non-family"], "Yes");
+      assert.equal(payload["Family Name"], "");
     },
   );
 }

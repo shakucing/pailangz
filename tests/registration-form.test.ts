@@ -36,6 +36,8 @@ describe("new web registrations", () => {
     expect(fields).toMatchObject({
       ign: "Player ✨",
       gmcId: "GMC-00123",
+      nonFamily: false,
+      familyName: "",
       tiktokUsername: "Display name",
       tiktokId: "@player_98",
       whatsapp: "+60 12 345 6789",
@@ -47,6 +49,8 @@ describe("new web registrations", () => {
     expect(registrationPayload(fields)).toMatchObject({
       IGN: "Player ✨",
       "ID GMC": "GMC-00123",
+      "Non-family": "No",
+      "Family Name": "",
       Email: "player@example.com",
       "Tiktok username": "Display name",
       "Tiktok ID": "@player_98",
@@ -62,6 +66,31 @@ describe("new web registrations", () => {
     expect(registrationPayload(fields)).toMatchObject({
       Email: "player@example.com",
       "Whatsapp Number": "+60 12 345 6789",
+    });
+  });
+  it.each([undefined, "", "   ", "  Other family ✨  "])(
+    "accepts a non-family registration with family name %s",
+    (familyName) => {
+      const fields = registrationFormSchema.parse({
+        ...valid,
+        nonFamily: true,
+        familyName,
+      });
+      expect(registrationPayload(fields)).toMatchObject({
+        "Non-family": "Yes",
+        "Family Name": familyName?.trim() ?? "",
+      });
+    },
+  );
+  it("does not store a family name when non-family is unchecked", () => {
+    const fields = registrationFormSchema.parse({
+      ...valid,
+      nonFamily: false,
+      familyName: "Stale family name",
+    });
+    expect(registrationPayload(fields)).toMatchObject({
+      "Non-family": "No",
+      "Family Name": "",
     });
   });
   it.each([
@@ -80,6 +109,9 @@ describe("new web registrations", () => {
       { country: "invalid" },
       { gmcId: "a".repeat(101) },
       { gmcId: "hidden\u0000" },
+      { familyName: "a".repeat(101) },
+      { familyName: "hidden\u0000" },
+      { nonFamily: "false" },
       { whatsapp: "a".repeat(81) },
       { whatsapp: "hidden\u0000" },
       { tiktokId: "a".repeat(81) },

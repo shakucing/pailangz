@@ -83,16 +83,21 @@ describe("landing SOLO names", () => {
       if (preview) mocks.queryRaw.mockResolvedValueOnce([{ data }]);
       else mocks.publicTournament.mockResolvedValueOnce(data);
       mocks.queryRaw.mockResolvedValueOnce([
-        { code: "P35", ign: "Éagle BoB", phone: "PRIVATE_CONTACT_CANARY" },
-        { code: "P65", ign: "DarkNightx" },
+        {
+          code: "P35",
+          ign: "Éagle BoB",
+          familyLabel: "Pailangz",
+          phone: "PRIVATE_CONTACT_CANARY",
+        },
+        { code: "P65", ign: "DarkNightx", familyLabel: "Null" },
       ]);
       const result = await eventPresentationData(
         preview ? undefined : data.slug,
       );
       expect(result?.preview).toBe(preview);
       expect(result?.participants).toEqual([
-        { code: "P35", ign: "Éagle BoB" },
-        { code: "P65", ign: "DarkNightx" },
+        { code: "P35", ign: "Éagle BoB", familyLabel: "Pailangz" },
+        { code: "P65", ign: "DarkNightx", familyLabel: "Null" },
       ]);
       expect(
         result?.categories[0].stages[0].rounds[0].matches[0],

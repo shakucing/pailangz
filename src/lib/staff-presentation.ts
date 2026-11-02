@@ -51,6 +51,8 @@ const labels: Record<string, string> = {
   afterIgn: "New player name",
   memberName: "Member",
   beforeArchived: "Previously archived",
+  beforeIsMember: "Previously a member",
+  isMember: "Member",
   changedFields: "What changed",
   confirmedRules: "Confirmed rules",
   seriesPoints: "Match points",

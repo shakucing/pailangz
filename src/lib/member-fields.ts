@@ -1,5 +1,21 @@
 import { COUNTRY_OPTIONS, countryCode } from "./countries";
 
+export function isNonFamily(fields: Record<string, string>) {
+  return fields["Non-family"]?.trim().toLowerCase() === "yes";
+}
+
+// Only the requested public family label is copied out of private answers.
+export function publicFamilyDetails(
+  isMember: boolean,
+  fields: Record<string, string>,
+) {
+  const membership = isMember && !isNonFamily(fields);
+  return {
+    isMember: membership,
+    publicFamilyName: membership ? null : fields["Family Name"]?.trim() || null,
+  };
+}
+
 const STATUS_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },

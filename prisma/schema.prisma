@@ -64,7 +64,8 @@ model Member {
   displayIgn String
   canonicalIgn String @unique
   verified Boolean @default(false)
-  archived Boolean @default(false)
+  isMember Boolean @default(true)
+  publicFamilyName String?
   isLiveStreamer Boolean @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   privateData MemberPrivate?

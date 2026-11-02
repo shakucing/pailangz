@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { ArrowRight, ShieldCheck, Swords, Trophy, Users } from "lucide-react";
 import { useLocale } from "./locale-context";
 import { InteractiveBracket, type BracketTeam } from "./interactive-bracket";
+import { PlayerFamilyPill } from "./player-family-pill";
+import { TournamentPlayerResults } from "./tournament-player-results";
 import { PlayerResultsDialog } from "./player-results-dialog";
 import { TeamResultsDialog } from "./team-results-dialog";
 import {
@@ -114,15 +116,21 @@ export function EventPresentation({
       : value;
   const playerLabel = (value: string | null) => {
     const playerCode = value?.split(" · ")[0];
-    return solo && data?.participants.some((p) => p.code === playerCode) ? (
-      <button
-        type="button"
-        className={styles.playerLink}
-        aria-haspopup="dialog"
-        onClick={() => setSelectedPlayerCode(playerCode!)}
-      >
-        {code(value)}
-      </button>
+    const player = solo
+      ? data?.participants.find((p) => p.code === playerCode)
+      : undefined;
+    return player ? (
+      <span className={styles.playerIdentity}>
+        <button
+          type="button"
+          className={styles.playerLink}
+          aria-haspopup="dialog"
+          onClick={() => setSelectedPlayerCode(playerCode!)}
+        >
+          {code(value)}
+        </button>
+        <PlayerFamilyPill label={player.familyLabel} />
+      </span>
     ) : (
       code(value)
     );
@@ -158,7 +166,7 @@ export function EventPresentation({
     if (tournament) onTournamentChange?.(tournament.slug);
   };
 
-  return (
+  const presentation = (
     <div className={styles.presentation}>
       <div className={styles.heading}>
         <div>
@@ -691,6 +699,13 @@ export function EventPresentation({
                       {playerNames.get(entrant.code) && (
                         <span> · {playerNames.get(entrant.code)}</span>
                       )}
+                      <PlayerFamilyPill
+                        label={
+                          data?.participants.find(
+                            (p) => p.code === entrant.code,
+                          )?.familyLabel
+                        }
+                      />
                       {showLeaguePoints && (
                         <strong className={styles.totalPoints}>
                           {leaguePoints.get(entrant.code) ?? 0}{" "}
@@ -756,5 +771,14 @@ export function EventPresentation({
         />
       )}
     </div>
+  );
+  return (
+    <TournamentPlayerResults
+      participants={data?.participants ?? []}
+      stages={data?.categories.find((c) => c.kind === "SOLO")?.stages ?? []}
+      onSelectPlayer={setSelectedPlayerCode}
+    >
+      {presentation}
+    </TournamentPlayerResults>
   );
 }

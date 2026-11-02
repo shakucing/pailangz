@@ -3,6 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { NavigationLink } from "./navigation-link";
 import {
+  UserRoundX,
+  BookOpen,
   CalendarDays,
   ClipboardList,
   FileUp,
@@ -30,12 +32,14 @@ const navigationIcons: Record<StaffNavigationKey, LucideIcon> = {
   overview: LayoutDashboard,
   registrations: Inbox,
   members: Users,
+  "non-members": UserRoundX,
   imports: FileUp,
   tournaments: Trophy,
   participation: ClipboardList,
   teams: UsersRound,
   matches: CalendarDays,
   content: Megaphone,
+  manual: BookOpen,
   audit: History,
   settings: Settings2,
   staff: ShieldCheck,

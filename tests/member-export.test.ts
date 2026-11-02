@@ -55,6 +55,7 @@ const member: MemberExportRow = {
 };
 const record = {
   id: "member-1",
+  isMember: true,
   displayIgn: member.displayIgn,
   isLiveStreamer: member.isLiveStreamer,
   createdAt: member.createdAt,
@@ -197,8 +198,12 @@ describe("member export access and filters", () => {
     expect(mocks.getActor).toHaveBeenCalledWith("ADMIN");
     expect(mocks.assertCsrf).toHaveBeenCalled();
     expect(mocks.rateLimit).toHaveBeenCalledWith("member-export:admin", 5, 600);
-    expect(mocks.findMany.mock.calls[0][0]).toMatchObject({
-      where: { archived: false, verified: false, OR: expect.any(Array) },
+    expect(mocks.findMany.mock.calls.at(-1)![0]).toMatchObject({
+      where: {
+        verified: false,
+        OR: expect.any(Array),
+        id: { in: expect.any(Array) },
+      },
       orderBy: { displayIgn: "asc" },
       select: {
         privateData: {
@@ -206,8 +211,8 @@ describe("member export access and filters", () => {
         },
       },
     });
-    expect(mocks.findMany.mock.calls[0][0]).not.toHaveProperty("take");
-    expect(mocks.findMany.mock.calls[0][0]).not.toHaveProperty("skip");
+    expect(mocks.findMany.mock.calls.at(-1)![0]).not.toHaveProperty("take");
+    expect(mocks.findMany.mock.calls.at(-1)![0]).not.toHaveProperty("skip");
     expect(parse(await response.text(), { bom: true })).toHaveLength(62);
     expect(mocks.decrypt).toHaveBeenCalledWith(
       record.privateData.registrationEncrypted,
@@ -296,7 +301,7 @@ describe("member export access and filters", () => {
   });
 
   it("serves a valid Excel attachment", async () => {
-    const response = await POST(request({ format: "xlsx", state: "archived" }));
+    const response = await POST(request({ format: "xlsx", state: "all" }));
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -309,7 +314,7 @@ describe("member export access and filters", () => {
     expect(workbook.getWorksheet("Members")!.getCell("B2").value).toBe(
       member.displayIgn,
     );
-    expect(mocks.findMany.mock.calls[0][0].where).toEqual({ archived: true });
+    expect(mocks.findMany.mock.calls[0][0].where).toEqual({});
   });
 
   it.each([401, 403])(
@@ -346,27 +351,27 @@ describe("member export access and filters", () => {
     mocks.findMany.mockResolvedValue([
       {
         id: "my",
+        isMember: true,
         privateData: {
           registrationEncrypted: JSON.stringify({ Residence: "Malaysia" }),
         },
       },
       {
         id: "id",
+        isMember: true,
         privateData: {
           registrationEncrypted: JSON.stringify({ Country: "Indonesia" }),
         },
       },
-      { id: "empty", privateData: null },
+      { id: "empty", isMember: true, privateData: null },
     ]);
     expect(
       await memberDirectoryWhere(tx, { state: "all", country: "MY" }),
     ).toEqual({ id: { in: ["my"] } });
     expect(await memberDirectoryWhere(tx, { country: "unspecified" })).toEqual({
-      archived: false,
       id: { in: ["empty"] },
     });
     expect(await memberDirectoryWhere(tx, { country: "JP" })).toEqual({
-      archived: false,
       id: { in: [] },
     });
   });

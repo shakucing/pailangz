@@ -12,7 +12,6 @@ type Entrant = {
   member: {
     displayIgn: string;
     verified: boolean;
-    archived: boolean;
   };
 };
 
@@ -50,8 +49,7 @@ export function TournamentPlayerList({
   const allSelected =
     entrants.length > 0 && selectedIds.length === entrants.length;
   const needsReview = entrants.some(
-    (p) =>
-      selectedIds.includes(p.id) && (!p.member.verified || p.member.archived),
+    (p) => selectedIds.includes(p.id) && !p.member.verified,
   );
   useEffect(() => {
     if (selectAll.current)
@@ -201,8 +199,8 @@ export function TournamentPlayerList({
               </thead>
               <tbody>
                 {entrants.map((p) => {
-                  const activeMember = p.member.verified && !p.member.archived;
-                  const eligible = p.eligible && activeMember;
+                  const approvedPlayer = p.member.verified;
+                  const eligible = p.eligible && approvedPlayer;
                   return (
                     <tr key={p.id}>
                       <td>
@@ -224,8 +222,8 @@ export function TournamentPlayerList({
                       <td>{p.code}</td>
                       <td>
                         <strong>{p.member.displayIgn}</strong>
-                        {!activeMember && (
-                          <p className="muted text-sm">Member needs review</p>
+                        {!approvedPlayer && (
+                          <p className="muted text-sm">Player needs approval</p>
                         )}
                       </td>
                       <td>
@@ -234,7 +232,7 @@ export function TournamentPlayerList({
                           className={`button small${eligible ? "" : " secondary"}`}
                           style={{ whiteSpace: "nowrap" }}
                           aria-pressed={eligible}
-                          disabled={published || busy || !activeMember}
+                          disabled={published || busy || !approvedPlayer}
                           onClick={() => updateEligibility(!eligible, p)}
                         >
                           {eligible ? "Eligible" : "Ineligible"}

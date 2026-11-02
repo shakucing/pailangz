@@ -1,0 +1,187 @@
+{
+  "scoring": {
+    "title": "Player scoring",
+    "scenes": [
+      {
+        "title": "Find the correct match",
+        "image": "07-fixtures",
+        "steps": [
+          "Open Fixtures & results",
+          "Choose the stage and round",
+          "Check both opponents, then open Enter / correct result"
+        ],
+        "narration": "Tutorial one. Player scoring. Open Competition, then Fixtures and results. Choose the correct tournament stage and round. Search by player name, code or team, and select Show fixtures. Check both opponents and the best-of length. On the correct match, select Enter or correct result."
+      },
+      {
+        "title": "Pick each game's winner",
+        "image": "09-score-picked",
+        "steps": [
+          "Keep Match result set to Played",
+          "Pick winners in the order played",
+          "Stop when the series is won"
+        ],
+        "highlight": [25, 245, 730, 590],
+        "narration": "Keep Match result set to Played. Select the winner of Game one, then each following game in the order actually played. The next game appears automatically. A best of three needs two wins, best of five needs three, and best of seven needs four. Stop as soon as one player reaches the target. Leave unplayed games blank."
+      },
+      {
+        "title": "Every final-score combination",
+        "image": "10-score-save",
+        "steps": [
+          "BO3: 2-0 or 2-1, either player",
+          "BO5: 3-0, 3-1 or 3-2, either player",
+          "BO7: 4-0, 4-1, 4-2 or 4-3, either player"
+        ],
+        "narration": "Either player can win. In best of three, the completed scores are two nil or two one. In best of five, three nil, three one or three two. In best of seven, four nil, four one, four two or four three. Any game order works if you stop at the winning target. Try other odd lengths, from one to ninety nine, in the manual's practice area."
+      },
+      {
+        "title": "Check, save and confirm",
+        "image": "10-score-save",
+        "steps": [
+          "Check Series result and the winner",
+          "Screenshot is optional, up to 4 MB",
+          "Save & confirm, or Save for review"
+        ],
+        "highlight": [24, 899, 285, 48],
+        "narration": "Check the series result and winner. You can attach a P N G, J PEG or Web P screenshot, up to four megabytes. Select Save and confirm when checked, or Save for review for a later decision. An unfinished normal series cannot be saved as a completed result. Only finalized results count in standings. A league win earns three points, a draw one each, and a loss zero."
+      },
+      {
+        "title": "Record a permitted draw",
+        "image": "13-draw",
+        "steps": [
+          "The stage must allow reviewed draws",
+          "Choose Match result: Draw",
+          "Include only games actually completed"
+        ],
+        "highlight": [25, 164, 730, 111],
+        "narration": "For a draw, the stage must have Draws allowed after review saved in its rules. Choose Draw. Keep Record games played checked only if games were completed, and select those winners. Neither player may already have won the series. Add a note and save for review, or confirm after checking the policy. A drawn knockout has no winner to advance."
+      },
+      {
+        "title": "Record a forfeit or no-show",
+        "image": "14-forfeit",
+        "steps": [
+          "Forfeits must be allowed with a reason",
+          "Select the person who forfeited",
+          "Check that the other player wins"
+        ],
+        "highlight": [25, 164, 730, 111],
+        "narration": "For a no-show or forfeit, first check that forfeits are allowed with a reason. Select the player who forfeited. If player A forfeits, player B wins. Record any completed games, or leave games off for a no-show. Enter a clear reason and check the displayed winner. For disconnections or both players absent, apply the organiser's policy before choosing an outcome."
+      },
+      {
+        "title": "Correct and review results",
+        "image": "12-result-review",
+        "steps": [
+          "Reopen Enter / correct result to change winners",
+          "Explain corrections to accepted results",
+          "Use Result history & review for decisions"
+        ],
+        "narration": "To correct a score, reopen Enter or correct result and change the affected game's winner. Clear this game and later games removes that game and everything after it. Explain changes to an accepted result. Use Result history and review to inspect versions and evidence, then accept, reject or dispute a submitted result. Rejecting or disputing needs a reason. Earlier versions remain in history."
+      },
+      {
+        "title": "Advance the confirmed winner",
+        "image": "17-knockout-actions",
+        "steps": [
+          "In knockout, confirm a decisive winner",
+          "Advance during confirmation or from match actions",
+          "Ask an admin to resolve changed opponents"
+        ],
+        "narration": "For knockout matches, keep Advance the confirmed winner checked when confirming. You can also advance later from Match schedule and actions. Byes use Advance player without an opponent, with no invented game score. If an earlier correction changes downstream opponents, ask an admin to resolve the bracket changes before scoring or advancing the next match. Use the written manual for dispute resolution and troubleshooting."
+      }
+    ]
+  },
+  "stages": {
+    "title": "Rules & stage progression",
+    "scenes": [
+      {
+        "title": "Choose the event and set the basics",
+        "image": "01-overview",
+        "steps": [
+          "Open Tournaments & rules",
+          "Select the correct SOLO or TEAM event",
+          "Set the game, dates and registration"
+        ],
+        "narration": "Tutorial two. Rules and stage progression. Open Competition, then Tournaments and rules, and choose the correct event. In Overview and schedule, set the game, start date, registration deadline and tournament status. Dates use Malaysia time. Registration and public results are controlled separately. Check that you are configuring the correct SOLO or TEAM tournament."
+      },
+      {
+        "title": "Set sizes and series lengths",
+        "image": "02-sizes",
+        "steps": [
+          "Set capacity, rounds and qualification places",
+          "Set knockout and final best-of lengths",
+          "Fill eligible player slots and team rosters"
+        ],
+        "narration": "Open Sizes and updates, then Change tournament sizes. Set the capacities, league rounds, matches per player, qualification places and bracket sizes. Under Series lengths, choose the league, knockout and final match lengths. For example, use best of five for knockout and best of seven for the final. All lengths must be odd, from one to ninety nine. Fill the eligible player slots and complete four-player team rosters. Generate and check the SOLO league fixtures, then confirm the player list."
+      },
+      {
+        "title": "Save each stage's rules",
+        "image": "04-rules-qualification",
+        "steps": [
+          "Rules & stages → Edit tournament rules",
+          "Choose points, draw policy and stage-specific rules",
+          "Save rules to confirm the choices"
+        ],
+        "narration": "Open Rules and stages. On each stage card, select Edit tournament rules. Choose match points and the draw policy. Set league tiebreakers, qualification length, starting points, opponents, and playoff tiebreakers where shown. For knockout, confirm the player or team starting-order rule. Set forfeits and screenshot and dispute timing. Scroll down and select Save rules. Saving confirms filled choices; blank rules remain undecided. Repeat for every relevant stage."
+      },
+      {
+        "title": "Finish readiness and publish",
+        "image": "01-overview",
+        "steps": [
+          "Open incomplete Ready to publish items",
+          "Check players, teams, rules and fixtures",
+          "Publish when every check is complete"
+        ],
+        "narration": "Review Ready to publish. Select each incomplete item to open the relevant setup task. Complete the required dates, rules, eligibility, rosters, player-list and schedule checks. Choose an active tournament status, then select Publish tournament when every check passes. Draft and Archived cannot be published. Unpublishing retains players and history. Changes to a published or started event may require an admin-controlled restart."
+      },
+      {
+        "title": "Finish league and freeze rankings",
+        "image": "06-progression-league",
+        "steps": [
+          "Confirm every required league match",
+          "Manage stage progression → review rankings",
+          "Resolve genuine ties and Save final rankings"
+        ],
+        "narration": "After league play, confirm all required matches. Every player must have the configured number of finalized results. On the league card, select Manage stage progression. Review the final player rankings. Select a player's name to inspect results. Use arrows only to resolve remaining ties under the confirmed rules, and explain the decision. Do not reverse points or a confirmed tiebreak order. Select Save final rankings to freeze the current order."
+      },
+      {
+        "title": "Create qualification fixtures",
+        "image": "16-qualification-ready",
+        "steps": [
+          "Save the qualification rules first",
+          "Use the current frozen league ranking",
+          "Auto assign, or choose each valid pairing"
+        ],
+        "highlight": [25, 532, 730, 80],
+        "narration": "For qualification, first save its rules and confirm the starting-points choice: start from zero or keep league points. Open Manage stage progression. With automatic opponents, select Auto assign and create fixtures. With manual opponents, choose each pair and select Create qualification fixtures. Use the playoff pool from the frozen league ranking, with distinct opponents and equal configured matches per player. Existing qualification fixtures cannot be overwritten."
+      },
+      {
+        "title": "Finish qualification and build the bracket",
+        "image": "16-knockout-ready",
+        "steps": [
+          "Confirm playoff results and save final rankings",
+          "Review all qualified players and starting order",
+          "Select Create confirmed bracket"
+        ],
+        "narration": "Score and confirm all qualification matches. Review its standings, resolve remaining ties with a reason, and save final rankings. Direct qualifiers and the configured top playoff finishers now form the SOLO knockout field. On the knockout card, confirm the pairing rule and open Manage stage progression. Review the complete starting order when using manual seeding, then select Create confirmed bracket. Check the first-round opponents in Fixtures and results."
+      },
+      {
+        "title": "Create the separate TEAM bracket",
+        "image": "06-progression-team",
+        "steps": [
+          "Complete four eligible players on each team",
+          "Confirm the TEAM starting-order rule",
+          "Arrange all teams and create the bracket"
+        ],
+        "narration": "TEAM follows its own knockout path. Complete every configured team with four eligible players, and save the TEAM starting-order rule. On the TEAM card, open Manage stage progression, arrange the full team order, and select Create confirmed bracket. Review the pairings and any configured seeded byes. TEAM progression does not depend on completing the SOLO league."
+      },
+      {
+        "title": "Advance, finish and check the badges",
+        "image": "03-stages",
+        "steps": [
+          "Confirm decisive winners and advance each round",
+          "Use the final's configured series length",
+          "Set tournament status to Completed separately"
+        ],
+        "narration": "Confirm decisive knockout results and advance the winners, through the configured rounds and final. Use the final's own best-of length. Resolve disputes and stale opponent dependencies before continuing. Current stage means the first unfinished stage in that category; Upcoming means an earlier stage remains unfinished. These badges do not advance players for you. When the knockout is settled and its final has an accepted decisive result, the stage is Completed. Set the tournament status to Completed separately in Overview and schedule."
+      }
+    ]
+  }
+}

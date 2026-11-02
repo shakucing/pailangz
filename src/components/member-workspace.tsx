@@ -1,7 +1,6 @@
 "use client";
 import { useId, useState, useTransition } from "react";
 import {
-  Archive,
   ArrowDownAZ,
   Check,
   ChevronDown,
@@ -12,8 +11,9 @@ import {
   EyeOff,
   LockKeyhole,
   Pencil,
-  RotateCcw,
   Search,
+  UserRoundPlus,
+  UserRoundX,
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -32,8 +32,9 @@ import tableStyles from "./member-workspace.module.css";
 export type MemberRow = {
   id: string;
   displayIgn: string;
+  familyName: string | null;
   verified: boolean;
-  archived: boolean;
+  isMember: boolean;
   isLiveStreamer: boolean;
   privateData: {
     phoneLastFour: string | null;
@@ -60,6 +61,7 @@ export function MemberWorkspace({
   basePath = "/admin/members",
   total = members.length,
   canExport = false,
+  nonMembers = false,
 }: {
   members: MemberRow[];
   initialQuery?: string;
@@ -68,6 +70,7 @@ export function MemberWorkspace({
   basePath?: string;
   total?: number;
   canExport?: boolean;
+  nonMembers?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState(initialQuery);
@@ -84,7 +87,9 @@ export function MemberWorkspace({
     nextQuery = query,
     nextCountry = country,
   ) {
-    const params = new URLSearchParams({ state: nextState });
+    const params = new URLSearchParams({
+      state: nonMembers ? "non-members" : nextState,
+    });
     if (nextQuery.trim()) params.set("q", nextQuery.trim());
     if (nextCountry) params.set("country", nextCountry);
     startSearch(() => router.push(`${basePath}?${params}`, { scroll: false }));
@@ -133,7 +138,7 @@ export function MemberWorkspace({
         }}
       >
         <label className={tableStyles.search} htmlFor={`${searchId}-query`}>
-          Search all members
+          {nonMembers ? "Search non-members" : "Search all members"}
           <span className={tableStyles.searchInput}>
             <Search size={18} aria-hidden="true" />
             <input
@@ -148,19 +153,20 @@ export function MemberWorkspace({
             />
           </span>
         </label>
-        <label className={tableStyles.filter}>
-          Member status
-          <select
-            value={state}
-            disabled={searching}
-            onChange={(e) => searchAll(e.target.value)}
-          >
-            <option value="active">Active members</option>
-            <option value="pending">Awaiting approval</option>
-            <option value="archived">Archived members</option>
-            <option value="all">All members</option>
-          </select>
-        </label>
+        {!nonMembers && (
+          <label className={tableStyles.filter}>
+            Member status
+            <select
+              value={state}
+              disabled={searching}
+              onChange={(e) => searchAll(e.target.value)}
+            >
+              <option value="active">Members</option>
+              <option value="pending">Awaiting approval</option>
+              <option value="all">All profiles</option>
+            </select>
+          </label>
+        )}
         <label className={tableStyles.filter} htmlFor={`${searchId}-country`}>
           Country
           <select
@@ -235,7 +241,8 @@ export function MemberWorkspace({
           ) : (
             <>
               Showing <strong>{members.length}</strong> of{" "}
-              <strong>{total}</strong> member{total === 1 ? "" : "s"}
+              <strong>{total}</strong> {nonMembers ? "non-member" : "member"}
+              {total === 1 ? "" : "s"}
               {initialQuery && <> matching “{initialQuery}”</>}
               {countryLabel && <> · {countryLabel}</>}
             </>
@@ -281,11 +288,19 @@ export function MemberWorkspace({
                 <td colSpan={6}>
                   <div className={tableStyles.empty}>
                     <Users size={28} aria-hidden="true" />
-                    <strong>No members found</strong>
+                    <strong>
+                      {nonMembers
+                        ? "No non-member profiles found"
+                        : "No members found"}
+                    </strong>
                     <p>
-                      Try another name, player code, member status or country.
+                      {nonMembers
+                        ? "Approved non-family profiles and former members appear here. Review new applications in the Registration inbox."
+                        : "Try another name, player code, member status or country."}
                     </p>
-                    {(initialQuery || state !== "active" || country) && (
+                    {(initialQuery ||
+                      (!nonMembers && state !== "active") ||
+                      country) && (
                       <button
                         type="button"
                         className="button small secondary"
@@ -361,11 +376,12 @@ function MemberItem({ member }: { member: MemberRow }) {
     }
   }
   const pendingEntries = member.participants.filter((p) => !p.eligible).length;
-  const status = member.archived
-    ? "Archived"
-    : member.verified
-      ? "Approved"
-      : "Awaiting approval";
+  const addingMember = !member.isMember;
+  const status = !member.verified
+    ? "Awaiting approval"
+    : member.isMember
+      ? "Member"
+      : "Non-member";
   return (
     <tbody className={tableStyles.memberGroup} role="rowgroup">
       <tr
@@ -374,7 +390,18 @@ function MemberItem({ member }: { member: MemberRow }) {
         data-expanded={expanded || undefined}
       >
         <th scope="row" role="rowheader" className={tableStyles.memberName}>
-          <span>{member.displayIgn}</span>
+          <span className={tableStyles.memberIdentity}>
+            <span>{member.displayIgn}</span>
+            {!member.isMember ? (
+              <span
+                className={tableStyles.familyPill}
+                aria-label={`Family name: ${member.familyName || "Null"}`}
+                title={`Family name: ${member.familyName || "Null"}`}
+              >
+                {member.familyName || "Null"}
+              </span>
+            ) : null}
+          </span>
           <small>
             {member.participants.map((p) => p.code).join(" · ") ||
               "No player code"}
@@ -382,9 +409,9 @@ function MemberItem({ member }: { member: MemberRow }) {
         </th>
         <td role="cell" className={tableStyles.statusCell}>
           <span
-            className={`${tableStyles.badge} ${member.archived ? tableStyles.archived : member.verified ? tableStyles.approved : tableStyles.pending}`}
+            className={`${tableStyles.badge} ${!member.verified ? tableStyles.pending : member.isMember ? tableStyles.approved : tableStyles.nonMember}`}
           >
-            {member.verified && !member.archived ? (
+            {member.verified ? (
               <Check size={13} aria-hidden="true" />
             ) : (
               <span className={tableStyles.dot} aria-hidden="true" />
@@ -529,31 +556,31 @@ function MemberItem({ member }: { member: MemberRow }) {
             </button>
             <button
               type="button"
-              className={`${tableStyles.iconButton} ${tableStyles.archiveButton}`}
+              className={`${tableStyles.iconButton} ${tableStyles.membershipButton}`}
               disabled={busy}
-              aria-label={`${member.archived ? "Restore" : "Archive"} ${member.displayIgn}`}
-              title={member.archived ? "Restore member" : "Archive member"}
+              aria-label={`${addingMember ? "Add member" : "Remove membership"} ${member.displayIgn}`}
+              title={addingMember ? "Add member" : "Remove membership"}
               onClick={async () => {
                 if (
-                  !member.archived &&
+                  !addingMember &&
                   !window.confirm(
-                    `Archive ${member.displayIgn}? You can restore them later.`,
+                    `Remove membership for ${member.displayIgn}? They can still register for tournaments.`,
                   )
                 )
                   return;
                 await run("member", {
                   id: member.id,
-                  archived: !member.archived,
+                  isMember: addingMember,
                 });
               }}
             >
-              {member.archived ? (
-                <RotateCcw size={17} aria-hidden="true" />
+              {addingMember ? (
+                <UserRoundPlus size={17} aria-hidden="true" />
               ) : (
-                <Archive size={17} aria-hidden="true" />
+                <UserRoundX size={17} aria-hidden="true" />
               )}
               <span className={tableStyles.mobileText}>
-                {member.archived ? "Restore" : "Archive"}
+                {addingMember ? "Add member" : "Remove membership"}
               </span>
             </button>
           </div>
@@ -601,6 +628,9 @@ function MemberItem({ member }: { member: MemberRow }) {
                     const ign = String(form.get("ign") ?? "").trim(),
                       nextPhone = String(form.get("phone") ?? "");
                     const isLiveStreamer = form.get("isLiveStreamer") === "yes";
+                    const familyName = String(
+                      form.get("familyName") ?? "",
+                    ).trim();
                     const registrationFields = Object.fromEntries(
                       Object.entries(details.fields)
                         .filter(
@@ -622,7 +652,12 @@ function MemberItem({ member }: { member: MemberRow }) {
                       ...(nextPhone !== (details.phone ?? "")
                         ? { phone: nextPhone }
                         : {}),
-                      registrationFields,
+                      registrationFields: {
+                        ...registrationFields,
+                        ...(familyName !== (details.fields["Family Name"] ?? "")
+                          ? { "Family Name": familyName }
+                          : {}),
+                      },
                     });
                     if (saved) {
                       setEditing(false);
@@ -663,11 +698,20 @@ function MemberItem({ member }: { member: MemberRow }) {
                         maxLength={80}
                       />
                     </label>
+                    <label>
+                      Family Name
+                      <input
+                        name="familyName"
+                        defaultValue={details.fields["Family Name"] ?? ""}
+                        maxLength={100}
+                      />
+                    </label>
                     {Object.entries(details.fields)
                       .filter(
                         ([key]) =>
-                          details.editableFields?.includes(key) ??
-                          editable(key),
+                          key !== "Family Name" &&
+                          (details.editableFields?.includes(key) ??
+                            editable(key)),
                       )
                       .map(([key, value]) => (
                         <MemberRegistrationField
@@ -680,7 +724,7 @@ function MemberItem({ member }: { member: MemberRow }) {
                   </fieldset>
                   <div className={styles.actions}>
                     <button className="button small" disabled={busy}>
-                      {busy ? "Saving…" : "Save member"}
+                      {busy ? "Saving…" : "Save"}
                     </button>
                   </div>
                 </form>

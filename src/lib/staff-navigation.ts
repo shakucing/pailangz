@@ -6,6 +6,7 @@ export const staffNavigationGroups = [
     items: [
       ["registrations", "Registration inbox"],
       ["members", "Members"],
+      ["non-members", "Non-members"],
       ["imports", "Registration uploads"],
     ],
   },
@@ -26,6 +27,7 @@ export const staffNavigationGroups = [
     adminOnly: false,
     items: [
       ["content", "Announcements"],
+      ["manual", "Staff manual"],
       ["audit", "Activity history"],
     ],
   },

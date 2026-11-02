@@ -44,12 +44,19 @@ export default async function Tournament({
     notFound();
   const t = await publicTournament(slug);
   if (!t) notFound();
+  const publicPlayers = await publicPlayerNames(slug);
   const names = new Map(
-    (await publicPlayerNames(slug)).map((player) => [player.code, player.ign]),
+    publicPlayers.map((player) => [player.code, player.ign]),
+  );
+  const families = new Map(
+    publicPlayers.map((player) => [player.code, player.familyLabel]),
   );
   const participants = t.participants.map((player) => ({
     code: player.code,
     ...(names.has(player.code) ? { ign: names.get(player.code) } : {}),
+    ...(families.get(player.code)
+      ? { familyLabel: families.get(player.code) }
+      : {}),
   }));
   const playerLabel = (value: string) =>
     names.has(value) ? `${value} · ${names.get(value)}` : value;

@@ -20,6 +20,7 @@ import { tournamentStageCards } from "@/lib/tournament-stage-display";
 import { FixtureBrowser } from "./fixture-browser";
 import { FixtureStageFields } from "./fixture-stage-fields";
 import { MatchResultForm } from "./match-result-form";
+import { StaffManual } from "./staff-manual";
 import { LiveResultsRefresh } from "./live-results-refresh";
 import {
   configuration,
@@ -44,6 +45,7 @@ import { operationalTime } from "@/lib/public-data";
 import type { Rules } from "@/lib/domain";
 import { standingsFor, tournamentReadiness } from "@/lib/competition";
 import { decrypt } from "@/lib/crypto";
+import { memberDirectoryWhere } from "@/lib/member-directory";
 import { DomainError } from "@/lib/domain";
 import { StaffLoading } from "./staff-loading";
 import { renderParticipation } from "./participation-workspace";
@@ -204,19 +206,27 @@ async function renderSection(
   const page = Math.max(1, Math.min(10000, Number(q.page) || 1)),
     skip = (page - 1) * 20;
   const query = q.q?.slice(0, 100);
+  if (section === "manual") return <StaffManual base={base} />;
   if (section === "overview") {
-    const [members, pending, tournaments, matches, stale] = await Promise.all([
-      tx.member.count(),
-      tx.registrationSubmission.count({ where: { status: "PENDING" } }),
-      tx.tournament.count(),
-      tx.match.count(),
-      tx.bracketDependency.count({ where: { stale: true } }),
-    ]);
+    const nonMembersWhere = await memberDirectoryWhere(tx, {
+      state: "non-members",
+    });
+    const [totalProfiles, nonMembers, pending, tournaments, matches, stale] =
+      await Promise.all([
+        tx.member.count(),
+        tx.member.count({ where: nonMembersWhere }),
+        tx.registrationSubmission.count({ where: { status: "PENDING" } }),
+        tx.tournament.count(),
+        tx.match.count(),
+        tx.bracketDependency.count({ where: { stale: true } }),
+      ]);
     return (
       <div className="stack">
         <div className="grid3">
           {[
-            ["Members", members],
+            ["Total profiles", totalProfiles],
+            ["Members", totalProfiles - nonMembers],
+            ["Non-members", nonMembers],
             ["Pending reviews", pending],
             ["Draft / active tournaments", tournaments],
             ["Scheduled series", matches],
@@ -254,6 +264,7 @@ async function renderSection(
     return renderRegistrations(tx, actor, q, base);
   if (section === "participation") return renderParticipation(tx, q, base);
   if (section === "members") return renderMembers(tx, actor, q, base);
+  if (section === "non-members") return renderMembers(tx, actor, q, base, true);
   if (section === "tournaments") {
     if (!q.id) {
       const rows = await tx.tournament.findMany({
@@ -362,10 +373,7 @@ async function renderSection(
       teamCategory?.teams.find(
         (team) =>
           team.memberships.length !== 4 ||
-          team.memberships.some(
-            (membership) =>
-              !membership.member.verified || membership.member.archived,
-          ),
+          team.memberships.some((membership) => !membership.member.verified),
       ) ??
       (teamCategory && teamCategory.teams.length >= config.teamCapacity
         ? teamCategory.teams[0]
@@ -377,7 +385,7 @@ async function renderSection(
     });
     const approvedMembers = (
       await tx.member.findMany({
-        where: { verified: true, archived: false },
+        where: { verified: true },
         select: { id: true, displayIgn: true },
         orderBy: { displayIgn: "asc" },
       })
@@ -1000,7 +1008,6 @@ async function renderSection(
                     member: {
                       displayIgn: p.member.displayIgn,
                       verified: p.member.verified,
-                      archived: p.member.archived,
                     },
                   }))}
                   capacity={capacity}
@@ -1034,7 +1041,6 @@ async function renderSection(
                         member: {
                           displayIgn: p.member.displayIgn,
                           verified: p.member.verified,
-                          archived: p.member.archived,
                         },
                       }))}
                       capacity={capacity}
@@ -1426,7 +1432,7 @@ async function renderSection(
               where: {
                 eligible: true,
                 withdrawn: false,
-                member: { verified: true, archived: false },
+                member: { verified: true },
               },
               select: {
                 code: true,

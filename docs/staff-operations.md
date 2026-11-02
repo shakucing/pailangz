@@ -2,6 +2,12 @@
 
 Routine work records the staff member, time and affected record automatically. A note is optional for ordinary edits. The app still checks permissions, competition rules and encrypted data access.
 
+## Staff manual
+
+Admins and moderators can open **Workspace activity → Staff manual** for the English scoring and tournament progression guide. It includes illustrated steps, two videos narrated with ElevenLabs, English captions, a best-of scoring reference and a practice area that never submits results. The manual is available at `/admin/manual` and `/moderator/manual` behind the existing staff sign-in.
+
+Tutorial screenshots use a disposable local training event and example player/team names. Narration and scene text are maintained in `docs/staff-manual-tutorials.json`; shipped media is under `public/staff-manual/`. The optional scripts in `scripts/staff-manual/` prepare frames/captions and render narrated MP4s on macOS. Rendering is an operator task, separate from the application build and runtime. Run `pnpm test:web --staff-manual` after `pnpm build` to check both staff roles, mobile navigation, scoring practice, media loading and captions with a disposable database.
+
 ## Members and registration
 
 Every tournament has a participation link at `/participate/<tournament-slug>`. In **Tournaments & rules → Overview & schedule**, enable **player registration and shareable team pages** and save. The summary's **Registration links** shortcut opens the event-specific player link. New tournaments start with registration off. Enabling it exposes the event's details, player capacity and team pages while draft fixtures and results remain private. The original `/participate/pailangz-solo-team` link keeps working.

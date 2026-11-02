@@ -45,7 +45,7 @@ export type EventPresentationData = {
   slug: string;
   status: string;
   configuration: TournamentConfiguration;
-  participants: { code: string; ign?: string }[];
+  participants: { code: string; ign?: string; familyLabel?: string }[];
   categories: {
     kind: string;
     teams: {
@@ -187,6 +187,7 @@ export async function eventPresentationData(
   data = await localTestResults(data);
   const players = await publicPlayerNames(data.slug);
   const names = new Map(players.map((p) => [p.code, p.ign]));
+  const families = new Map(players.map((p) => [p.code, p.familyLabel]));
   const teamMembers = data.categories.some(
     (category) => category.kind === "TEAM" && category.teams.length > 0,
   )
@@ -204,6 +205,7 @@ export async function eventPresentationData(
     participants: data.participants.map((p) => ({
       code: p.code,
       ...(names.has(p.code) ? { ign: names.get(p.code) } : {}),
+      ...(families.get(p.code) ? { familyLabel: families.get(p.code) } : {}),
     })),
     categories: data.categories.map((c) =>
       c.kind !== "SOLO"

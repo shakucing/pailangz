@@ -383,7 +383,7 @@ try {
   });
   await check("member search finds records beyond the first page", async () => {
     const all = await owner.member.findMany({
-      where: { archived: false },
+      where: { isMember: true },
       orderBy: { displayIgn: "asc" },
       select: { displayIgn: true },
     });
@@ -408,7 +408,7 @@ try {
     "member streamer values validate, persist and appear in the directory",
     async () => {
       const target = await owner.member.findFirstOrThrow({
-        where: { archived: false },
+        where: { isMember: true },
       });
       assert.equal(target.isLiveStreamer, false);
       const url = `${origin}/admin/members?q=${encodeURIComponent(target.displayIgn)}&state=all`;
@@ -471,37 +471,37 @@ try {
           name: `${prefix} ${String(i).padStart(2, "0")}`,
           country: i % 2 ? " Malaysia " : "MY",
           verified: true,
-          archived: false,
+          isMember: true,
         })),
         {
           name: `${prefix} Pending`,
           country: "my",
           verified: false,
-          archived: false,
+          isMember: true,
         },
         {
-          name: `${prefix} Archived`,
+          name: `${prefix} Non-member`,
           country: "Malaysia",
           verified: true,
-          archived: true,
+          isMember: false,
         },
         {
           name: `${prefix} Indonesia`,
           country: "Indonesia",
           verified: true,
-          archived: false,
+          isMember: true,
         },
         {
           name: `${prefix} Missing`,
           country: null,
           verified: true,
-          archived: false,
+          isMember: true,
         },
         {
           name: `${prefix} Blank`,
           country: "",
           verified: true,
-          archived: false,
+          isMember: true,
         },
       ];
       const mapping = await owner.integrationSetting.findUnique({
@@ -521,7 +521,7 @@ try {
               displayIgn: fixture.name,
               canonicalIgn: fixture.name.toLowerCase(),
               verified: fixture.verified,
-              archived: fixture.archived,
+              isMember: fixture.isMember,
               ...(fixture.country !== null
                 ? {
                     privateData: {
@@ -590,7 +590,7 @@ try {
             /<option value="MY" selected="">Malaysia<\/option>/,
           );
           assert.ok(!first.screen.includes(`${prefix} Indonesia`));
-          assert.ok(!first.screen.includes(`${prefix} Archived`));
+          assert.ok(!first.screen.includes(`${prefix} Non-member`));
           const second = await directory(base, cookie, "MY", "active", 2);
           assert.match(second.screen, /Showing 3 of 53 members/);
           assert.ok(second.screen.includes(`${prefix} Pending`));
@@ -599,7 +599,7 @@ try {
             /Showing 1 of 1 member/,
           );
           assert.match(
-            (await directory(base, cookie, "MY", "archived")).screen,
+            (await directory(base, cookie, "MY", "non-members")).screen,
             /Showing 1 of 1 member/,
           );
           assert.match(

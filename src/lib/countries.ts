@@ -3,14 +3,13 @@ export const COUNTRY_CODES =
     " ",
   );
 
-const englishNames = new Intl.DisplayNames(["en"], { type: "region" });
-export const COUNTRY_OPTIONS = COUNTRY_CODES.map((code) => ({
-  value: code,
-  label: englishNames.of(code) ?? code,
-})).sort((a, b) => a.label.localeCompare(b.label, "en"));
+import { COUNTRY_OPTIONS } from "./country-options";
+export { COUNTRY_OPTIONS };
 
 // Imports may store country names while the web form stores ISO codes.
 const countryCodesByName = new Map<string, string>();
+for (const option of COUNTRY_OPTIONS)
+  countryCodesByName.set(option.label.toLowerCase(), option.value);
 for (const locale of ["en", "ms"]) {
   const names = new Intl.DisplayNames([locale], { type: "region" });
   for (const code of COUNTRY_CODES) {

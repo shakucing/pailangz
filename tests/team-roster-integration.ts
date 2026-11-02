@@ -43,13 +43,13 @@ export async function checkTeamRosterRegistration(
     "ineligible",
     "withdrawn",
     "unverified",
-    "archived",
+    "non-member",
   ].entries()) {
     const id = randomUUID();
     members[kind] = id;
     await owner.query(
-      'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified,archived) VALUES ($1,$1,$1,$2,$3)',
-      [id, kind !== "unverified", kind === "archived"],
+      'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified,"isMember") VALUES ($1,$1,$1,$2,$3)',
+      [id, kind !== "unverified", kind !== "non-member"],
     );
     if (kind !== "unregistered")
       await owner.query(
@@ -100,13 +100,35 @@ export async function checkTeamRosterRegistration(
       );
     },
   );
+  await check(
+    "staff rosters accept approved non-members without changing their membership",
+    async () => {
+      await teamUpdate(actor, {
+        ...defaults,
+        id: teamId,
+        memberIds: [members.registered, members.second, members["non-member"]],
+      });
+      assert.ok(
+        (await snapshot()).memberships.some(
+          (m) => m.memberId === members["non-member"] && m.active,
+        ),
+      );
+      assert.equal(
+        (
+          await owner.query('SELECT "isMember" FROM "Member" WHERE id=$1', [
+            members["non-member"],
+          ])
+        ).rows[0].isMember,
+        false,
+      );
+    },
+  );
   for (const kind of [
     "unregistered",
     "otherTournament",
     "ineligible",
     "withdrawn",
     "unverified",
-    "archived",
   ])
     await check(
       `staff roster creation and edits reject ${kind} players without changing saved data`,
@@ -120,7 +142,7 @@ export async function checkTeamRosterRegistration(
               name: "Rejected roster change",
               memberIds: [members.registered, members[kind]],
             }),
-            /registered and eligible|approved active members/,
+            /registered and eligible|approved profiles/,
           );
           assert.deepEqual(await snapshot(), before);
         }

@@ -7,11 +7,12 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { PlayerFamilyPill } from "./player-family-pill";
 import { PlayerResultsDialog } from "./player-results-dialog";
 import type { EventStage } from "@/lib/event-presentation-data";
 import styles from "./tournament-player-results.module.css";
 
-type Player = { code: string; ign?: string };
+type Player = { code: string; ign?: string; familyLabel?: string };
 const PlayerResultsContext = createContext<{
   players: Map<string, Player>;
   selectPlayer: (code: string) => void;
@@ -25,10 +26,12 @@ export function TournamentPlayerResults({
   participants,
   stages,
   children,
+  onSelectPlayer,
 }: {
   participants: Player[];
   stages: EventStage[];
   children: ReactNode;
+  onSelectPlayer?: (code: string) => void;
 }) {
   const [selectedCode, selectPlayer] = useState<string | null>(null);
   const players = useMemo(
@@ -37,9 +40,11 @@ export function TournamentPlayerResults({
   );
   const selected = selectedCode ? players.get(selectedCode) : undefined;
   return (
-    <PlayerResultsContext.Provider value={{ players, selectPlayer }}>
+    <PlayerResultsContext.Provider
+      value={{ players, selectPlayer: onSelectPlayer ?? selectPlayer }}
+    >
       {children}
-      {selected && (
+      {selected && !onSelectPlayer && (
         <PlayerResultsDialog
           player={selected}
           stages={stages}
@@ -72,6 +77,7 @@ export function TournamentPlayerName({ value }: { value: string }) {
       >
         {label}
       </button>
+      <PlayerFamilyPill label={player.familyLabel} />
       {suffix}
     </>
   );

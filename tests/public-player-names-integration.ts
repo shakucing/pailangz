@@ -33,19 +33,19 @@ export async function checkPublicSoloPlayerNames(
         }
         for (const [index, state] of [
           "eligible",
-          "archived",
+          "non-member",
           "unverified",
           "ineligible",
           "withdrawn",
         ].entries()) {
           const memberId = randomUUID();
           await owner.query(
-            'INSERT INTO "Member"(id,"displayIgn","canonicalIgn",verified,archived) VALUES($1,$2,$1,$3,$4)',
+            'INSERT INTO "Member"(id,"displayIgn","canonicalIgn",verified,"isMember") VALUES($1,$2,$1,$3,$4)',
             [
               memberId,
               `Éagle ${state}`,
               state !== "unverified",
-              state === "archived",
+              state !== "non-member",
             ],
           );
           for (const tournamentId of [soloId, teamId])
@@ -95,9 +95,31 @@ export async function checkPublicSoloPlayerNames(
             [soloId, status],
           );
           assert.deepEqual(await names(soloId), [
-            { slug: soloId, code: "P01", ign: "Éagle eligible" },
+            {
+              slug: soloId,
+              code: "P01",
+              ign: "Éagle eligible",
+              familyLabel: "Pailangz",
+            },
+            {
+              slug: soloId,
+              code: "P02",
+              ign: "Éagle non-member",
+              familyLabel: "Null",
+            },
           ]);
         }
+        await owner.query(
+          'UPDATE "Member" SET "publicFamilyName"=$1 WHERE "displayIgn"=$2',
+          ["Night Owls", "Éagle non-member"],
+        );
+        assert.equal((await names(soloId))[1].familyLabel, "Night Owls");
+        await owner.query("SET LOCAL ROLE pailangz_app");
+        assert.equal(
+          (await owner.query('SELECT * FROM "MemberPrivate"')).rowCount,
+          0,
+        );
+        await owner.query("RESET ROLE");
         await owner.query(
           'UPDATE "Tournament" SET published=false WHERE id=$1',
           [soloId],

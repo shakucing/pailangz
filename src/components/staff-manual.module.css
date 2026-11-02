@@ -1,0 +1,219 @@
+.manual {
+  display: grid;
+  gap: 28px;
+  min-width: 0;
+  line-height: 1.65;
+}
+
+.intro,
+.chapter,
+.practice {
+  padding: clamp(18px, 3vw, 30px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  min-width: 0;
+}
+
+.intro p {
+  max-width: 72ch;
+}
+.eyebrow {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+.links a {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 14px;
+  text-decoration: none;
+}
+.links a:hover {
+  border-color: var(--text);
+}
+.chapter {
+  scroll-margin-top: 24px;
+}
+.chapter h2 {
+  font-size: clamp(22px, 3vw, 30px);
+  margin: 0 0 8px;
+}
+.chapter > p {
+  color: var(--muted);
+}
+.chapter h3 {
+  margin: 0 0 12px;
+  font-size: 19px;
+}
+.chapter details {
+  border-top: 1px solid var(--border);
+  padding: 20px 0;
+  scroll-margin-top: 20px;
+}
+.chapter details:last-child {
+  padding-bottom: 0;
+}
+.chapter summary {
+  cursor: pointer;
+  font-size: 17px;
+  font-weight: 650;
+}
+.chapter summary:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.chapter details[open] > summary {
+  margin-bottom: 18px;
+}
+.chapter ol,
+.chapter ul {
+  padding-left: 24px;
+}
+.chapter li + li {
+  margin-top: 10px;
+}
+.callout {
+  padding: 14px 18px;
+  margin: 18px 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text);
+  border-radius: 8px;
+}
+.figure {
+  margin: 22px 0;
+  max-width: 780px;
+}
+.figure a {
+  display: block;
+}
+.figure img {
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.figure figcaption {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.video {
+  margin: 22px 0;
+}
+.video video {
+  display: block;
+  width: 100%;
+  max-height: 640px;
+  background: #151b16;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.video figcaption {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.tableScroll {
+  overflow-x: auto;
+  margin: 20px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.tableScroll table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.tableScroll th,
+.tableScroll td {
+  padding: 12px 16px;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+.tableScroll th {
+  background: var(--surface);
+}
+.tableScroll tr:last-child td {
+  border-bottom: none;
+}
+.practice {
+  margin: 22px 0;
+}
+.practice h3 {
+  margin-bottom: 4px;
+}
+.practice label {
+  display: grid;
+  gap: 6px;
+  max-width: 240px;
+}
+.practice input {
+  width: 100%;
+}
+.practice fieldset {
+  border: 0;
+  margin: 18px 0;
+  padding: 0;
+}
+.practice legend {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+.gameButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.gameButtons button {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 18px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+.gameButtons button[aria-pressed="true"] {
+  border-color: var(--text);
+  font-weight: 700;
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.gameButtons button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.status {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.footnote {
+  font-size: 12px;
+  color: var(--muted);
+}
+@media (max-width: 600px) {
+  .manual {
+    gap: 18px;
+  }
+  .tableScroll th,
+  .tableScroll td {
+    padding: 10px;
+    font-size: 12px;
+  }
+  .links a {
+    flex: 1 1 140px;
+    text-align: center;
+  }
+}

@@ -15,7 +15,7 @@ function entrant(number: number, eligible = true) {
     member: {
       displayIgn: `Player ${number}`,
       verified: true,
-      archived: false,
+      isMember: true,
     },
   };
 }
@@ -49,9 +49,9 @@ describe("tournament player list", () => {
     expect(html).toContain("Mark ineligible");
   });
 
-  it("distinguishes pending eligibility and inactive members from eligible players", () => {
+  it("distinguishes pending eligibility and unapproved players from eligible players", () => {
     const inactive = entrant(3);
-    inactive.member.archived = true;
+    inactive.member.verified = false;
     const html = renderToStaticMarkup(
       createElement(TournamentPlayerList, {
         tournamentId: "test-tournament",
@@ -64,7 +64,7 @@ describe("tournament player list", () => {
     expect(html).toContain("Player list awaiting confirmation.");
     expect(html.match(/>Eligible<\/button>/g)).toHaveLength(1);
     expect(html.match(/>Ineligible<\/button>/g)).toHaveLength(2);
-    expect(html).toContain("Member needs review");
+    expect(html).toContain("Player needs approval");
   });
 
   it("explains an empty roster and prevents eligibility edits while published", () => {

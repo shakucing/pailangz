@@ -17,7 +17,7 @@ export async function renderParticipation(
     <div className="stack">
       <p className="muted">
         Players added from tournament drafts and signups, using each event’s own
-        format and capacity. Matching approved, active members receive a
+        format and capacity. Approved players, including non-members, receive a
         tournament slot automatically. Approved TEAM players can register teams
         and apply to join them; owners approve their applications. Staff can
         manage assignments in Team rosters. Use Remove player to withdraw an
@@ -67,8 +67,8 @@ export async function renderParticipation(
                   <tr key={row.id}>
                     <td>
                       <strong>{row.member.displayIgn}</strong>
-                      {(!row.member.verified || row.member.archived) && (
-                        <p className="muted">Member needs review</p>
+                      {!row.member.verified && (
+                        <p className="muted">Player needs approval</p>
                       )}
                     </td>
                     <td>

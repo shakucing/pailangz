@@ -31,6 +31,82 @@ export async function checkRoutineStaffOperations(
   );
   const phone = "+60123456789";
   await check(
+    "recruiting clears the saved family name and removing membership does not restore it",
+    async () => {
+      const id = randomUUID();
+      await owner.query(
+        'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified,"isMember") VALUES ($1,$1,$1,true,false)',
+        [id],
+      );
+      for (const recruiter of [actor, mod]) {
+        await memberUpdate(recruiter, {
+          id,
+          phone,
+          registrationFields: {
+            "Non-family": "Yes",
+            "Family Name": "Previous family",
+            "Discord Name": "retained handle",
+          },
+        });
+        await memberUpdate(recruiter, { id, isLiveStreamer: true });
+        assert.equal(
+          (await privateDetails(recruiter, "member", id)).fields?.[
+            "Family Name"
+          ],
+          "Previous family",
+        );
+        await memberUpdate(recruiter, {
+          id,
+          isMember: true,
+          ...(recruiter.role === "MODERATOR"
+            ? {
+                registrationFields: { "Family Name": "Stale submitted family" },
+              }
+            : {}),
+        });
+        const details = await privateDetails(recruiter, "member", id);
+        assert.equal(details.fields?.["Family Name"], "");
+        assert.equal(details.fields?.["Non-family"], "No");
+        assert.equal(details.fields?.["Discord Name"], "retained handle");
+        assert.equal(details.phone, phone);
+        const member = (
+          await owner.query('SELECT * FROM "Member" WHERE id=$1', [id])
+        ).rows[0];
+        assert.equal(member.isMember, true);
+        assert.equal(member.publicFamilyName, null);
+        assert.equal(member.verified, true);
+        const stored = (
+          await owner.query(
+            'SELECT "registrationEncrypted" FROM "MemberPrivate" WHERE "memberId"=$1',
+            [id],
+          )
+        ).rows[0];
+        assert.equal(
+          JSON.parse(decrypt(stored.registrationEncrypted, `member:${id}`))[
+            "Family Name"
+          ],
+          "",
+        );
+        await memberUpdate(recruiter, { id, isMember: false });
+        assert.equal(
+          (await privateDetails(recruiter, "member", id)).fields?.[
+            "Family Name"
+          ],
+          "",
+        );
+        assert.equal(
+          (
+            await owner.query(
+              'SELECT "publicFamilyName" FROM "Member" WHERE id=$1',
+              [id],
+            )
+          ).rows[0].publicFamilyName,
+          null,
+        );
+      }
+    },
+  );
+  await check(
     "members default to non-streamers and staff can change the flag without affecting approval",
     async () => {
       const read = async () =>
@@ -41,13 +117,13 @@ export async function checkRoutineStaffOperations(
       await memberUpdate(actor, { id: memberId, isLiveStreamer: true });
       assert.equal((await read()).isLiveStreamer, true);
       // Unrelated updates must preserve the streamer's saved choice.
-      await memberUpdate(mod, { id: memberId, archived: true });
+      await memberUpdate(mod, { id: memberId, isMember: false });
       const archived = await read();
       assert.equal(archived.isLiveStreamer, true);
       assert.equal(archived.verified, before.verified);
       await memberUpdate(mod, {
         id: memberId,
-        archived: false,
+        isMember: true,
         isLiveStreamer: false,
       });
       assert.equal((await read()).isLiveStreamer, false);
@@ -171,7 +247,7 @@ export async function checkRoutineStaffOperations(
         await owner.query('SELECT * FROM "Member" WHERE id=$1', [otherId])
       ).rows[0];
       assert.equal(after.verified, before.verified);
-      assert.equal(after.archived, before.archived);
+      assert.equal(after.isMember, before.isMember);
     },
   );
   await check(

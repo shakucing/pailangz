@@ -555,19 +555,14 @@ export async function tournamentReadiness(tx: Tx, id: string) {
       (t) =>
         t.memberships.length === 4 &&
         t.memberships.every(
-          (m) =>
-            m.member.verified &&
-            !m.member.archived &&
-            eligibleMemberIds.has(m.memberId),
+          (m) => m.member.verified && eligibleMemberIds.has(m.memberId),
         ),
     ).length;
   const config = configuration(t.configuration);
   const checks = readiness(
     t,
     t.categories.flatMap((c) => c.stages),
-    t.participants.filter(
-      (p) => p.eligible && p.member.verified && !p.member.archived,
-    ).length,
+    t.participants.filter((p) => p.eligible && p.member.verified).length,
     teams,
     config,
   ).filter((c) => config.playoffEntrants || !c.key.startsWith("qualification"));
@@ -690,7 +685,7 @@ export async function freezeRankings(
         tournamentId: category.tournamentId,
         eligible: true,
         withdrawn: false,
-        member: { verified: true, archived: false },
+        member: { verified: true },
       },
     });
     if (approved !== config.soloCapacity)

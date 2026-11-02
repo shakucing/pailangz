@@ -106,7 +106,7 @@ export async function checkBulkParticipantEligibility(
     },
   );
   await check(
-    "published tournaments, withdrawn entrants and unverified or archived members reject the entire selection",
+    "published tournaments, withdrawn entrants and unverified players reject the entire selection",
     async () => {
       await owner.query('UPDATE "Tournament" SET published=true WHERE id=$1', [
         tournamentId,
@@ -140,9 +140,9 @@ export async function checkBulkParticipantEligibility(
         'UPDATE "Participant" SET withdrawn=false,eligible=true WHERE id=$1',
         [chosen[1]],
       );
-      for (const field of ["verified", "archived"]) {
+      for (const field of ["verified"]) {
         await owner.query(`UPDATE "Member" SET ${field}=$1 WHERE id=$2`, [
-          field === "archived",
+          false,
           memberIds[1],
         ]);
         await unchangedAfter(

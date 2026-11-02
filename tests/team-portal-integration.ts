@@ -317,7 +317,7 @@ export async function checkTeamPortal(
     },
   );
   await check(
-    "wrong tournament, closed deadlines, revoked members and expired sessions deny changes",
+    "wrong tournament, closed deadlines, unapproved players and expired sessions deny changes",
     async () => {
       await assert.rejects(
         mutateTeam(captain.token, "missing-event", {
@@ -340,12 +340,12 @@ export async function checkTeamPortal(
         "UPDATE \"Tournament\" SET status='REGISTRATION_OPEN' WHERE id=$1",
         [tid],
       );
-      await owner.query('UPDATE "Member" SET archived=true WHERE id=$1', [
+      await owner.query('UPDATE "Member" SET verified=false WHERE id=$1', [
         captain.id,
       ]);
       assert.equal(await teamState(captain.token, slug, teamSlug), null);
       await assert.rejects(apply(captain.token, otherSlug), /SIGN_IN/);
-      await owner.query('UPDATE "Member" SET archived=false WHERE id=$1', [
+      await owner.query('UPDATE "Member" SET verified=true WHERE id=$1', [
         captain.id,
       ]);
       await owner.query(

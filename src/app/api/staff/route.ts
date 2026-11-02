@@ -291,7 +291,7 @@ export async function POST(request: Request) {
             .object({
               id,
               ign: z.string().optional(),
-              archived: z.boolean().optional(),
+              isMember: z.boolean().optional(),
               isLiveStreamer: z.boolean().optional(),
               phone: z.string().max(80).optional(),
               registrationFields: z.record(z.string(), z.string()).optional(),

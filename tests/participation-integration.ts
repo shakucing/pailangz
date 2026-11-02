@@ -63,6 +63,10 @@ export async function checkParticipation(
     [JSON.stringify(tournament.id)],
   );
   const input = { ign, tiktokId };
+  // Former membership does not revoke a verified tournament identity.
+  await owner.query('UPDATE "Member" SET "isMember"=false WHERE id=$1', [
+    memberId,
+  ]);
   try {
     await check(
       "participation link follows the selected event and ignores seed provenance",
@@ -90,7 +94,7 @@ export async function checkParticipation(
       },
     );
     await check(
-      "participation rejects unknown, mismatched, missing, unapproved and archived identities",
+      "participation rejects unknown, mismatched, missing, unapproved identities",
       async () => {
         for (const bad of [
           { ...input, ign: "Unknown player" },
@@ -98,7 +102,7 @@ export async function checkParticipation(
           { ...input, tiktokId: "Different_display_name" },
         ])
           await assert.rejects(submitParticipation(bad), /VERIFICATION_FAILED/);
-        for (const change of ["verified=false", "archived=true"]) {
+        for (const change of ["verified=false"]) {
           await owner.query(`UPDATE "Member" SET ${change} WHERE id=$1`, [
             memberId,
           ]);
@@ -106,10 +110,9 @@ export async function checkParticipation(
             submitParticipation(input),
             /VERIFICATION_FAILED/,
           );
-          await owner.query(
-            'UPDATE "Member" SET verified=true,archived=false WHERE id=$1',
-            [memberId],
-          );
+          await owner.query('UPDATE "Member" SET verified=true WHERE id=$1', [
+            memberId,
+          ]);
         }
         await owner.query(
           'UPDATE "MemberPrivate" SET "registrationEncrypted"=$1 WHERE "memberId"=$2',
@@ -135,7 +138,7 @@ export async function checkParticipation(
       },
     );
     await check(
-      "active members are automatically approved once with a SOLO slot and immediate team access",
+      "approved non-members receive a SOLO slot and immediate team access",
       async () => {
         const counts = async () =>
           (
@@ -470,6 +473,9 @@ export async function checkParticipation(
       "existing active applications are backfilled without approving archived members or creating fixtures",
       async () => {
         const ids = [randomUUID(), randomUUID()];
+        await owner.query(
+          'ALTER TABLE "Member" ADD COLUMN archived boolean NOT NULL DEFAULT false',
+        );
         try {
           for (const [i, id] of ids.entries()) {
             await owner.query(
@@ -538,6 +544,7 @@ export async function checkParticipation(
             ),
           );
           await owner.query(wrapper);
+          await owner.query('ALTER TABLE "Member" DROP COLUMN archived');
           await owner.query(
             'DELETE FROM "Participant" WHERE "memberId"=ANY($1::text[])',
             [ids],

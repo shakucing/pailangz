@@ -33,7 +33,6 @@ function row(number: number) {
       id: `member-${number}`,
       displayIgn: `Player ${number}`,
       verified: true,
-      archived: false,
       participants: [
         {
           id: `participant-${number}`,

@@ -467,10 +467,10 @@ export async function assignParticipants(
     if (new Set(ids).size !== ids.length)
       throw new DomainError("Choose distinct members.");
     const members = await tx.member.findMany({
-      where: { id: { in: ids }, verified: true, archived: false },
+      where: { id: { in: ids }, verified: true },
     });
     if (members.length !== ids.length)
-      throw new DomainError("Only approved active members may be assigned.");
+      throw new DomainError("Only approved players may be assigned.");
     const existing = await tx.participant.findMany({
       where: { tournamentId: t.id },
     });
@@ -579,8 +579,8 @@ export async function changeEntrant(
       const member = await tx.member.findUniqueOrThrow({
         where: { id: replacement },
       });
-      if (!member.verified || member.archived || replacement === p.memberId)
-        throw new DomainError("Choose a different approved, active member.");
+      if (!member.verified || replacement === p.memberId)
+        throw new DomainError("Choose a different approved player.");
       if (
         await tx.participant.count({
           where: {

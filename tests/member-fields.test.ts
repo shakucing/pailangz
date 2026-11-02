@@ -58,3 +58,32 @@ describe("member country and status choices", () => {
     ).toEqual(["", "active", "inactive"]);
   });
 });
+
+describe("public family labels", () => {
+  it("keeps members in Pailangz and publishes only the requested non-member family name", async () => {
+    const { publicFamilyDetails } = await import("../src/lib/member-fields");
+    const privateFields = {
+      "Family Name": "  Night Owls  ",
+      Email: "PRIVATE_EMAIL_CANARY",
+    };
+    expect(publicFamilyDetails(true, privateFields)).toEqual({
+      isMember: true,
+      publicFamilyName: null,
+    });
+    expect(
+      publicFamilyDetails(true, { ...privateFields, "Non-family": "Yes" }),
+    ).toEqual({ isMember: false, publicFamilyName: "Night Owls" });
+    expect(publicFamilyDetails(false, privateFields)).toEqual({
+      isMember: false,
+      publicFamilyName: "Night Owls",
+    });
+    expect(publicFamilyDetails(false, { "Family Name": "  " })).toEqual({
+      isMember: false,
+      publicFamilyName: null,
+    });
+    expect(publicFamilyDetails(false, {})).toEqual({
+      isMember: false,
+      publicFamilyName: null,
+    });
+  });
+});

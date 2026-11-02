@@ -1,0 +1,208 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:00.893
+Tutorial two.
+
+00:00:00.893 --> 00:00:02.817
+Rules and stage progression.
+
+00:00:02.817 --> 00:00:07.969
+Open Competition, then Tournaments and rules, and choose the correct event.
+
+00:00:07.969 --> 00:00:14.564
+In Overview and schedule, set the game, start date, registration deadline and tournament status.
+
+00:00:14.564 --> 00:00:16.213
+Dates use Malaysia time.
+
+00:00:16.213 --> 00:00:20.197
+Registration and public results are controlled separately.
+
+00:00:20.197 --> 00:00:24.800
+Check that you are configuring the correct SOLO or TEAM tournament.
+
+00:00:24.800 --> 00:00:28.480
+Open Sizes and updates, then Change tournament sizes.
+
+00:00:28.480 --> 00:00:35.005
+Set the capacities, league rounds, matches per player, qualification places and bracket sizes.
+
+00:00:35.005 --> 00:00:40.143
+Under Series lengths, choose the league, knockout and final match lengths.
+
+00:00:40.143 --> 00:00:44.864
+For example, use best of five for knockout and best of seven for the
+
+00:00:44.864 --> 00:00:45.280
+final.
+
+00:00:45.280 --> 00:00:48.682
+All lengths must be odd, from one to ninety nine.
+
+00:00:48.682 --> 00:00:53.473
+Fill the eligible player slots and complete four-player team rosters.
+
+00:00:53.473 --> 00:00:58.610
+Generate and check the SOLO league fixtures, then confirm the player list.
+
+00:00:58.610 --> 00:01:00.214
+Open Rules and stages.
+
+00:01:00.214 --> 00:01:03.786
+On each stage card, select Edit tournament rules.
+
+00:01:03.786 --> 00:01:06.701
+Choose match points and the draw policy.
+
+00:01:06.701 --> 00:01:14.720
+Set league tiebreakers, qualification length, starting points, opponents, and playoff tiebreakers where shown.
+
+00:01:14.720 --> 00:01:19.166
+For knockout, confirm the player or team starting-order rule.
+
+00:01:19.166 --> 00:01:22.592
+Set forfeits and screenshot and dispute timing.
+
+00:01:22.592 --> 00:01:25.071
+Scroll down and select Save rules.
+
+00:01:25.071 --> 00:01:29.517
+Saving confirms filled choices; blank rules remain undecided.
+
+00:01:29.517 --> 00:01:31.850
+Repeat for every relevant stage.
+
+00:01:31.850 --> 00:01:33.506
+Review Ready to publish.
+
+00:01:33.506 --> 00:01:37.647
+Select each incomplete item to open the relevant setup task.
+
+00:01:37.647 --> 00:01:43.858
+Complete the required dates, rules, eligibility, rosters, player-list and schedule checks.
+
+00:01:43.858 --> 00:01:50.138
+Choose an active tournament status, then select Publish tournament when every check passes.
+
+00:01:50.138 --> 00:01:52.830
+Draft and Archived cannot be published.
+
+00:01:52.830 --> 00:01:55.659
+Unpublishing retains players and history.
+
+00:01:55.659 --> 00:02:01.180
+Changes to a published or started event may require an admin-controlled restart.
+
+00:02:01.180 --> 00:02:04.424
+After league play, confirm all required matches.
+
+00:02:04.424 --> 00:02:08.883
+Every player must have the configured number of finalized results.
+
+00:02:08.883 --> 00:02:12.397
+On the league card, select Manage stage progression.
+
+00:02:12.397 --> 00:02:14.627
+Review the final player rankings.
+
+00:02:14.627 --> 00:02:17.465
+Select a player's name to inspect results.
+
+00:02:17.465 --> 00:02:23.141
+Use arrows only to resolve remaining ties under the confirmed rules, and explain the
+
+00:02:23.141 --> 00:02:23.750
+decision.
+
+00:02:23.750 --> 00:02:27.263
+Do not reverse points or a confirmed tiebreak order.
+
+00:02:27.263 --> 00:02:30.980
+Select Save final rankings to freeze the current order.
+
+00:02:30.980 --> 00:02:37.293
+For qualification, first save its rules and confirm the starting-points choice: start from zero
+
+00:02:37.293 --> 00:02:38.756
+or keep league points.
+
+00:02:38.756 --> 00:02:40.749
+Open Manage stage progression.
+
+00:02:40.749 --> 00:02:45.069
+With automatic opponents, select Auto assign and create fixtures.
+
+00:02:45.069 --> 00:02:50.452
+With manual opponents, choose each pair and select Create qualification fixtures.
+
+00:02:50.452 --> 00:02:56.168
+Use the playoff pool from the frozen league ranking, with distinct opponents and equal
+
+00:02:56.168 --> 00:02:58.161
+configured matches per player.
+
+00:02:58.161 --> 00:03:01.750
+Existing qualification fixtures cannot be overwritten.
+
+00:03:01.750 --> 00:03:04.670
+Score and confirm all qualification matches.
+
+00:03:04.670 --> 00:03:10.244
+Review its standings, resolve remaining ties with a reason, and save final rankings.
+
+00:03:10.244 --> 00:03:16.349
+Direct qualifiers and the configured top playoff finishers now form the SOLO knockout field.
+
+00:03:16.349 --> 00:03:21.724
+On the knockout card, confirm the pairing rule and open Manage stage progression.
+
+00:03:21.724 --> 00:03:28.294
+Review the complete starting order when using manual seeding, then select Create confirmed bracket.
+
+00:03:28.294 --> 00:03:32.010
+Check the first-round opponents in Fixtures and results.
+
+00:03:32.010 --> 00:03:34.308
+TEAM follows its own knockout path.
+
+00:03:34.308 --> 00:03:40.676
+Complete every configured team with four eligible players, and save the TEAM starting-order rule.
+
+00:03:40.676 --> 00:03:45.994
+On the TEAM card, open Manage stage progression, arrange the full team order, and
+
+00:03:45.994 --> 00:03:48.095
+select Create confirmed bracket.
+
+00:03:48.095 --> 00:03:51.444
+Review the pairings and any configured seeded byes.
+
+00:03:51.444 --> 00:03:55.580
+TEAM progression does not depend on completing the SOLO league.
+
+00:03:55.580 --> 00:04:01.984
+Confirm decisive knockout results and advance the winners, through the configured rounds and final.
+
+00:04:01.984 --> 00:04:04.248
+Use the final's own best-of length.
+
+00:04:04.248 --> 00:04:08.582
+Resolve disputes and stale opponent dependencies before continuing.
+
+00:04:08.582 --> 00:04:14.404
+Current stage means the first unfinished stage in that category; Upcoming means an earlier
+
+00:04:14.404 --> 00:04:16.021
+stage remains unfinished.
+
+00:04:16.021 --> 00:04:18.867
+These badges do not advance players for you.
+
+00:04:18.867 --> 00:04:23.977
+When the knockout is settled and its final has an accepted decisive result, the
+
+00:04:23.977 --> 00:04:25.206
+stage is Completed.
+
+00:04:25.206 --> 00:04:29.558
+Set the tournament status to Completed separately in Overview and schedule.

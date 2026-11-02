@@ -119,12 +119,20 @@ async function render(section: string, locale: "ms" | "en" = "en") {
 }
 
 describe("published tournament players and tabs", () => {
+  it.each(["fixtures", "standings", "brackets"])(
+    "shows public family pills on %s",
+    async (section) => {
+      const html = await render(section);
+      expect(html).toContain('data-family-label="Pailangz"');
+      expect(html).toContain('data-family-label="Night Owls"');
+    },
+  );
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.tournament.mockResolvedValue(event());
     mocks.names.mockResolvedValue([
-      { code: "P01", ign: "Éagle BoB" },
-      { code: "P02", ign: "DarkNightx" },
+      { code: "P01", ign: "Éagle BoB", familyLabel: "Pailangz" },
+      { code: "P02", ign: "DarkNightx", familyLabel: "Night Owls" },
       { code: "P99", ign: "UNAPPROVED_NAME_CANARY" },
     ]);
   });

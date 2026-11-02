@@ -556,7 +556,7 @@ try {
   );
   assert.equal(
     await owner.member.count({
-      where: { id: signupPlayer.memberId, verified: true, archived: false },
+      where: { id: signupPlayer.memberId, verified: true },
     }),
     1,
   );

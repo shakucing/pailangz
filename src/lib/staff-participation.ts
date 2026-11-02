@@ -55,7 +55,6 @@ export async function staffParticipation(
       id: true,
       displayIgn: true,
       verified: true,
-      archived: true,
       participants: {
         where: { tournamentId: { in: tournamentIds } },
         select: {

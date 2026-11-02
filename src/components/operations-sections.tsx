@@ -5,6 +5,8 @@ import { MemberWorkspace } from "./member-workspace";
 import { RegistrationWorkspace } from "./registration-workspace";
 import { UploadForm } from "./action-form";
 import { operationalTime } from "@/lib/public-data";
+import { decrypt } from "@/lib/crypto";
+import { isNonFamily } from "@/lib/member-fields";
 import {
   MEMBER_DIRECTORY_SELECT,
   memberDirectoryWhere,
@@ -53,9 +55,12 @@ export async function renderMembers(
   actor: Actor,
   q: Query,
   base: string,
+  nonMembers = false,
 ) {
-  const { state, search, country } = memberFilters(q);
-  const filteredWhere = await memberDirectoryWhere(tx, q);
+  const filters = nonMembers ? { ...q, state: "non-members" } : q;
+  const basePath = `${base}/${nonMembers ? "non-members" : "members"}`;
+  const { state, search, country } = memberFilters(filters);
+  const filteredWhere = await memberDirectoryWhere(tx, filters);
   const [members, total] = await Promise.all([
     tx.member.findMany({
       where: filteredWhere,
@@ -68,20 +73,48 @@ export async function renderMembers(
   ]);
   return (
     <div className="stack">
+      {nonMembers && (
+        <p className="muted">
+          Approved non-family profiles and former members appear here. Review
+          new applications in the Registration inbox.
+        </p>
+      )}
       <MemberWorkspace
         key={JSON.stringify([search, state, country, pageNumber(q)])}
-        members={members}
+        members={members.map(({ privateData, ...member }) => {
+          const fields: Record<string, string> = privateData
+            ? JSON.parse(
+                decrypt(
+                  privateData.registrationEncrypted,
+                  `member:${member.id}`,
+                ),
+              )
+            : {};
+          return {
+            ...member,
+            isMember: member.isMember && !isNonFamily(fields),
+            familyName: fields["Family Name"]?.trim() || null,
+            privateData: privateData
+              ? {
+                  phoneLastFour: privateData.phoneLastFour,
+                  phoneIssue: privateData.phoneIssue,
+                }
+              : null,
+          };
+        })}
+        nonMembers={nonMembers}
         canExport={actor.role === "ADMIN"}
         initialQuery={search ?? ""}
         state={state}
         country={country}
-        basePath={`${base}/members`}
+        basePath={basePath}
         total={total}
       />
-      <SectionPages q={q} total={total} base={`${base}/members`} />
+      <SectionPages q={filters} total={total} base={basePath} />
     </div>
   );
 }
+
 export async function renderRegistrations(
   tx: Tx,
   _actor: Actor,
@@ -137,7 +170,7 @@ export async function renderRegistrations(
     }),
     tx.registrationSubmission.count({ where }),
     tx.member.findMany({
-      where: { archived: false },
+      where: {},
       orderBy: { displayIgn: "asc" },
       select: { id: true, displayIgn: true },
     }),

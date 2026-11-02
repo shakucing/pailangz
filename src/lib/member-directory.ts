@@ -2,6 +2,7 @@ import type { Tx } from "./db";
 import { countryCode } from "./countries";
 import { decrypt } from "./crypto";
 import { DEFAULT_MAPPING } from "./imports";
+import { isNonFamily } from "./member-fields";
 
 type Query = Record<string, string | undefined>;
 
@@ -20,9 +21,15 @@ export const MEMBER_DIRECTORY_SELECT = {
   id: true,
   displayIgn: true,
   verified: true,
-  archived: true,
+  isMember: true,
   isLiveStreamer: true,
-  privateData: { select: { phoneLastFour: true, phoneIssue: true } },
+  privateData: {
+    select: {
+      phoneLastFour: true,
+      phoneIssue: true,
+      registrationEncrypted: true,
+    },
+  },
   participants: {
     where: { withdrawn: false },
     select: {
@@ -37,11 +44,6 @@ export const MEMBER_DIRECTORY_SELECT = {
 export async function memberDirectoryWhere(tx: Tx, q: Query) {
   const { state, search, country } = memberFilters(q);
   const where = {
-    ...(state === "archived"
-      ? { archived: true }
-      : state === "all"
-        ? {}
-        : { archived: false }),
     ...(state === "pending" ? { verified: false } : {}),
     ...(search
       ? {
@@ -59,15 +61,17 @@ export async function memberDirectoryWhere(tx: Tx, q: Query) {
         }
       : {}),
   };
-  let countryIds: string[] | undefined;
-  if (country) {
-    // Country answers are encrypted. Match the full candidate set on the
-    // server before applying pagination, including imported country names.
+  let matchingIds: string[] | undefined;
+  if (country || state !== "all") {
+    // Private answers are encrypted. Match all candidates before pagination
+    // so counts, pages and exports use the same non-family/country filters.
     const [candidates, setting] = await Promise.all([
       tx.member.findMany({
         where,
         select: {
           id: true,
+          isMember: true,
+          verified: true,
           privateData: { select: { registrationEncrypted: true } },
         },
       }),
@@ -76,7 +80,7 @@ export async function memberDirectoryWhere(tx: Tx, q: Query) {
     const countryField =
       (setting?.value as { country?: string } | undefined)?.country ??
       DEFAULT_MAPPING.country;
-    countryIds = candidates
+    matchingIds = candidates
       .filter((member) => {
         const fields = member.privateData
           ? (JSON.parse(
@@ -86,6 +90,16 @@ export async function memberDirectoryWhere(tx: Tx, q: Query) {
               ),
             ) as Record<string, string>)
           : {};
+        // Retain the original non-family answer on older encrypted profiles.
+        // Staff membership changes synchronize both representations.
+        const hasMembership = member.isMember && !isNonFamily(fields);
+        if (
+          state === "non-members"
+            ? hasMembership
+            : state !== "all" && !hasMembership
+        )
+          return false;
+        if (!country) return true;
         const value = fields[countryField] ?? fields.Country ?? "";
         return country === "unspecified"
           ? !value.trim()
@@ -95,6 +109,6 @@ export async function memberDirectoryWhere(tx: Tx, q: Query) {
   }
   return {
     ...where,
-    ...(countryIds ? { id: { in: countryIds } } : {}),
+    ...(matchingIds ? { id: { in: matchingIds } } : {}),
   };
 }

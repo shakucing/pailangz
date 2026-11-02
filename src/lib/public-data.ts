@@ -90,7 +90,7 @@ export async function publicTournament(slug: string) {
         where: {
           withdrawn: false,
           eligible: true,
-          member: { verified: true, archived: false },
+          member: { verified: true },
         },
         select: {
           id: true,

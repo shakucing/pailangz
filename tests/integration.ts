@@ -83,6 +83,12 @@ try {
     .sort()
     .filter((n) => /^\d/.test(n))) {
     const streamerMigration = name === "202610120031_member_live_streamer";
+    const membershipMigration = name === "202611020033_player_membership";
+    if (membershipMigration)
+      await owner.query(
+        'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified,archived) VALUES ($1,$1,$1,true,true),($2,$2,$2,true,false)',
+        ["existing-former-member", "existing-current-member"],
+      );
     if (streamerMigration)
       await owner.query(
         'INSERT INTO "Member" (id,"displayIgn","canonicalIgn",verified) VALUES ($1,$2,$3,true)',
@@ -91,6 +97,41 @@ try {
     await owner.query(
       await readFile(`prisma/migrations/${name}/migration.sql`, "utf8"),
     );
+    if (membershipMigration) {
+      await check(
+        "membership migration preserves former members and removes archived profile restrictions",
+        async () => {
+          const rows = (
+            await owner.query(
+              'SELECT id,"isMember",verified FROM "Member" ORDER BY id',
+            )
+          ).rows;
+          assert.deepEqual(rows, [
+            { id: "existing-current-member", isMember: true, verified: true },
+            { id: "existing-former-member", isMember: false, verified: true },
+          ]);
+          assert.equal(
+            (
+              await owner.query(
+                `SELECT column_name FROM information_schema.columns WHERE table_name='Member' AND column_name='archived'`,
+              )
+            ).rowCount,
+            0,
+          );
+          assert.equal(
+            (
+              await owner.query(
+                `SELECT proname FROM pg_proc JOIN pg_namespace n ON n.oid=pronamespace WHERE n.nspname='public' AND prosrc ~ '(^|[^a-zA-Z_])m[.]archived'`,
+              )
+            ).rowCount,
+            0,
+          );
+        },
+      );
+      await owner.query('DELETE FROM "Member" WHERE id=ANY($1::text[])', [
+        ["existing-former-member", "existing-current-member"],
+      ]);
+    }
     if (streamerMigration) {
       await check(
         "streamer migration defaults existing members to No and preserves their data",
@@ -316,7 +357,7 @@ try {
     },
   );
   await check(
-    "landing name view exposes only original SOLO roster names and excludes archived members",
+    "landing name view exposes only original SOLO roster names including non-members",
     async () => {
       await owner.query("BEGIN");
       try {
@@ -345,14 +386,14 @@ try {
           names.map(({ code, ign }) => ({ code, ign })),
           saved.map(({ code, ign }) => ({ code, ign })),
         );
-        assert.deepEqual(Object.keys(names[0]).sort(), ["code", "ign", "slug"]);
+        assert.deepEqual(Object.keys(names[0]).sort(), ["code", "familyLabel", "ign", "slug"]);
         assert.ok(names.every((p) => p.slug === "pailangz-solo-team"));
         assert.equal(
           (await owner.query('SELECT id FROM "Member"')).rows.length,
           0,
         );
         await owner.query("RESET ROLE");
-        await owner.query('UPDATE "Member" SET archived=true WHERE id=$1', [
+        await owner.query('UPDATE "Member" SET "isMember"=false WHERE id=$1', [
           saved[0].memberId,
         ]);
         await owner.query("SET LOCAL ROLE pailangz_app");
@@ -363,7 +404,7 @@ try {
               [saved[0].code],
             )
           ).rows.length,
-          0,
+          1,
         );
         await owner.query("RESET ROLE");
         await owner.query(

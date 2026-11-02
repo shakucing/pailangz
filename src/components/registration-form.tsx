@@ -8,6 +8,7 @@ import styles from "./registration-form.module.css";
 type FieldName =
   | "ign"
   | "gmcId"
+  | "familyName"
   | "whatsapp"
   | "email"
   | "tiktokUsername"
@@ -26,6 +27,7 @@ export function RegistrationForm({
   const t = (ms: string, en: string) => (locale === "en" ? en : ms);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [nonFamily, setNonFamily] = useState(false);
   const [error, setError] = useState("");
   const [invalidFields, setInvalidFields] = useState<string[]>([]);
   const formRef = useRef<HTMLFormElement>(null);
@@ -150,7 +152,11 @@ export function RegistrationForm({
           const response = await fetch("/api/registration", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...values, requestId: requestId.current }),
+            body: JSON.stringify({
+              ...values,
+              nonFamily,
+              requestId: requestId.current,
+            }),
           });
           const result = await response.json();
           if (!response.ok) {
@@ -237,6 +243,24 @@ export function RegistrationForm({
               "Use the ID shown on your GMC profile.",
             ),
           })}
+          <label className={`${styles.checkbox} ${styles.fullWidth}`}>
+            <input
+              type="checkbox"
+              name="nonFamily"
+              checked={nonFamily}
+              onChange={(event) => {
+                setNonFamily(event.target.checked);
+                setInvalidFields((fields) =>
+                  fields.filter((key) => key !== "familyName"),
+                );
+              }}
+            />
+            {t("Bukan keluarga", "Non-family")}
+          </label>
+          {nonFamily &&
+            field("familyName", t("Nama Keluarga:", "Family Name:"), {
+              fullWidth: true,
+            })}
           {field("whatsapp", t("Nombor WhatsApp", "WhatsApp number"), {
             required: true,
             type: "tel",

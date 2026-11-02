@@ -1,3 +1,4 @@
+import { publicFamilyDetails } from "./member-fields";
 import { parse } from "csv-parse/sync";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -244,9 +245,9 @@ async function decideRegistrationInTx(
         409,
       );
     if (input.memberId) {
-      if (!existing || existing.id !== input.memberId || existing.archived)
+      if (!existing || existing.id !== input.memberId)
         throw new DomainError(
-          "Link target must be the active member with this canonical IGN.",
+          "Link target must be the player with this canonical IGN.",
         );
       memberId = existing.id;
       await tx.member.update({
@@ -259,7 +260,15 @@ async function decideRegistrationInTx(
     } else {
       memberId = (
         await tx.member.create({
-          data: { displayIgn, canonicalIgn: canonical, verified: true },
+          data: {
+            displayIgn,
+            canonicalIgn: canonical,
+            verified: true,
+            ...publicFamilyDetails(
+              true,
+              JSON.parse(decrypt(row.payloadEncrypted, `submission:${row.id}`)),
+            ),
+          },
         })
       ).id;
     }
