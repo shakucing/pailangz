@@ -219,6 +219,13 @@ export function BracketQualification({
             {t("Penyingkiran tunggal", "Single elimination")} · BO
             {config.soloKnockoutBestOf} · {t("Final", "Final")} BO
             {config.soloFinalBestOf}
+            {config.directSlots + config.playoffSlots >= 4 && (
+              <>
+                {" "}
+                · {t("Tempat ketiga", "3rd place")} BO
+                {config.soloThirdPlaceBestOf}
+              </>
+            )}
           </p>
           <strong>
             {t("Bracket → Final → Juara", "Bracket → Final → Champion")}

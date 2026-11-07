@@ -28,6 +28,88 @@ function pickFirstSides(rounds: BracketRound[]) {
 }
 
 describe("interactive tournament bracket", () => {
+  it("keeps final and bronze predictions independent, and clears both after a semifinal change", () => {
+    const rounds = previewBracket(newTournamentConfiguration, "SOLO");
+    const picks = pickFirstSides(rounds);
+    const finalChange = selectBracketWinner(
+      rounds,
+      picks,
+      "SOLO-2-1",
+      "seed-2",
+    );
+    expect(finalChange["SOLO-third-place"]).toBe(picks["SOLO-third-place"]);
+    const bronzeChange = selectBracketWinner(
+      rounds,
+      picks,
+      "SOLO-third-place",
+      "seed-3",
+    );
+    expect(bronzeChange["SOLO-2-1"]).toBe(picks["SOLO-2-1"]);
+    const semiChange = selectBracketWinner(rounds, picks, "SOLO-4-1", "seed-4");
+    expect(semiChange["SOLO-2-1"]).toBeUndefined();
+    expect(semiChange["SOLO-third-place"]).toBeUndefined();
+    const resolved = resolveBracket(rounds, semiChange, "picks");
+    expect(resolved.find((r) => r.thirdPlace)?.matches[0].a?.seed).toBe(1);
+  });
+
+  it("identifies official #3 and #4 without confusing the playoff with the final", () => {
+    const match = (id: string, a: string, b: string, outcome: string) => ({
+      id,
+      order: 1,
+      a,
+      b,
+      outcome,
+      bestOf: 7,
+      status: "FINALIZED",
+      scheduledAt: null,
+      result: { outcome, games: [] },
+    });
+    const rounds = officialBracket([
+      {
+        number: 3,
+        name: "Final",
+        matches: [match("final", "Kylepato", "Mas Ganster", "A_WIN")],
+      },
+      {
+        number: 4,
+        name: "Third-place playoff",
+        matches: [match("third", "Rogerr", "Denzy7", "A_FORFEIT")],
+      },
+    ]);
+    const placings = bracketPlacings(resolveBracket(rounds, {}, "official"));
+    expect(
+      Object.fromEntries(
+        Object.entries(placings).map(([key, entrant]) => [key, entrant?.label]),
+      ),
+    ).toEqual({
+      champion: "Kylepato",
+      runnerUp: "Mas Ganster",
+      third: "Denzy7",
+      fourth: "Rogerr",
+    });
+    rounds[0].matches[0].status = "SCHEDULED";
+    expect(
+      bracketPlacings(resolveBracket(rounds, {}, "official")).champion,
+    ).toBeNull();
+    expect(
+      bracketPlacings(resolveBracket(rounds, {}, "official")).third?.label,
+    ).toBe("Denzy7");
+  });
+
+  it("does not invent a fourth-place entrant for two- or three-player events", () => {
+    for (const capacity of [2, 3]) {
+      const rounds = previewBracket(
+        {
+          ...newTournamentConfiguration,
+          teamCapacity: capacity,
+          teamBracketSize: capacity === 2 ? 2 : 4,
+          bracketByePolicy: "seeded_top",
+        },
+        "TEAM",
+      );
+      expect(rounds.some((r) => r.thirdPlace)).toBe(false);
+    }
+  });
   it("reproduces the supplied 16-team pairings and all winner paths", () => {
     const rounds = previewBracket(originalConfiguration, "TEAM");
     expect(rounds[0].matches.map((m) => [m.a?.seed, m.b?.seed])).toEqual([
@@ -42,7 +124,9 @@ describe("interactive tournament bracket", () => {
     ]);
     expect(
       rounds.map((round) =>
-        round.matches.map((m) => bracketMatchLabel(round.size, m.order)),
+        round.matches.map((m) =>
+          bracketMatchLabel(round.size, m.order, round.thirdPlace),
+        ),
       ),
     ).toEqual([
       [
@@ -58,6 +142,7 @@ describe("interactive tournament bracket", () => {
       ["QF1", "QF2", "QF3", "QF4"],
       ["SF1", "SF2"],
       ["FINAL"],
+      ["3RD PLACE"],
     ]);
     const picks = pickFirstSides(rounds);
     const resolved = resolveBracket(rounds, picks, "picks");
@@ -76,7 +161,9 @@ describe("interactive tournament bracket", () => {
     ]);
     const { champion, runnerUp } = bracketPlacings(resolved);
     expect([champion?.seed, runnerUp?.seed]).toEqual([1, 2]);
-    expect(Object.keys(picks)).toHaveLength(15);
+    const { third, fourth } = bracketPlacings(resolved);
+    expect([third?.seed, fourth?.seed]).toEqual([4, 3]);
+    expect(Object.keys(picks)).toHaveLength(16);
   });
 
   it("clears only the changed winner's descendants, including the final", () => {
@@ -94,6 +181,8 @@ describe("interactive tournament bracket", () => {
     expect(bracketPlacings(resolved)).toEqual({
       champion: null,
       runnerUp: null,
+      third: null,
+      fourth: null,
     });
     expect(original["TEAM-2-1"]).toBe("seed-1");
   });
@@ -127,6 +216,7 @@ describe("interactive tournament bracket", () => {
       [8, 3],
       [4, 3],
       [2, 5],
+      [2, 7],
     ]);
     expect(
       resolveBracket(rounds, {}, "picks")[0]
@@ -134,13 +224,13 @@ describe("interactive tournament bracket", () => {
         .map((m) => m.winner?.seed),
     ).toEqual([1, 2]);
     const picks = pickFirstSides(rounds);
-    expect(Object.keys(picks)).toHaveLength(5);
+    expect(Object.keys(picks)).toHaveLength(6);
     expect(
       bracketPlacings(resolveBracket(rounds, picks, "picks")).champion?.seed,
     ).toBe(1);
     expect(
       previewBracket(originalConfiguration, "SOLO").every((r) =>
-        r.matches.every((m) => m.bestOf === 5),
+        r.matches.every((m) => m.bestOf === (r.thirdPlace ? 7 : 5)),
       ),
     ).toBe(true);
   });

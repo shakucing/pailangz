@@ -122,15 +122,15 @@ export async function checkConfigurations(
       );
       assert.deepEqual(
         rounds.map((r) => r.name),
-        ["Quarterfinals", "Semifinals", "Final"],
+        ["Quarterfinals", "Semifinals", "Final", "Third-place playoff"],
       );
       assert.deepEqual(
         rounds.map((r) => r.matches.length),
-        [4, 2, 1],
+        [4, 2, 1, 1],
       );
       assert.deepEqual(
         rounds.map((r) => r.matches[0].bestOf),
-        [3, 3, 5],
+        [3, 3, 5, 7],
       );
     },
   );
@@ -218,7 +218,7 @@ export async function checkConfigurations(
       ).rows;
       assert.deepEqual(counts, [
         { archived: false, n: 64 },
-        { archived: true, n: 103 },
+        { archived: true, n: 104 },
       ]);
       assert.equal(
         (
@@ -700,13 +700,19 @@ export async function checkConfigurations(
       );
       assert.deepEqual(
         rounds.map((r) => r.name),
-        ["Semifinals", "Final"],
+        ["Semifinals", "Final", "Third-place playoff"],
       );
       assert.deepEqual(
         rounds.map((r) => r.matches.length),
-        [2, 1],
+        [2, 1, 1],
       );
-      assert.ok(rounds.flatMap((r) => r.matches).every((m) => m.bestOf === 5));
+      assert.ok(
+        rounds.every((r) =>
+          r.matches.every(
+            (m) => m.bestOf === (r.name === "Third-place playoff" ? 7 : 5),
+          ),
+        ),
+      );
       assert.equal(rounds[0].matches[0].sideAId, leagueIds[0]);
       // A controlled restart keeps the frozen, explicitly resolved league order.
       const revision = await configureTournament(mod, {

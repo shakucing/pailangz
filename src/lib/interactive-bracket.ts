@@ -1,6 +1,8 @@
 import {
   seededBracketPairs,
   knockoutBestOf,
+  thirdPlaceBestOf,
+  THIRD_PLACE_ROUND,
   type TournamentConfiguration,
 } from "./tournament-config";
 import type { EventMatch } from "./event-presentation-data";
@@ -18,6 +20,7 @@ export type BracketMatch = {
 export type BracketRound = {
   number: number;
   size: number;
+  thirdPlace?: boolean;
   matches: BracketMatch[];
 };
 export type BracketPicks = Record<string, string>;
@@ -28,14 +31,20 @@ export type ResolvedBracketRound = Omit<BracketRound, "matches"> & {
   matches: ResolvedBracketMatch[];
 };
 
-export function bracketMatchLabel(size: number, order: number) {
-  return size === 2
-    ? "FINAL"
-    : size === 4
-      ? `SF${order}`
-      : size === 8
-        ? `QF${order}`
-        : `BO${size}-${order}`;
+export function bracketMatchLabel(
+  size: number,
+  order: number,
+  thirdPlace = false,
+) {
+  return thirdPlace
+    ? "3RD PLACE"
+    : size === 2
+      ? "FINAL"
+      : size === 4
+        ? `SF${order}`
+        : size === 8
+          ? `QF${order}`
+          : `BO${size}-${order}`;
 }
 
 export function previewBracket(
@@ -74,11 +83,28 @@ export function previewBracket(
       }),
     });
   }
+  if (capacity >= 4)
+    rounds.push({
+      number: rounds.length + 1,
+      size: 2,
+      thirdPlace: true,
+      matches: [
+        {
+          id: `${category}-third-place`,
+          order: 1,
+          a: null,
+          b: null,
+          bestOf: thirdPlaceBestOf(config, category),
+          status: "SCHEDULED",
+          result: null,
+        },
+      ],
+    });
   return rounds;
 }
 
 export function officialBracket(
-  rounds: { number: number; matches: EventMatch[] }[],
+  rounds: { number: number; name?: string; matches: EventMatch[] }[],
 ): BracketRound[] {
   const entrant = (value: string | null): BracketEntrant | null =>
     !value ||
@@ -95,6 +121,7 @@ export function officialBracket(
     .map((round) => ({
       number: round.number,
       size: round.matches.length * 2,
+      ...(round.name === THIRD_PLACE_ROUND ? { thirdPlace: true } : {}),
       matches: [...round.matches]
         .sort((a, b) => a.order - b.order)
         .map((match) => ({
@@ -112,20 +139,22 @@ export function resolveBracket(
 ): ResolvedBracketRound[] {
   const resolved: ResolvedBracketRound[] = [];
   for (const [index, round] of rounds.entries()) {
-    const previous = resolved[index - 1];
+    const previous = round.thirdPlace
+      ? resolved.find((r) => r.size === 4 && !r.thirdPlace)
+      : resolved[index - 1];
+    const advancing = (order: number) => {
+      const source = previous?.matches.find((m) => m.order === order);
+      return round.thirdPlace ? bracketLoser(source) : (source?.winner ?? null);
+    };
     resolved.push({
       ...round,
       matches: round.matches.map((match) => {
         const a =
           mode === "picks" && previous
-            ? (previous.matches.find((m) => m.order === match.order * 2 - 1)
-                ?.winner ?? null)
+            ? advancing(match.order * 2 - 1)
             : match.a;
         const b =
-          mode === "picks" && previous
-            ? (previous.matches.find((m) => m.order === match.order * 2)
-                ?.winner ?? null)
-            : match.b;
+          mode === "picks" && previous ? advancing(match.order * 2) : match.b;
         let winner: BracketEntrant | null = null;
         if (match.status === "BYE" && a && !b) winner = a;
         else if (mode === "picks" && a && b)
@@ -166,6 +195,12 @@ export function selectBracketWinner(
   else next[matchId] = entrantId;
   let order = match.order;
   for (const round of rounds.slice(index + 1)) {
+    if (round.thirdPlace) {
+      // Only changes before or during the semifinals affect the bronze match.
+      if (rounds[index].size >= 4)
+        for (const match of round.matches) delete next[match.id];
+      continue;
+    }
     order = Math.ceil(order / 2);
     const descendant = round.matches.find((entry) => entry.order === order);
     if (descendant) delete next[descendant.id];
@@ -174,8 +209,8 @@ export function selectBracketWinner(
 }
 
 export function bracketPlacings(rounds: ResolvedBracketRound[]) {
-  const last = rounds.at(-1);
-  const final = last?.size === 2 ? last.matches[0] : null;
+  const final = rounds.find((r) => r.size === 2 && !r.thirdPlace)?.matches[0];
+  const playoff = rounds.find((r) => r.thirdPlace)?.matches[0];
   const champion = final?.winner ?? null;
   const runnerUp =
     champion && final?.a && final.b
@@ -183,5 +218,18 @@ export function bracketPlacings(rounds: ResolvedBracketRound[]) {
         ? final.b
         : final.a
       : null;
-  return { champion, runnerUp };
+  return {
+    champion,
+    runnerUp,
+    third: playoff?.winner ?? null,
+    fourth: bracketLoser(playoff),
+  };
+}
+
+function bracketLoser(match?: ResolvedBracketMatch) {
+  return match?.winner && match.a && match.b
+    ? match.winner.id === match.a.id
+      ? match.b
+      : match.a
+    : null;
 }

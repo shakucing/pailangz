@@ -104,8 +104,10 @@ export const seriesFields = [
   ["leagueBestOf", "SOLO league best of"],
   ["soloKnockoutBestOf", "SOLO knockout best of"],
   ["soloFinalBestOf", "SOLO final best of"],
+  ["soloThirdPlaceBestOf", "SOLO third-place playoff best of"],
   ["teamKnockoutBestOf", "TEAM knockout best of"],
   ["teamFinalBestOf", "TEAM final best of"],
+  ["teamThirdPlaceBestOf", "TEAM third-place playoff best of"],
 ] as const;
 
 export const ruleFields: {

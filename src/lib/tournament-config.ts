@@ -15,10 +15,16 @@ export const configurationSchema = z
       defaultSeriesLengths.soloKnockoutBestOf,
     ),
     soloFinalBestOf: bestOfSchema.default(defaultSeriesLengths.soloFinalBestOf),
+    soloThirdPlaceBestOf: bestOfSchema.default(
+      defaultSeriesLengths.soloThirdPlaceBestOf,
+    ),
     teamKnockoutBestOf: bestOfSchema.default(
       defaultSeriesLengths.teamKnockoutBestOf,
     ),
     teamFinalBestOf: bestOfSchema.default(defaultSeriesLengths.teamFinalBestOf),
+    teamThirdPlaceBestOf: bestOfSchema.default(
+      defaultSeriesLengths.teamThirdPlaceBestOf,
+    ),
     soloCapacity: count,
     teamCapacity: count,
     leagueRounds: z.number().int().min(1).max(256),
@@ -95,6 +101,14 @@ export const configurationSchema = z
       );
   });
 export type TournamentConfiguration = z.infer<typeof configurationSchema>;
+export const THIRD_PLACE_ROUND = "Third-place playoff";
+export function thirdPlaceBestOf(
+  config: TournamentConfiguration,
+  kind: "SOLO" | "TEAM",
+) {
+  const key = kind === "SOLO" ? "soloThirdPlaceBestOf" : "teamThirdPlaceBestOf";
+  return config[key] ?? defaultSeriesLengths[key];
+}
 export function knockoutBestOf(
   config: TournamentConfiguration,
   kind: "SOLO" | "TEAM",

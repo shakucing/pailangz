@@ -15,6 +15,8 @@ export const defaultSeriesLengths = {
   leagueBestOf: 3,
   soloKnockoutBestOf: 5,
   soloFinalBestOf: 5,
+  soloThirdPlaceBestOf: 7,
   teamKnockoutBestOf: 3,
   teamFinalBestOf: 5,
+  teamThirdPlaceBestOf: 7,
 } as const;

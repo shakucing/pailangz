@@ -13,9 +13,211 @@ import {
   tournamentKinds,
   playerCapacity,
   generateLeague,
+  THIRD_PLACE_ROUND,
   type TournamentConfiguration,
 } from "./tournament-config";
 import { standingsFor } from "./competition";
+import { bestOfSchema } from "./best-of";
+
+// Placement series can change independently of capacity/routing. Preserve the
+// competition and all existing results; record the usual controlled revision.
+export async function configurePlacementSeries(
+  actor: Actor,
+  input: {
+    id: string;
+    finalBestOf: number;
+    thirdPlaceBestOf: number;
+    reason: string;
+  },
+) {
+  if (actor.role !== "ADMIN")
+    throw new DomainError("Admin permission is required.", 403);
+  bestOfSchema.parse(input.finalBestOf);
+  bestOfSchema.parse(input.thirdPlaceBestOf);
+  if (input.reason.trim().length < 3)
+    throw new DomainError(
+      "Add a note of at least 3 characters explaining the series change.",
+    );
+  const reason = requireReason(input.reason);
+  return privateTx(actor, async (tx) => {
+    const tournament = await tx.tournament.findUniqueOrThrow({
+      where: { id: input.id },
+    });
+    const before = configuration(tournament.configuration);
+    if (!before.format)
+      throw new DomainError(
+        "Use a separate SOLO or TEAM tournament for placement settings.",
+      );
+    if (["COMPLETED", "ARCHIVED"].includes(tournament.status))
+      throw new DomainError(
+        "Completed or archived tournaments cannot change placement settings.",
+      );
+    if (
+      await tx.configurationRevision.count({
+        where: { tournamentId: input.id, status: "PENDING" },
+      })
+    )
+      throw new DomainError(
+        "Resolve the existing pending revision first.",
+        409,
+      );
+    const kind = before.format;
+    const config = configuration({
+      ...before,
+      [kind === "SOLO" ? "soloFinalBestOf" : "teamFinalBestOf"]:
+        input.finalBestOf,
+      [kind === "SOLO" ? "soloThirdPlaceBestOf" : "teamThirdPlaceBestOf"]:
+        input.thirdPlaceBestOf,
+    });
+    const stage = await tx.stage.findFirstOrThrow({
+      where: {
+        key: "knockout",
+        archived: false,
+        category: { tournamentId: input.id, kind },
+      },
+    });
+    const rounds = await tx.round.findMany({
+      where: { stageId: stage.id },
+      orderBy: { number: "asc" },
+      include: {
+        matches: {
+          include: {
+            currentResult: true,
+            dependencies: true,
+            _count: { select: { results: true, disputes: true } },
+          },
+        },
+      },
+    });
+    const changedMatchIds: string[] = [];
+    for (const round of rounds.filter((r) =>
+      ["Final", THIRD_PLACE_ROUND].includes(r.name),
+    )) {
+      const bestOf =
+        round.name === "Final" ? input.finalBestOf : input.thirdPlaceBestOf;
+      for (const match of round.matches) {
+        if (match.bestOf === bestOf) continue;
+        if (
+          match.status !== "SCHEDULED" ||
+          match._count.results ||
+          match._count.disputes
+        )
+          throw new DomainError(
+            `${round.name} has already started or has recorded results. Its series length cannot change.`,
+          );
+        await tx.match.update({ where: { id: match.id }, data: { bestOf } });
+        changedMatchIds.push(match.id);
+      }
+    }
+    // Add the playoff to pre-existing brackets without recreating their stages.
+    const entrants =
+      kind === "SOLO"
+        ? config.directSlots + config.playoffSlots
+        : config.teamCapacity;
+    const final = rounds.find((r) => r.name === "Final");
+    const semis = rounds.find((r) => r.name === "Semifinals");
+    if (
+      entrants >= 4 &&
+      final &&
+      semis &&
+      !rounds.some((r) => r.name === THIRD_PLACE_ROUND)
+    ) {
+      if (semis.matches.length !== 2)
+        throw new DomainError(
+          "Expected two semifinals before adding the third-place playoff.",
+        );
+      const sides: { sideAId?: string; sideBId?: string } = {};
+      const sources: string[] = [];
+      for (const match of semis.matches) {
+        if (
+          match.status !== "FINALIZED" ||
+          match.currentResult?.status !== "ACCEPTED"
+        )
+          continue;
+        if (match.dependencies.some((d) => d.stale))
+          throw new DomainError("Resolve stale semifinal dependencies first.");
+        const outcome = match.currentResult.outcome;
+        if (!["A_WIN", "B_WIN", "A_FORFEIT", "B_FORFEIT"].includes(outcome))
+          throw new DomainError("Semifinals need a decisive result.");
+        const loser = ["A_WIN", "B_FORFEIT"].includes(outcome)
+          ? match.sideBId
+          : match.sideAId;
+        if (!loser)
+          throw new DomainError("Both semifinal entrants are required.");
+        sides[match.order === 1 ? "sideAId" : "sideBId"] = loser;
+        sources.push(match.id);
+      }
+      const round = await tx.round.create({
+        data: {
+          stageId: stage.id,
+          number: final.number + 1,
+          name: THIRD_PLACE_ROUND,
+        },
+      });
+      const match = await tx.match.create({
+        data: {
+          roundId: round.id,
+          order: 1,
+          ...sides,
+          sideKind: kind === "SOLO" ? "PARTICIPANT" : "TEAM",
+          bestOf: input.thirdPlaceBestOf,
+        },
+      });
+      for (const sourceMatchId of sources)
+        await tx.bracketDependency.create({
+          data: { sourceMatchId, matchId: match.id },
+        });
+      changedMatchIds.push(match.id);
+    }
+    const latest = await tx.configurationRevision.findFirst({
+      where: { tournamentId: input.id },
+      orderBy: { version: "desc" },
+    });
+    const revision = await tx.configurationRevision.create({
+      data: {
+        tournamentId: input.id,
+        version:
+          Math.max(tournament.configurationVersion, latest?.version ?? 0) + 1,
+        beforeConfiguration: tournament.configuration as Prisma.InputJsonValue,
+        configuration: config,
+        requiresAdmin: true,
+        createdBy: actor.id,
+        reasonEncrypted: encrypt(reason, `tournament:${input.id}`),
+      },
+    });
+    await tx.$executeRaw`SELECT set_config('app.config_revision_id',${revision.id},true)`;
+    await tx.tournament.update({
+      where: { id: input.id },
+      data: { configuration: config, configurationVersion: revision.version },
+    });
+    await tx.configurationRevision.update({
+      where: { id: revision.id },
+      data: {
+        status: "APPLIED",
+        appliedBy: actor.id,
+        appliedAt: new Date(),
+        resolutionEncrypted: encrypt(reason, `revision:${revision.id}`),
+      },
+    });
+    await audit(
+      tx,
+      actor,
+      "PLACEMENT_SERIES_CONFIGURE",
+      "TOURNAMENT",
+      input.id,
+      {
+        revisionId: revision.id,
+        before,
+        after: config,
+        changedMatchIds,
+        restart: false,
+      },
+      reason,
+      { tournamentId: input.id, stageId: stage.id },
+    );
+    return { id: input.id, status: "APPLIED" };
+  });
+}
 export async function createStages(
   tx: Tx,
   tournamentId: string,

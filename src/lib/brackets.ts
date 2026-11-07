@@ -2,6 +2,8 @@ import type { Tx } from "./db";
 import {
   knockoutBestOf,
   knockoutRoundNames,
+  thirdPlaceBestOf,
+  THIRD_PLACE_ROUND,
   type ScheduledPair,
   type TournamentConfiguration,
 } from "./tournament-config";
@@ -41,5 +43,21 @@ export async function persistBracket(
           });
     }
   }
-  return { matches: size - 1, byes };
+  const hasThirdPlace =
+    pairs.reduce((count, pair) => count + (pair.b ? 2 : 1), 0) >= 4;
+  if (hasThirdPlace) {
+    const round = await tx.round.create({
+      data: { stageId, number: names.length + 1, name: THIRD_PLACE_ROUND },
+    });
+    await tx.match.create({
+      data: {
+        roundId: round.id,
+        order: 1,
+        sideKind: kind === "TEAM" ? "TEAM" : "PARTICIPANT",
+        bestOf: thirdPlaceBestOf(config, kind),
+        status: "SCHEDULED",
+      },
+    });
+  }
+  return { matches: size - 1 + Number(hasThirdPlace), byes };
 }

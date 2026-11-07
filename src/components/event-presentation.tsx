@@ -14,6 +14,7 @@ import {
   qualificationRange,
 } from "@/lib/tournament-presentation";
 import type { TournamentConfiguration } from "@/lib/tournament-config";
+import { thirdPlaceBestOf, THIRD_PLACE_ROUND } from "@/lib/tournament-config";
 import type {
   EventMatch,
   EventPresentationData,
@@ -407,6 +408,17 @@ export function EventPresentation({
             <span>{t("Juara", "Champion")}</span>
           </li>
         </ol>
+        {(solo
+          ? config.directSlots + config.playoffSlots
+          : config.teamCapacity) >= 4 && (
+          <p className="muted text-sm">
+            {t(
+              "Peserta yang kalah separuh akhir → penentuan tempat ketiga",
+              "Semifinal losers → third-place playoff",
+            )}{" "}
+            · BO{thirdPlaceBestOf(config, category)} · #3 / #4
+          </p>
+        )}
       </div>
 
       <div className={styles.workspace}>
@@ -570,7 +582,9 @@ export function EventPresentation({
                     aria-pressed={round?.number === r.number}
                     onClick={() => setRoundNumber(r.number)}
                   >
-                    {t(`Pusingan ${r.number}`, `Round ${r.number}`)}
+                    {r.name === THIRD_PLACE_ROUND
+                      ? t("Tempat ketiga", "Third place")
+                      : t(`Pusingan ${r.number}`, `Round ${r.number}`)}
                   </button>
                 ))}
               </div>

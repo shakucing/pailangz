@@ -40,15 +40,19 @@ describe("guided staff forms", () => {
         ...values,
         soloKnockoutBestOf: "5",
         soloFinalBestOf: "7",
+        soloThirdPlaceBestOf: "9",
         teamKnockoutBestOf: "5",
         teamFinalBestOf: "7",
+        teamThirdPlaceBestOf: "11",
       }),
     );
     expect(configuration(saved.configuration)).toMatchObject({
       soloKnockoutBestOf: 5,
       soloFinalBestOf: 7,
+      soloThirdPlaceBestOf: 9,
       teamKnockoutBestOf: 5,
       teamFinalBestOf: 7,
+      teamThirdPlaceBestOf: 11,
     });
     expect(
       staffFormData(

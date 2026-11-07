@@ -5,6 +5,7 @@ import { ChevronDown, GitBranch, Trophy } from "lucide-react";
 import { useLocale } from "./locale-context";
 import {
   tournamentKinds,
+  thirdPlaceBestOf,
   type TournamentConfiguration,
 } from "@/lib/tournament-config";
 import {
@@ -56,6 +57,27 @@ export function TournamentProgression({
   const range = qualificationRange(config);
   const byes = configuredByes(config, category);
   const knockoutEntrants = config.directSlots + config.playoffSlots;
+  const hasThirdPlace =
+    (category === "SOLO" ? knockoutEntrants : config.teamCapacity) >= 4;
+  const placement: StageDetail = {
+    key: "third-place",
+    title: t("Penentuan tempat ketiga", "Third-place playoff"),
+    subtitle: `#3 / #4 · BO${thirdPlaceBestOf(config, category)}`,
+    format: `BO${thirdPlaceBestOf(config, category)}`,
+    entrants: t(
+      "Dua peserta yang kalah separuh akhir",
+      "The two semifinal losers",
+    ),
+    description: t(
+      "Peserta yang kalah dalam dua separuh akhir bertemu untuk menentukan tempat ketiga dan keempat.",
+      "The two semifinal losers meet to decide third and fourth place.",
+    ),
+    condition: t(
+      "Pemenang mendapat #3; yang kalah mendapat #4",
+      "Winner finishes #3; loser finishes #4",
+    ),
+    next: t("Kedudukan akhir #3 / #4", "Final placings #3 / #4"),
+  };
   const soloRoute = [
     config.directSlots
       ? t(
@@ -206,6 +228,7 @@ export function TournamentProgression({
           ...knockout,
         ]
       : [entry, ...knockout];
+  if (hasThirdPlace) available.push(placement);
   const detail = available.find((s) => s.key === selected) ?? available[0];
   function node(stage: StageDetail, accent = false, final = false) {
     return (
@@ -320,6 +343,7 @@ export function TournamentProgression({
           </div>
         ))}
         <Trophy className="progression-trophy" size={20} aria-hidden="true" />
+        {hasThirdPlace && node(placement)}
       </div>
       <article
         id={`${id}-detail`}

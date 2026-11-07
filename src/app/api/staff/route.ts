@@ -26,6 +26,7 @@ import { putEvidence, getEvidence } from "@/lib/evidence";
 import { MAX_UPLOAD_REQUEST_BYTES } from "@/lib/evidence-policy";
 import { decrypt } from "@/lib/crypto";
 import { friendlyError } from "@/lib/staff-presentation";
+import { bestOfSchema } from "@/lib/best-of";
 const headers = {
   "Cache-Control": "private, no-store, max-age=0",
   Vary: "Cookie",
@@ -124,6 +125,7 @@ export async function POST(request: Request) {
       .parse(payload);
     operation = [
       "configure",
+      "placementSeries",
       "revisionApply",
       "revisionReject",
       "assignParticipants",
@@ -165,6 +167,19 @@ export async function POST(request: Request) {
       : "UNKNOWN";
     let value: unknown;
     switch (action) {
+      case "placementSeries":
+        value = await configurationActions.configurePlacementSeries(
+          actor,
+          z
+            .object({
+              id,
+              finalBestOf: z.coerce.number().pipe(bestOfSchema),
+              thirdPlaceBestOf: z.coerce.number().pipe(bestOfSchema),
+              reason,
+            })
+            .parse(data),
+        );
+        break;
       case "changeEntrant":
         value = await configurationActions.changeEntrant(
           actor,

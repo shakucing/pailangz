@@ -386,7 +386,12 @@ try {
           names.map(({ code, ign }) => ({ code, ign })),
           saved.map(({ code, ign }) => ({ code, ign })),
         );
-        assert.deepEqual(Object.keys(names[0]).sort(), ["code", "familyLabel", "ign", "slug"]);
+        assert.deepEqual(Object.keys(names[0]).sort(), [
+          "code",
+          "familyLabel",
+          "ign",
+          "slug",
+        ]);
         assert.ok(names.every((p) => p.slug === "pailangz-solo-team"));
         assert.equal(
           (await owner.query('SELECT id FROM "Member"')).rows.length,
@@ -972,6 +977,8 @@ try {
   const { checkLandingHighlights } =
     await import("./landing-highlights-integration");
   await checkLandingHighlights(owner, actor, mod, check);
+  const { checkPlacementMatches } = await import("./placement-integration");
+  await checkPlacementMatches(owner, actor, mod, check);
   await check(
     "suspension and demotion revoke current private-data access",
     async () => {

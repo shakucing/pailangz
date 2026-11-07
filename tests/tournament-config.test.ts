@@ -17,8 +17,10 @@ describe("configurable schedules and brackets", () => {
       "leagueBestOf",
       "soloKnockoutBestOf",
       "soloFinalBestOf",
+      "soloThirdPlaceBestOf",
       "teamKnockoutBestOf",
       "teamFinalBestOf",
+      "teamThirdPlaceBestOf",
     ])
       delete legacy[key];
     expect(configuration(legacy)).toEqual(newTournamentConfiguration);
@@ -27,8 +29,10 @@ describe("configurable schedules and brackets", () => {
     "leagueBestOf",
     "soloKnockoutBestOf",
     "soloFinalBestOf",
+    "soloThirdPlaceBestOf",
     "teamKnockoutBestOf",
     "teamFinalBestOf",
+    "teamThirdPlaceBestOf",
   ])(
     "accepts odd %s lengths and rejects even, fractional and out-of-range values",
     (key) => {

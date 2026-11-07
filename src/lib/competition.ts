@@ -2,6 +2,7 @@ import {
   configuration,
   validateLeague,
   seededBracketPairs,
+  THIRD_PLACE_ROUND,
 } from "./tournament-config";
 import { createStages } from "./configuration";
 import { persistBracket } from "./brackets";
@@ -1024,6 +1025,10 @@ export async function advanceWinner(
       })
     )
       throw new DomainError("Resolve stale dependencies before advancement.");
+    // The placement playoff follows the final in storage, but receives semifinal
+    // losers. Neither placement match feeds another round.
+    if (["Final", THIRD_PLACE_ROUND].includes(m.round.name))
+      return { completed: true };
     const next = await tx.round.findUnique({
       where: {
         stageId_number: {
@@ -1033,7 +1038,7 @@ export async function advanceWinner(
       },
       include: { matches: true },
     });
-    if (!next) return { completed: true };
+    if (!next || next.name === THIRD_PLACE_ROUND) return { completed: true };
     const target = next.matches.find((n) => n.order === Math.ceil(m.order / 2));
     if (!target) throw new DomainError("Next bracket match is missing.");
     const field = m.order % 2 ? "sideAId" : "sideBId",
@@ -1041,27 +1046,47 @@ export async function advanceWinner(
         isBye || ["A_WIN", "B_FORFEIT"].includes(m.currentResult!.outcome)
           ? m.sideAId
           : m.sideBId;
-    if (target[field] === winner) return { id: target.id };
-    if (target.status !== "SCHEDULED" || target[field])
-      throw new DomainError(
-        "An occupied or started downstream match requires explicit stale-dependency resolution.",
+    const destinations = [{ target, entrant: winner, route: "winner" }];
+    if (next.name === "Final" && !isBye) {
+      const placement = await tx.round.findUnique({
+        where: {
+          stageId_number: { stageId: m.round.stageId, number: next.number + 1 },
+        },
+        include: { matches: true },
+      });
+      if (placement?.name === THIRD_PLACE_ROUND) {
+        const playoff = placement.matches.find((match) => match.order === 1);
+        if (!playoff) throw new DomainError("Third-place playoff is missing.");
+        destinations.push({
+          target: playoff,
+          entrant: winner === m.sideAId ? m.sideBId : m.sideAId,
+          route: "loser",
+        });
+      }
+    }
+    for (const { target: destination, entrant, route } of destinations) {
+      if (destination[field] === entrant) continue;
+      if (destination.status !== "SCHEDULED" || destination[field])
+        throw new DomainError(
+          "An occupied or started downstream match requires explicit stale-dependency resolution.",
+        );
+      await tx.match.update({
+        where: { id: destination.id },
+        data: { [field]: entrant },
+      });
+      await tx.bracketDependency.create({
+        data: { sourceMatchId: m.id, matchId: destination.id },
+      });
+      await audit(
+        tx,
+        actor,
+        "BRACKET_ADVANCE",
+        "MATCH",
+        destination.id,
+        { sourceMatchId: m.id, entrant, route },
+        optionalNote(input.reason),
       );
-    await tx.match.update({
-      where: { id: target.id },
-      data: { [field]: winner },
-    });
-    await tx.bracketDependency.create({
-      data: { sourceMatchId: m.id, matchId: target.id },
-    });
-    await audit(
-      tx,
-      actor,
-      "BRACKET_ADVANCE",
-      "MATCH",
-      target.id,
-      { sourceMatchId: m.id, winner },
-      optionalNote(input.reason),
-    );
+    }
     return { id: target.id };
   });
 }

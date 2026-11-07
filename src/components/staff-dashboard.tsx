@@ -1313,6 +1313,60 @@ async function renderSection(
           updates={
             <>
               {" "}
+              {actor.role === "ADMIN" && config.format && (
+                <TaskDialog
+                  label="Final & third-place settings"
+                  title={`Placement matches · ${t.name}`}
+                >
+                  <p className="muted text-sm">
+                    Set the series lengths for the final and third-place
+                    playoff. Unstarted matches update immediately, keeping
+                    existing scores and tournament progress. The semifinal
+                    losers play for #3 and #4.
+                  </p>
+                  <ActionForm
+                    action="placementSeries"
+                    fixed={{ id: t.id }}
+                    label="Save placement settings"
+                    fields={[
+                      {
+                        name: "finalBestOf",
+                        label: `${config.format} final best of`,
+                        type: "select",
+                        required: true,
+                        value:
+                          config.format === "SOLO"
+                            ? config.soloFinalBestOf
+                            : config.teamFinalBestOf,
+                        options: Array.from({ length: 50 }, (_, i) => ({
+                          value: String(i * 2 + 1),
+                          label: `BO${i * 2 + 1}`,
+                        })),
+                      },
+                      {
+                        name: "thirdPlaceBestOf",
+                        label: `${config.format} third-place playoff best of`,
+                        type: "select",
+                        required: true,
+                        value:
+                          config.format === "SOLO"
+                            ? config.soloThirdPlaceBestOf
+                            : config.teamThirdPlaceBestOf,
+                        options: Array.from({ length: 50 }, (_, i) => ({
+                          value: String(i * 2 + 1),
+                          label: `BO${i * 2 + 1}`,
+                        })),
+                      },
+                      {
+                        name: "reason",
+                        label:
+                          "Note explaining this change (at least 3 characters)",
+                        required: true,
+                      },
+                    ]}
+                  />
+                </TaskDialog>
+              )}
               <TaskDialog
                 label={`Change tournament sizes · update ${t.configurationVersion}`}
                 title={`Tournament sizes · ${t.name}`}

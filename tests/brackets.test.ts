@@ -10,11 +10,9 @@ describe("persisted knockout series lengths", () => {
       const match = { create: vi.fn().mockResolvedValue({ id: "match" }) };
       const tx = {
         round: {
-          create: vi
-            .fn()
-            .mockImplementation(async ({ data }) => ({
-              id: `round-${data.number}`,
-            })),
+          create: vi.fn().mockImplementation(async ({ data }) => ({
+            id: `round-${data.number}`,
+          })),
         },
         match,
         bracketDependency: { create: vi.fn() },
@@ -23,8 +21,10 @@ describe("persisted knockout series lengths", () => {
         ...newTournamentConfiguration,
         soloKnockoutBestOf: 5,
         soloFinalBestOf: 7,
+        soloThirdPlaceBestOf: 9,
         teamKnockoutBestOf: 5,
         teamFinalBestOf: 7,
+        teamThirdPlaceBestOf: 9,
       };
       const pairs = Array.from({ length: 4 }, (_, i) => ({
         a: `a-${i}`,
@@ -51,6 +51,7 @@ describe("persisted knockout series lengths", () => {
         ["round-2", 5],
         ["round-2", 5],
         ["round-3", 7],
+        ["round-4", 9],
       ]);
     },
   );

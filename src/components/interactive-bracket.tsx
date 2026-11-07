@@ -24,7 +24,7 @@ import {
 } from "@/lib/interactive-bracket";
 import styles from "./interactive-bracket.module.css";
 
-type SourceRound = { number: number; matches: EventMatch[] };
+type SourceRound = { number: number; name?: string; matches: EventMatch[] };
 const emptyRounds: SourceRound[] = [];
 export type BracketTeam = {
   code: string;
@@ -101,7 +101,8 @@ export function InteractiveBracket({
   }, [picks, loadedKey, storageKey]);
   const activeMode = hasOfficial ? mode : "picks";
   const resolved = resolveBracket(source, picks, activeMode);
-  const { champion, runnerUp } = bracketPlacings(resolved);
+  const { champion, runnerUp, third, fourth } = bracketPlacings(resolved);
+  const hasThirdPlace = source.some((round) => round.thirdPlace);
   const { origins } = bracketQualification(configuration, stages);
   const total = source.reduce(
     (count, round) =>
@@ -187,8 +188,11 @@ export function InteractiveBracket({
             {t("Bracket kejohanan", "Tournament bracket")}
           </h4>
           <p>
-            {source[0].size} {t("slot", "places")} · {resolved.length}{" "}
+            {source[0].size} {t("slot", "places")} ·{" "}
+            {resolved.filter((round) => !round.thirdPlace).length}{" "}
             {t("peringkat", "rounds")}
+            {hasThirdPlace &&
+              t(" + penentuan tempat ketiga", " + third-place playoff")}
           </p>
         </div>
         {hasOfficial ? (
@@ -325,6 +329,32 @@ export function InteractiveBracket({
             </strong>
           </span>
         </div>
+        {hasThirdPlace &&
+          [
+            { entrant: third, label: t("Tempat ketiga", "3rd place") },
+            { entrant: fourth, label: t("Tempat keempat", "4th place") },
+          ].map(({ entrant, label }) => (
+            <div key={label}>
+              <Medal size={23} aria-hidden="true" />
+              {category === "TEAM" && entrant && avatar(entrant)}
+              <span>
+                <small>
+                  {label}
+                  {activeMode === "picks" ? t(" · Pilihan", " · Pick") : ""}
+                </small>
+                <strong>
+                  {entrant ? (
+                    <TournamentPlayerName value={display(entrant)} />
+                  ) : (
+                    t(
+                      "Menunggu playoff tempat ketiga",
+                      "Awaiting third-place playoff",
+                    )
+                  )}
+                </strong>
+              </span>
+            </div>
+          ))}
       </div>
 
       {category === "SOLO" && (
@@ -357,12 +387,25 @@ export function InteractiveBracket({
               <div className={styles.roundHeading}>
                 <span>{String(roundIndex + 1).padStart(2, "0")}</span>
                 <div>
-                  <h5>{roundName(round.size)}</h5>
+                  <h5>
+                    {round.thirdPlace
+                      ? t("Penentuan tempat ketiga", "Third-place playoff")
+                      : roundName(round.size)}
+                  </h5>
                   <small>
-                    {round.matches.length}{" "}
-                    {t(
-                      "perlawanan",
-                      round.matches.length === 1 ? "match" : "matches",
+                    {round.thirdPlace ? (
+                      t(
+                        "Kalah separuh akhir · #3 / #4",
+                        "Semifinal losers · #3 / #4",
+                      )
+                    ) : (
+                      <>
+                        {round.matches.length}{" "}
+                        {t(
+                          "perlawanan",
+                          round.matches.length === 1 ? "match" : "matches",
+                        )}
+                      </>
                     )}
                   </small>
                 </div>
@@ -374,13 +417,21 @@ export function InteractiveBracket({
                 }}
               >
                 {round.matches.map((match) => {
-                  const label = bracketMatchLabel(round.size, match.order);
+                  const label = bracketMatchLabel(
+                    round.size,
+                    match.order,
+                    round.thirdPlace,
+                  );
                   const canPick =
                     activeMode === "picks" && Boolean(match.a && match.b);
-                  const previous = resolved[roundIndex - 1];
+                  const previous = round.thirdPlace
+                    ? resolved.find((r) => r.size === 4 && !r.thirdPlace)
+                    : resolved[roundIndex - 1];
                   const placeholder = (side: number) =>
                     previous
-                      ? t("Pemenang", "Winner") +
+                      ? (round.thirdPlace
+                          ? t("Kalah", "Loser")
+                          : t("Pemenang", "Winner")) +
                         " " +
                         bracketMatchLabel(
                           previous.size,
@@ -393,10 +444,10 @@ export function InteractiveBracket({
                       : null;
                   return (
                     <div
-                      className={`${styles.slot}${roundIndex < resolved.length - 1 ? ` ${styles.outgoing}` : ""}`}
+                      className={`${styles.slot}${round.size > 2 && !round.thirdPlace ? ` ${styles.outgoing}` : ""}`}
                       key={match.id}
                     >
-                      {previous && (
+                      {previous && !round.thirdPlace && (
                         <span className={styles.connector} aria-hidden="true" />
                       )}
                       <article
@@ -520,7 +571,10 @@ export function InteractiveBracket({
                         <div className={styles.matchFooter}>
                           {match.winner ? (
                             <span>
-                              {t("Pemenang", "Winner")}:{" "}
+                              {round.thirdPlace
+                                ? t("Tempat ketiga", "3rd place")
+                                : t("Pemenang", "Winner")}
+                              :{" "}
                               <TournamentPlayerName
                                 value={display(match.winner)}
                               />

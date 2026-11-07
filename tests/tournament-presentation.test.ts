@@ -27,7 +27,7 @@ describe("tournament presentation follows configuration", () => {
       ]);
       expect(
         previewBracket(config, kind).map((r) => r.matches.map((m) => m.bestOf)),
-      ).toEqual([[5, 5, 5, 5], [5, 5], [7]]);
+      ).toEqual([[5, 5, 5, 5], [5, 5], [7], [7]]);
     },
   );
   it("shows the original league qualification range and BO5 SOLO progression", () => {
